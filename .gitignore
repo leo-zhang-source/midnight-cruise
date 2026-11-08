@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+tools/node_modules/
+
+# OS / editor
+.DS_Store
+__pycache__/
+*.pyc
+
+# build output: keep the standalone single-file build, skip the near-identical artifact variant
+dist/midnight-cruise.artifact.html
+
+# heavy renders, regenerate with tools/ (see README); small previews and loudness.json are kept
+renders/**/*.wav
+renders/**/*.mp4
+renders/keyframes/*.png
+!renders/keyframes/contact_sheet_1920.png
+renders/test_cruise.png
+tools/renders/

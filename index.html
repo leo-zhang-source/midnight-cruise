@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <script>/*FILE-REDIRECT*/ if (location.protocol === 'file:') location.replace('dist/midnight-cruise.html' + location.search);</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05020f">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2305020f%22/%3E%3Ccircle cx=%2216%22 cy=%2217%22 r=%229%22 fill=%22%23ff8a3c%22/%3E%3Cpath d=%22M6 19h20M6 22h20M6 25h20%22 stroke=%22%2305020f%22 stroke-width=%221.6%22/%3E%3C/svg%3E">
+  <title>Midnight Cruise — 1986</title>
+  <meta name="description" content="An interactive synthwave drive: a ten-second ignition sequence, then an endless midnight cruise you can steer, accelerate and push into turbo.">
+  <link rel="preload" href="fonts/ChakraPetch-SemiBold.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="fonts/VT323-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="vendor/three.module.min.js" as="script" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- First paint: a CSS rendition of the world, replaced by WebGL on its first frame -->
+  <div id="poster" aria-hidden="true"><div class="p-sky"></div><div class="p-sun"></div><div class="p-floor"></div></div>
+  <canvas id="gl" aria-hidden="true"></canvas>
+
+  <h1 class="sr-only">Midnight Cruise — 1986</h1>
+  <p class="sr-only" id="about">An interactive synthwave title sequence. Start the drive, then hold Drive or Space to accelerate, move the pointer or use the arrow keys to steer, and press Turbo for a burst of speed. A cassette deck controls the music and the environment.</p>
+
+  <!-- VCR on-screen display (crisp, above the tape image) -->
+  <div id="osd" aria-hidden="true">
+    <div class="osd-tl"><span id="osd-text">PLAY</span><svg class="osd-play" viewBox="0 0 10 10"><path d="M1 0.5 L9.4 5 L1 9.5 Z"/></svg><svg class="osd-pause" viewBox="0 0 10 10"><rect x="1" y="0.5" width="3" height="9"/><rect x="6" y="0.5" width="3" height="9"/></svg><svg class="osd-ff" viewBox="0 0 16 10"><path d="M0.5 0.5 L7.5 5 L0.5 9.5 Z M8 0.5 L15 5 L8 9.5 Z"/></svg><svg class="osd-rew" viewBox="0 0 16 10"><path d="M15.5 0.5 L8.5 5 L15.5 9.5 Z M8 0.5 L1 5 L8 9.5 Z"/></svg></div>
+    <div class="osd-sp">SP</div>
+    <div class="osd-stamp"><span id="osd-clock">AM 12:00</span><span>NOV. 8 1986</span></div>
+  </div>
+
+  <div id="start-wrap">
+    <button id="start" class="start" type="button">
+      <span class="start-icon" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg></span>
+      <span class="start-label">START DRIVE</span>
+    </button>
+    <p class="start-note" id="start-note">Sound on · Space to accelerate · Arrows to steer</p>
+  </div>
+
+  <nav id="corner" aria-label="Sequence">
+    <button id="skip" class="ghost" type="button">SKIP INTRO <svg viewBox="0 0 16 10" aria-hidden="true"><path d="M1 1 L7 5 L1 9 Z M8 1 L14 5 L8 9 Z"/></svg></button>
+    <button id="replay" class="ghost" type="button"><svg viewBox="0 0 16 10" aria-hidden="true"><path d="M15 1 L9 5 L15 9 Z M8 1 L2 5 L8 9 Z"/></svg> REPLAY INTRO</button>
+  </nav>
+
+  <div id="hints" aria-hidden="true">
+    <span class="h-key"><kbd>SPACE</kbd><kbd class="t-only">DRIVE</kbd> HOLD TO ACCELERATE</span>
+    <span class="h-key"><kbd><svg viewBox="0 0 10 10"><path d="M7 1 L2 5 L7 9 Z"/></svg></kbd><kbd><svg viewBox="0 0 10 10"><path d="M3 1 L8 5 L3 9 Z"/></svg></kbd><span class="k-only">STEER</span><span class="t-only">DRAG TO STEER</span></span>
+    <span class="h-key"><kbd>T</kbd> TURBO</span>
+  </div>
+
+  <div id="drivebar" role="group" aria-label="Driving controls">
+    <div id="speedo" aria-live="off"><div class="spd-row"><span id="spd">000</span><small>MPH</small></div><div class="spd-bar" id="spd-bar"></div></div>
+    <button id="turbo" type="button" aria-describedby="turbo-state">
+      <svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="45"/><circle class="ring-fg" id="turbo-ring" cx="50" cy="50" r="45"/></svg>
+      <span class="b-label">TURBO</span><span class="b-key" id="turbo-state">READY</span>
+    </button>
+    <button id="drive" type="button" aria-pressed="false">
+      <svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="45"/><circle class="ring-fg" id="drive-ring" cx="50" cy="50" r="45"/></svg>
+      <span class="b-label">DRIVE</span><span class="b-key">HOLD · SPACE</span>
+    </button>
+  </div>
+
+  <section id="deck" aria-label="Cassette deck" data-min="false">
+    <header class="deck-bar" id="deck-bar">
+      <svg class="deck-ico" viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="2"/><circle cx="6.5" cy="7" r="2.2"/><circle cx="13.5" cy="7" r="2.2"/></svg>
+      <span class="deck-title">NITE·DECK <b>86</b></span>
+      <button class="deck-min" id="deck-min" type="button" aria-label="Minimise cassette deck" aria-expanded="true"><span></span></button>
+    </header>
+    <div class="deck-body">
+      <div class="tape" aria-hidden="true">
+        <svg viewBox="0 0 300 120">
+          <defs>
+            <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2140"/><stop offset="1" stop-color="#120c22"/></linearGradient>
+            <linearGradient id="lbl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff4fa0"/><stop offset=".5" stop-color="#ffb35c"/><stop offset="1" stop-color="#ffe17a"/></linearGradient>
+          </defs>
+          <rect x="4" y="4" width="292" height="142" rx="10" fill="url(#shell)" stroke="#5a4a80" stroke-width="2"/>
+          <rect x="22" y="16" width="256" height="84" rx="6" fill="url(#lbl)"/>
+          <rect x="22" y="40" width="256" height="3" fill="#2a0a3a" opacity=".55"/>
+          <rect x="22" y="47" width="256" height="2" fill="#2a0a3a" opacity=".45"/>
+          <rect x="22" y="53" width="256" height="1.5" fill="#2a0a3a" opacity=".35"/>
+          <text x="34" y="33" class="tape-txt">MIDNIGHT CRUISE</text>
+          <text x="266" y="33" class="tape-txt" text-anchor="end">SIDE A</text>
+          <rect x="70" y="58" width="160" height="36" rx="18" fill="#0b0716" stroke="#3a2c5c"/>
+          <g id="reel-l" transform="translate(98 76)"><circle r="14" fill="#1d1430"/><circle r="12" fill="none" stroke="#8a7bb0" stroke-width="1.2"/><path d="M0-10V-4M8.7 5L3.5 2M-8.7 5L-3.5 2" stroke="#c9bde6" stroke-width="2.4" stroke-linecap="round"/></g>
+          <g id="reel-r" transform="translate(202 76)"><circle r="14" fill="#1d1430"/><circle r="12" fill="none" stroke="#8a7bb0" stroke-width="1.2"/><path d="M0-10V-4M8.7 5L3.5 2M-8.7 5L-3.5 2" stroke="#c9bde6" stroke-width="2.4" stroke-linecap="round"/></g>
+          <rect x="118" y="66" width="64" height="20" rx="2" fill="#24123a" opacity=".9"/>
+          <path d="M60 146 L76 118 H224 L240 146" fill="#1a1230" stroke="#3a2c5c"/>
+          <circle cx="16" cy="134" r="3" fill="#3a2c5c"/><circle cx="284" cy="134" r="3" fill="#3a2c5c"/><circle cx="150" cy="134" r="3" fill="#3a2c5c"/>
+        </svg>
+      </div>
+      <div class="lcd" aria-live="polite">
+        <span class="lcd-led" id="lcd-led" aria-hidden="true"></span>
+        <span class="lcd-name" id="lcd-name">SUNSET</span>
+        <span class="lcd-meter" id="lcd-meter" aria-hidden="true"></span>
+        <span class="lcd-count" id="lcd-count">000</span>
+      </div>
+      <div class="transport">
+        <button id="play" class="key" type="button" aria-pressed="true" aria-label="Pause music"><svg class="i-pause" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.6" height="8"/><rect x="5.9" y="1" width="2.6" height="8"/></svg><svg class="i-play" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1 L9 5 L2 9 Z"/></svg></button>
+        <button id="mute" class="key" type="button" aria-pressed="false" aria-label="Mute"><svg viewBox="0 0 16 12" aria-hidden="true"><path d="M1 4 H4 L8 1 V11 L4 8 H1 Z"/><path class="w1" d="M10.5 3.5 Q12.5 6 10.5 8.5" fill="none" stroke-width="1.4"/><path class="w2" d="M12.5 1.8 Q15.6 6 12.5 10.2" fill="none" stroke-width="1.4"/><path class="x" d="M10 3.5 L15 8.5 M15 3.5 L10 8.5" fill="none" stroke-width="1.5"/></svg></button>
+        <button id="auto" class="key" type="button" aria-pressed="true" aria-label="Automatic colour change"><i class="auto-led" aria-hidden="true"></i>AUTO<i class="auto-bar" aria-hidden="true"><b id="auto-fill"></b></i></button>
+        <label class="vol"><span class="sr-only">Volume</span><input id="vol" type="range" min="0" max="100" value="80" step="1"></label>
+      </div>
+      <div class="presets" role="radiogroup" aria-label="Environment">
+        <button class="key preset" type="button" role="radio" aria-checked="true" data-p="0"><i>A</i>SUNSET</button>
+        <button class="key preset" type="button" role="radio" aria-checked="false" data-p="1"><i>B</i>BLUE HOUR</button>
+        <button class="key preset" type="button" role="radio" aria-checked="false" data-p="2"><i>C</i>AFTERGLOW</button>
+        <button class="key preset" type="button" role="radio" aria-checked="false" data-p="3"><i>D</i>LAGOON</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="hud" hidden></div>
+  <noscript><p class="noscript">Midnight Cruise needs JavaScript and WebGL 2.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

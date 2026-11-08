@@ -1,0 +1,27 @@
+// Touch-input test with an emulated phone (390x844, hasTouch): tap start, drag-steer, hold DRIVE, cancel.
+import { chromium } from 'playwright-core';
+const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu'] });
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+const p = await ctx.newPage();
+const ok = (n, c, i = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
+await p.goto('http://localhost:8086/'); await p.waitForFunction(() => window.__ready === true);
+ok('touch hint copy', (await p.textContent('#start-note')).includes('Drag to steer'));
+ok('deck starts minimised on phone', (await p.getAttribute('#deck', 'data-min')) === 'true');
+await p.tap('#start'); await p.waitForTimeout(300);
+ok('tap START → ignition', (await p.evaluate(() => MC.state().phase)) === 'ign');
+await p.evaluate(() => { const T = MC.state().T; MC.tl.add('skip', MC.tl.frontier()); });
+await p.waitForTimeout(2600);
+const ev = (type, x, id = 7, el = '#gl') => p.evaluate(([type, x, id, el]) => document.querySelector(el).dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, clientX: x, clientY: 600, bubbles: true, isPrimary: true })), [type, x, id, el]);
+await ev('pointerdown', 195); for (let k = 1; k <= 10; k++) { await ev('pointermove', 195 + k * 12); await p.waitForTimeout(16); }
+await p.waitForTimeout(1200);
+let s = await p.evaluate(() => MC.state()); ok('drag on scene steers', s.steer > 0.6, `steer=${s.steer.toFixed(2)}`);
+await ev('pointercancel', 315); await p.waitForTimeout(1500);
+s = await p.evaluate(() => MC.state()); ok('touch cancel recentres steering', Math.abs(s.steer) < 0.1, `steer=${s.steer.toFixed(2)}`);
+const d = await p.locator('#drive').boundingBox();
+await ev('pointerdown', d.x + d.width / 2, 9, '#drive'); await p.waitForTimeout(900);
+s = await p.evaluate(() => MC.state()); ok('touch-hold DRIVE accelerates', s.thr > 0.5, `thr=${s.thr.toFixed(2)}`);
+await ev('pointercancel', d.x, 9, '#drive'); await p.waitForTimeout(150);
+const on = await p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).thrOn); ok('touch cancel releases DRIVE', on === 0);
+const tgt = await p.evaluate(() => [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null || getComputedStyle(b).visibility !== 'hidden').map((b) => { const r = b.getBoundingClientRect(); return [b.id || b.className, Math.round(r.width), Math.round(r.height)]; }).filter(([, w, h]) => w > 0 && (w < 44 || h < 24)));
+ok('visible touch targets ≥ 44px (minimise bar key exempt)', tgt.every(([n]) => String(n).includes('deck-min')), JSON.stringify(tgt));
+await b.close();

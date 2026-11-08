@@ -1,0 +1,11 @@
+<!doctype html><html><body style="margin:0;background:#120418">
+<svg id="s" width="1100" height="560" viewBox="0 0 550 280" style="display:block"><g id="g"></g></svg>
+<script type="module">
+import { cruiseStrokes } from '../js/neon.js';
+const g = document.getElementById('g');
+const mk = (d, w, c, o=1) => { const p = document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d', d); p.setAttribute('fill','none'); p.setAttribute('stroke', c); p.setAttribute('stroke-width', w); p.setAttribute('stroke-linecap','round'); p.setAttribute('stroke-linejoin','round'); p.setAttribute('opacity', o); g.appendChild(p); };
+for (const st of cruiseStrokes()) { const d = 'M ' + st.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L '); mk(d, 14, '#ff3fb4', 0.25); mk(d, 7, '#ff3fb4'); mk(d, 2.5, '#fff'); }
+// guides
+for (const y of [40, 140, 200]) { const l = document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',0); l.setAttribute('x2',550); l.setAttribute('y1',y); l.setAttribute('y2',y); l.setAttribute('stroke','#3ef4ff'); l.setAttribute('stroke-width',0.4); l.setAttribute('opacity',0.5); g.appendChild(l); }
+window.__ready = true;
+</script></body></html>

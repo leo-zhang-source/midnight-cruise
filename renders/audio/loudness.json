@@ -1,0 +1,29 @@
+{
+  "ignition": {
+    "seconds": 10,
+    "I": -14,
+    "LRA": 2.3,
+    "TP": -1.5,
+    "renderSpeed": "24.2x realtime",
+    "limiterMaxGRdB": 2.83,
+    "limiterOver1dBPct": 2.4
+  },
+  "cruise_ref": {
+    "seconds": 64,
+    "I": -14,
+    "LRA": 1.1,
+    "TP": -1.5,
+    "renderSpeed": "22.8x realtime",
+    "limiterMaxGRdB": 2.5,
+    "limiterOver1dBPct": 0.9
+  },
+  "loudest": {
+    "seconds": 16,
+    "I": -12.4,
+    "LRA": 0.7,
+    "TP": -1.5,
+    "renderSpeed": "18.3x realtime",
+    "limiterMaxGRdB": 4.84,
+    "limiterOver1dBPct": 17.8
+  }
+}
