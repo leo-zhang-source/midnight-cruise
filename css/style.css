@@ -18,8 +18,7 @@ body { font-family: "Chakra Petch", system-ui, sans-serif; -webkit-font-smoothin
 button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--acid); outline-offset: 3px; }
 
-#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
-body.steer #gl { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%233ef4ff' stroke-width='1.5'%3E%3Ccircle cx='16' cy='16' r='7'/%3E%3Cpath d='M16 2v7M16 23v7M2 16h7M23 16h7'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='1.6' fill='%23ff3fb4'/%3E%3C/svg%3E") 16 16, crosshair; }
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: default; }
 
 /* ── first-paint poster (CSS version of the world) ── */
 #poster { position: fixed; inset: 0; overflow: hidden; background: linear-gradient(180deg, #05020f 0%, #1d0738 40%, #5a1060 54%, #ff3d8b 56%, #0a0214 56.2%, #0a0214 100%); }
@@ -121,7 +120,10 @@ body.touch #hints .h-key:nth-child(2) kbd, body.touch #hints .h-key:nth-child(3)
 .deck-title b { color: #6a2cd8; }
 .deck-min { width: 44px; height: 30px; position: relative; border-radius: 5px; border: 1px solid #4a3d70; background: linear-gradient(180deg, #fff, #c9c3de); display: grid; place-items: center; padding: 0; }
 .deck-min::after { content: ""; position: absolute; inset: -7px -3px; }
-.deck-min span { width: 12px; height: 2.5px; background: #2a1a4a; border-radius: 2px; }
+.deck-min span { width: 12px; height: 2.5px; background: #2a1a4a; border-radius: 2px; position: relative; }
+/* the bar grows a vertical stroke (＋) while minimised, so the key reads as "expand" */
+.deck-min span::after { content: ""; position: absolute; left: 50%; top: 50%; width: 2.5px; height: 12px; margin: -6px 0 0 -1.25px; background: inherit; border-radius: 2px; transform: scaleY(0); transition: transform 0.18s ease-out; }
+#deck[data-min="true"] .deck-min span::after { transform: scaleY(1); }
 .deck-min:active { transform: translateY(1px); background: linear-gradient(180deg, #c9c3de, #fff); }
 .deck-body { padding: 9px 10px 10px; display: grid; gap: 8px; }
 #deck[data-min="true"] .deck-body { display: none; }

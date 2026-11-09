@@ -2,6 +2,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { mulberry32 } from './util.js';
 import { Car } from './car.js';
+import { ROAD } from './cue.js';
 
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
@@ -132,8 +133,8 @@ function makeGrid() {
         cz = mix(cz * mix(clamp(hw / max(hw, fwz*0.65),0.,1.), 1.0, 0.6), 0.06, densz);
         float gzGlow = exp(-max(dz - blur * 0.5, 0.0) / (fwz * 3.0)) * (1.0 - densz);
         vec2 lx = gridLine(gx, 0.0045, 1.3, 3.0);
-        // road edges (x = ±6) — brighter cyan rails
-        float re = abs(abs(vW.x) - 6.0);
+        // road edges (x = ±ROAD.rail) — brighter cyan rails
+        float re = abs(abs(vW.x) - ${ROAD.rail.toFixed(2)});
         float fwr = max(fwidth(vW.x), 1e-4);
         float rail = 1.0 - smoothstep(max(0.025, fwr * 0.7) - fwr, max(0.025, fwr * 0.7) + fwr, re);
         float railGlow = exp(-re / (fwr * 5.0 + 0.05));
@@ -295,7 +296,7 @@ function palmAtlas(seed) {
 function makePalms(seed) {
   const tex = palmAtlas(seed);
   const rows = [
-    { x: [9.5, 12.5], S: 48, N: 14, h: [12, 15] },
+    { x: [10.8, 13.8], S: 48, N: 14, h: [12, 15] },
     { x: [21, 30], S: 70, N: 12, h: [14, 18] },
     { x: [42, 72], S: 112, N: 10, h: [16, 22] },
   ];
@@ -368,7 +369,7 @@ function makeTrails() {
   const g = new THREE.InstancedBufferGeometry();
   g.index = base.index; g.setAttribute('position', base.getAttribute('position'));
   const data = [];
-  for (const side of [-1, 1]) for (let i = 0; i < N; i++) data.push(side * 7.4, i * S + (side > 0 ? S / 2 : 0), side);
+  for (const side of [-1, 1]) for (let i = 0; i < N; i++) data.push(side * ROAD.trail, i * S + (side > 0 ? S / 2 : 0), side);
   g.setAttribute('aP', new THREE.InstancedBufferAttribute(new Float32Array(data), 3));
   g.instanceCount = N * 2;
   const mat = new THREE.ShaderMaterial({
@@ -411,8 +412,8 @@ function makeTrails() {
 
 // ── Traffic: tail-light pairs of cars in the outer lanes (closed-form: car i at its own speed) ──
 const CARS = [
-  { x: -4.9, v: 17, z0: 120, span: 1500 }, { x: 4.9, v: 21, z0: 520, span: 1500 }, { x: -4.9, v: 15, z0: 860, span: 1500 },
-  { x: 4.9, v: 19, z0: 1230, span: 1500 }, { x: -4.9, v: 23, z0: 300, span: 2100 }, { x: 4.9, v: 13, z0: 1650, span: 2100 },
+  { x: -ROAD.traffic, v: 17, z0: 120, span: 1500 }, { x: ROAD.traffic, v: 21, z0: 520, span: 1500 }, { x: -ROAD.traffic, v: 15, z0: 860, span: 1500 },
+  { x: ROAD.traffic, v: 19, z0: 1230, span: 1500 }, { x: -ROAD.traffic, v: 23, z0: 300, span: 2100 }, { x: ROAD.traffic, v: 13, z0: 1650, span: 2100 },
 ];
 function makeTraffic() {
   const base = new THREE.PlaneGeometry(1, 1);

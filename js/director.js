@@ -1,6 +1,6 @@
 // The director: turns (scene time T, event timeline, viewport) into a complete frame
 // description. Pure function — no wall clock, no hidden state.
-import { IGN, BAR, TURBO, PRESETS, neonPower, drumPulse } from './cue.js';
+import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, neonPower, drumPulse } from './cue.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 
@@ -208,9 +208,8 @@ export function frameState(tl, T, w, h, opt = {}) {
   if (ph.phase === 'rewind') {
     const u = ph.u, k = u / 0.6;
     post.rewind = 1 - smooth(lin(u, 0.45, 0.6));
-    title.z = lerp(0, -9800, easeInCubic(k)); title.dim = 1 - k * 0.5; title.blur = 1;
-    neon.prog = 1 - smooth(k * 1.4); neon.pow = 1;
-    aux.a = 1 - smooth(k * 2);
+    // the title already left when cruising started, so the rewind runs on an empty sky
+    title.visible = false; neon.pow = 0; aux.a = 0;
     ui.osd = 'REW'; ui.replay = 0; ui.cassette = 1; ui.controls = 1 - smooth(k * 2); ui.skip = 0;
     car.z = lerp(carZ0, 9, easeInCubic(k)); car.tail = 0.5; car.flame = 0;
     sunEl = lerp(SUN_EL, -0.13, easeInCubic(k));
@@ -226,10 +225,10 @@ export function frameState(tl, T, w, h, opt = {}) {
     ui.hint = smooth(lin(ct, 0.3, 0.8)) * (1 - smooth(lin(ct, hintEnd - 0.5, hintEnd)));
     if (ph.seg.skip !== null && ct < 0.8) ui.osd = 'FF';
     // steering: lateral offset, yaw, bank
-    car.x = sim.steer * 2.6;
-    car.yaw = -(sim.steerV * 0.045 + sim.steer * 0.015) * (reduced ? 0.4 : 1);
-    car.roll = reduced ? 0 : sim.steerV * 0.016;
-    camX += car.x * 0.62;
+    car.x = sim.steer * ROAD.steerX;
+    car.yaw = -(sim.steerV * 0.07 + sim.steer * 0.02) * (reduced ? 0.4 : 1);
+    car.roll = reduced ? 0 : sim.steerV * 0.022;
+    camX += car.x * 0.58;
     yaw += -sim.steer * 0.03;
     roll += reduced ? 0 : sim.steer * 0.02 + sim.steerV * 0.004;
     car.z = carZ0 - sim.thr * 0.6;
@@ -239,6 +238,31 @@ export function frameState(tl, T, w, h, opt = {}) {
     if (!reduced) car.bob = vnoise(tv * 13, 9) * 0.006 * (1 + 2 * sim.thr);
     title.rotY = -sim.steer * 0.12;
     title.shift += sim.steer * 0.02;
+    // title exit: neon flickers out, plate wipes shut, chrome pulls in, then recedes to the horizon
+    const X = TITLE_EXIT;
+    const nk = lin(ct, X.neon[0], X.neon[1]);
+    if (reduced) neon.pow = 1 - smooth(nk);
+    else {
+      neon.pow = 1 - smooth(lin(nk, 0.55, 1));
+      if (nk > 0 && nk < 0.55 && hash1(Math.floor(ct * 30) * 17 + 3) < 0.45) neon.pow *= 0.12;
+      if (nk > 0 && nk < 0.2) neon.surge = 0.6 * Math.sin(Math.PI * nk / 0.2);
+    }
+    const pk = lin(ct, X.plate[0], X.plate[1]);
+    aux.wipe = 1 - easeInCubic(pk); aux.a = 1 - smooth(lin(pk, 0.5, 1));
+    const ck = lin(ct, X.chrome[0], X.chrome[1]);
+    if (ck >= 1) { title.visible = false; neon.pow = 0; aux.a = 0; }
+    else if (ck > 0) {
+      if (reduced) post.fgA = 1 - smooth(ck);
+      else {
+        const pull = ck < 0.2 ? Math.sin(Math.PI * ck / 0.2) : 0;   // anticipation toward the camera
+        const e = easeInCubic(lin(ck, 0.12, 1));
+        title.z = 110 * pull - 9800 * e;
+        title.rx = -0.3 * e; title.y = 26 * e;
+        title.dim = 1 - 0.45 * e; title.blur = e > 0 ? 1 : 0;
+        post.fgA = 1 - smooth(lin(ck, 0.62, 1));
+      }
+    }
+    const titleGone = ck >= 1;
     // acceleration
     fovK *= 1 + 0.12 * sim.thr;
     camY -= 0.12 * sim.thr;
@@ -248,7 +272,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     if (!reduced) post.shake = [vnoise(tv * 9, 3) * 0.0012 * sim.thr, vnoise(tv * 11, 5) * 0.0016 * sim.thr];
     // music-locked micro-motion: glint on the crash at bars 0/8/16 of the form
     const bar = Math.floor(ct / BAR), bt = ct - bar * BAR, b32 = ((bar % 32) + 32) % 32;
-    if ((b32 === 0 || b32 === 8 || b32 === 16) && bt < 0.7) {
+    if (!titleGone && (b32 === 0 || b32 === 8 || b32 === 16) && bt < 0.7) {
       const p = bt / 0.7;
       title.sweep = lerp(-160, 1040, easeInOutCubic(p)); title.sweepI = 1.1 * Math.sin(Math.PI * p);
       post.glint = { tx: lerp(40, 820, easeInOutCubic(p)), ty: 102, i: 0.75 * Math.sin(Math.PI * p), size: 0.85 };
@@ -278,14 +302,18 @@ export function frameState(tl, T, w, h, opt = {}) {
         fovK *= 1 + (reduced ? 0.05 : 0.3) * ee;
         sunPow *= 1 + 1.1 * ee; flare = Math.max(flare, ee * 0.8 * Math.exp(-u / 1.5));
         neon.surge = 1.3 * Math.exp(-u / 0.55);
-        title.sweep = lerp(-160, 1040, easeInOutCubic(lin(u, 0, 0.6))); title.sweepI = u < 0.6 ? 1.8 * Math.sin(Math.PI * u / 0.6) : 0;
-        title.flash = reduced ? 0 : 0.3 * Math.exp(-u / 0.05);
+        if (!titleGone) {
+          title.sweep = lerp(-160, 1040, easeInOutCubic(lin(u, 0, 0.6))); title.sweepI = u < 0.6 ? 1.8 * Math.sin(Math.PI * u / 0.6) : 0;
+          title.flash = reduced ? 0 : 0.3 * Math.exp(-u / 0.05);
+        }
         post.flash = (reduced ? 0.04 : 0.14) * Math.exp(-u / 0.06);
         post.rgb = Math.max(post.rgb, 1 + 3.2 * Math.exp(-u / 0.25));
         post.speed = Math.max(post.speed, ee);
         post.bloom = 1 + 0.6 * ee;
-        post.glint = u < 0.6 ? { tx: lerp(40, 820, easeInOutCubic(u / 0.6)), ty: 102, i: Math.sin(Math.PI * u / 0.6), size: 1.1 } : post.glint;
-        post.flare = { tx: 430, ty: 60, i: Math.exp(-u / 0.3) * 0.9 };
+        if (!titleGone) {
+          post.glint = u < 0.6 ? { tx: lerp(40, 820, easeInOutCubic(u / 0.6)), ty: 102, i: Math.sin(Math.PI * u / 0.6), size: 1.1 } : post.glint;
+          post.flare = { tx: 430, ty: 60, i: Math.exp(-u / 0.3) * 0.9 };
+        }
         if (!reduced && u < 0.5) post.shake = [ring(u, 50, 0.2) * 0.007, ring(u, 41, 0.22) * 0.009];
         pulse = Math.max(pulse, Math.exp(-u / 0.25));
         gridBright *= 1 + 0.4 * ee;

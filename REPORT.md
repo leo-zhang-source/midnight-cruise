@@ -19,6 +19,35 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 12: no mouse steering
+
+- The mouse no longer steers. Steering is now `←` `→` / `A` `D` on a keyboard, or a horizontal drag on a touch screen, which is unchanged.
+- The crosshair steering cursor over the scene is gone, so the mouse is only for the on-screen controls: DRIVE, TURBO, the deck, SKIP and REPLAY.
+- `tools/interact.mjs` checks that moving the mouse across the whole scene leaves steering at 0. It also checks that each arrow key steers its way and that releasing it re-centres the car.
+
+## Revision 11: wider driving range
+
+- **Lateral reach.** At full lock the car now reaches ±4.2 road units, up from ±2.6 (+62 %). Lateral distance per unit of steering is larger, so yaw and bank are scaled up to keep the turn-in believable, and the chase camera follows a little less (0.58, was 0.62) so the move reads on screen.
+- **Arrow keys** now reach full lock; they previously stopped at 85 %. Pointer and touch mapping is unchanged.
+- **Road layout, so the wider reach never drives through traffic.**
+  - The cyan rails moved from ±6 to the ±8 grid lines.
+  - Traffic tail lights moved from ±4.9 to ±6.3, so at full lock the car body still clears passing traffic by about 0.3 units.
+  - The roadside light trails moved from ±7.4 to ±9.4, and the first palm row from 9.5–12.5 to 10.8–13.8.
+  - All these values are in `ROAD` in `js/cue.js`.
+
+## Revision 10: deck starts minimised
+
+- The NITE·DECK cassette player now starts minimised on every screen size. Before, this applied to phones only. It shows just its chrome title bar above the timestamp, and the key on the right of the bar expands it.
+- Keyboard shortcuts (`1`–`4`, `M`) work whether the deck is open or not, and automatic colour change runs either way.
+- `tools/interact.mjs` checks the deck starts minimised and that its key expands it.
+
+## Revision 9: the title leaves after the intro
+
+- **What it does.** Once the 10 s ignition ends, the title clears the road. The neon "Cruise" flickers twice and dies, the 1986 plate wipes shut from the edges, and the chrome MIDNIGHT pulls briefly toward the camera (anticipation) before receding to the horizon with sub-frame motion blur, fading over its last third. The road is clear 1.35 s into cruising and stays clear. Timings are in `TITLE_EXIT` in `js/cue.js`.
+- **Skip and replay.** SKIP INTRO lands on the finished title, which then leaves the same way. REPLAY INTRO rewinds over an empty sky, and the ignition brings the title back as before.
+- **Reduced motion.** The chrome fades in place instead of flying, and the neon fades without flickering.
+- **Title-bound effects.** While cruising, effects tied to the title no longer play once it has gone: the music-locked chrome glints, and TURBO's title glint, lens flare and chrome flash. TURBO keeps its sun flare, bloom, RGB split, shake and car effects.
+
 ## Revision 8: automatic colour change
 
 - **What it does.** While cruising, the environment moves to the next preset (SUNSET → BLUE HOUR → AFTERGLOW → LAGOON → …) after **40 s or 1500 road units, whichever comes first**. At full throttle that is about 27 s after the press, so driving fast changes colours sooner. It uses the same 1.6 s crossfade as a manual change, covering sky, sun, grid, mountains, chrome, neon and music layers, and the OSD shows “AUTO CH n NAME”.
@@ -116,7 +145,7 @@ Tempo is 120 BPM: a beat is 0.5 s, a bar is 2 s, and one 32nd-note tick is 3000 
 | 7.625 | Cassette deck pops in (spring with overshoot) | UI “pop” |
 | 8.0–8.8 | DRIVE and TURBO controls rise in | |
 | 8.8–10.0 | **Hero hold**: road travel, chrome micro-drift, grain, glow | Snare fill (9.5–10 s) |
-| **10.000** | Cruising, interactive; camera unchanged | Cruise form bar 0 (Am) |
+| **10.000** | Cruising, interactive; camera unchanged. Title exit: neon flickers out (+0.20–0.62 s), 1986 plate wipes shut (+0.25–0.70 s), chrome pulls in and recedes to the horizon (+0.30–1.35 s) | Cruise form bar 0 (Am) |
 
 Measured onsets in the rendered ignition (`tools/onsets.py`): first pulse +1 ms, drums −1 ms, tom fill +1 ms, slam −4 ms. The −4 ms at the slam is the reverse cymbal cresting into the hit. Resolution is 1 ms.
 
@@ -128,7 +157,7 @@ Measured onsets in the rendered ignition (`tools/onsets.py`): first pulse +1 ms,
 - **Music pause.** A 0.5 s varispeed tape-stop. Resume fades in over 0.15 s with the beat phase preserved.
 - **Skip.** A 0.4 s fast-forward (FF OSD, tape squeal, tearing), then cruise bar 0 with a crash.
 - **Replay.** A 0.6 s rewind (REW OSD, squeal, the road runs backwards, the title flies away, the neon un-writes), then the full ignition again.
-- **Cruise micro-events.** A glint plus chrome sweep on the crash at bars 0/8/16 of the 32-bar form (16–32 s apart); a seeded tracking glitch every ~23 s; rare neon micro-flickers.
+- **Cruise micro-events.** A seeded tracking glitch every ~23 s. The title has left by then (Revision 9), so the title glints of earlier revisions no longer play while cruising.
 
 ## Experience states
 
@@ -136,7 +165,7 @@ Measured onsets in the rendered ignition (`tools/onsets.py`): first pulse +1 ms,
 |---|---|
 | **Visual idle** | The poster frame in gentle motion, audio off. The world drifts at 5.5 u/s, the unlit glass tube of “Cruise” is faintly visible, a glint sweeps every 6 s, and the START DRIVE pill invites interaction. Page load opens with a 0.45 s tracking disturbance and the PLAY ▶ OSD. |
 | **Ignition** | The authored 10.000 s sequence. SKIP INTRO is available. |
-| **Cruising** | 24 u/s. Steering is enabled with a 1.4 s blend-in so an off-centre pointer never jerks the camera. |
+| **Cruising** | 24 u/s. Steering is enabled with a 1.4 s blend-in so a key already held when cruising starts never jerks the camera. |
 | **Accelerating** | Layered as described above; release eases back. |
 | **Turbo** | Anticipation, impact, sustain, recovery, cooldown. |
 | **Reduced motion** | Follows `prefers-reduced-motion` or `?reduced=1`. The title fades in instead of flying and slamming; there is no hit-stop, frame stepping, shake, speed blur or camera banking; flashes and tracking are ×0.2; the neon fades up smoothly; turbo becomes a glow surge; road speed is ×0.6. Artwork, typography and every control are preserved. |
@@ -188,7 +217,7 @@ Measured onsets in the rendered ignition (`tools/onsets.py`): first pulse +1 ms,
 | Measurement scope | ffmpeg `ebur128=peak=true` (BS.1770-4 gating, 4× true peak) on the offline renders of the same engine (`renders/audio/*.wav`, `loudness.json`). These are not captures of the browser's output device. |
 | Picture/sound sync | Heard-sample clock vs. picture clock: 0.3 ms. Output latency is compensated (174 ms in headless Chrome). Rendered onsets are within −5…+2 ms of cue times; the slam's −5 ms is the reverse cymbal cresting into the hit. |
 | Audio start-up matrix | `tools/audio-smoke.mjs`: Chrome and WebKit × {http + AudioWorklet, http + ScriptProcessor fallback, file:// standalone}, all running at 48 kHz with 9/9 samples and non-zero signal. Your own Chrome over the non-secure LAN address: fallback mode, running. |
-| Interaction tests | `tools/interact.mjs` passes all checks: start and audio unlock, cruise at 10 s, Space/DRIVE hold and release (including release off the button and on focus loss), pointer and arrow steering, UI hover not steering, turbo quantisation and no overlap, presets, pause/resume, mute, volume, deck drag clamped clear of controls, replay → rewind → ignition, skip → cruise. `tools/touch.mjs`: tap start, drag-steer, touch-cancel recentre, touch-hold DRIVE and cancel, all visible targets ≥ 44 px. Zero console errors or warnings. |
+| Interaction tests | `tools/interact.mjs` passes all checks: start and audio unlock, cruise at 10 s, Space/DRIVE hold and release (including release off the button and on focus loss), arrow steering (left, right, re-centre), mouse not steering, turbo quantisation and no overlap, presets, pause/resume, mute, volume, deck drag clamped clear of controls, replay → rewind → ignition, skip → cruise. `tools/touch.mjs`: tap start, drag-steer, touch-cancel recentre, touch-hold DRIVE and cancel, all visible targets ≥ 44 px. Zero console errors or warnings. |
 | Fonts | All on-screen glyphs verified present in the packaged fonts (fontTools); icons are SVG, not glyphs |
 | Banding | Half-float pipeline and ±1 LSB triangular dither on output |
 

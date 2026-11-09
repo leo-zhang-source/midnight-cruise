@@ -53,13 +53,13 @@ await p.evaluate(() => window.dispatchEvent(new Event('blur'))); await p.waitFor
 s = await st(); ok('focus loss cancels acceleration', s.thrOn === 0);
 await p.keyboard.up('Space');
 // steering
-await p.mouse.move(W * 0.95, H * 0.4); await p.waitForTimeout(1500);
-s = await st(); ok('pointer steers right', s.steer > 0.6, `steer=${s.steer.toFixed(2)}`);
-await p.mouse.move(W * 0.05, H * 0.4); await p.waitForTimeout(1500);
-s = await st(); ok('pointer steers left', s.steer < -0.6, `steer=${s.steer.toFixed(2)}`);
-const dk = await p.locator('#deck').boundingBox();
-await p.mouse.move(dk.x + dk.width / 2, dk.y + dk.height * 0.6); await p.waitForTimeout(800);
-const s2 = await st(); ok('hovering UI does not steer', Math.abs(s2.steer - s.steer) < 0.05, `steer=${s2.steer.toFixed(2)}`);
+await p.mouse.move(W * 0.95, H * 0.4); await p.waitForTimeout(800);
+await p.mouse.move(W * 0.05, H * 0.4); await p.waitForTimeout(1200);
+s = await st(); ok('mouse does not steer', Math.abs(s.steer) < 0.02, `steer=${s.steer.toFixed(2)}`);
+await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(1200);
+s = await st(); ok('left arrow steers left', s.steer < -0.5, `steer=${s.steer.toFixed(2)}`); await p.keyboard.up('ArrowLeft');
+await p.waitForTimeout(1200);
+s = await st(); ok('released arrow recentres', Math.abs(s.steer) < 0.1, `steer=${s.steer.toFixed(2)}`);
 await p.keyboard.down('ArrowRight'); await p.waitForTimeout(1200);
 s = await st(); ok('arrow key steers', s.steer > 0.5, `steer=${s.steer.toFixed(2)}`); await p.keyboard.up('ArrowRight');
 // turbo
@@ -72,6 +72,10 @@ const nT = await p.evaluate(() => MC.tl._derive().turbos.length);
 ok('no overlapping turbo', nT === 1, `turbos=${nT}`);
 const rdy = await p.evaluate(() => document.getElementById('turbo').dataset.ready);
 ok('turbo shows charging', rdy === 'false');
+// deck starts minimised, its key expands it
+ok('deck starts minimised', (await p.getAttribute('#deck', 'data-min')) === 'true');
+await p.click('#deck-min'); await p.waitForTimeout(400);
+ok('deck expands', (await p.getAttribute('#deck', 'data-min')) === 'false' && await p.locator('.preset[data-p="1"]').isVisible());
 // presets
 await p.click('.preset[data-p="1"]'); await p.waitForTimeout(300);
 s = await st(); ok('preset B selected', s.preset === 1);

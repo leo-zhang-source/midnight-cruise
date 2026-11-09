@@ -1,6 +1,6 @@
 # MIDNIGHT CRUISE — 1986
 
-An interactive synthwave title sequence. You press PLAY on an old tape and a 10-second chrome-and-neon ignition sequence plays out. After that the road is yours, indefinitely.
+An interactive synthwave title sequence. You press PLAY on an old tape and a 10-second chrome-and-neon ignition sequence plays out. Then the title flies off toward the horizon and the road is yours, indefinitely.
 
 ## Run it
 
@@ -19,7 +19,7 @@ Then open **http://localhost:8086/** in a current Chrome, Edge, Safari or Firefo
 
 **If you hear nothing:**
 - Open the page in a normal browser window (Chrome or Safari). An app's built-in preview pane may not play sound.
-- The deck's LCD shows `NO AUDIO` or `TAP TO RESUME` when the browser blocks or suspends audio; any click or key press resumes it. Also check that the tab isn't muted and the deck's volume slider isn't at zero.
+- The deck's LCD (expand the deck with the + key on its title bar) shows `NO AUDIO` or `TAP TO RESUME` when the browser blocks or suspends audio; any click or key press resumes it. Also check that the tab isn't muted and the deck's volume slider isn't at zero.
 - On a non-secure address (for example `http://192.168.x.x:8086` from another device), browsers disable AudioWorklet. The engine then switches automatically to a ScriptProcessor fallback running the same synth on the main thread. You can force that mode with `?audio=compat`.
 
 ## Controls
@@ -30,13 +30,13 @@ Then open **http://localhost:8086/** in a current Chrome, Edge, Safari or Firefo
 | Skip the intro | **SKIP INTRO** (top right) | `Esc` / `S` |
 | Replay the intro | **REPLAY INTRO** (top right) | `R` |
 | Accelerate | hold **DRIVE** | hold `Space` |
-| Steer | move the pointer over the scene / drag on touch | `←` `→` or `A` `D` |
+| Steer | drag on touch (the mouse does not steer) | `←` `→` or `A` `D` |
 | Turbo | **TURBO** (the ring shows when it's ready) | `T` |
 | Music play / pause, mute, volume | cassette deck | `M` toggles mute |
 | Environment | cassette deck: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
 | Automatic colour change | cassette deck **AUTO** key (on by default; its bar fills towards the next change) | — |
 
-While you cruise, the environment changes by itself to the next preset every 40 s or 1500 road units, whichever comes first. Accelerating gets you there sooner. You drive the car seen from behind. A live MPH speedometer sits next to TURBO and DRIVE, and control hints appear when cruising starts. The cassette deck is draggable by its chrome title bar and can be minimised. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
+While you cruise, the environment changes by itself to the next preset every 40 s or 1500 road units, whichever comes first. Accelerating gets you there sooner. You drive the car seen from behind. A live MPH speedometer sits next to TURBO and DRIVE, and control hints appear when cruising starts. The cassette deck starts minimised to its chrome title bar. The key on the right of the bar expands it, and you can drag the deck by that bar. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
 
 ## Inspection and determinism
 

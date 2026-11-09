@@ -70,12 +70,10 @@ export class UI {
     E.deckBar.addEventListener('pointermove', (e) => { if (this.dragging) this.pendingWin = { x: e.clientX, y: e.clientY }; });
     const wUp = (e) => { if (!this.dragging) return; this.dragging = false; this.flushWin(); this.ev('win', { act: 'up', x: e.clientX ?? 0, y: e.clientY ?? 0 }); };
     E.deckBar.addEventListener('pointerup', wUp); E.deckBar.addEventListener('pointercancel', wUp); E.deckBar.addEventListener('lostpointercapture', wUp);
-    // steering: pointer over the scene only
+    // steering: arrow keys / A·D, or a drag on a touch screen. The mouse does not steer.
     const cv = E.canvas;
     cv.addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'touch') { if (this.touch && e.pointerId === this.touch.id) this.pointerSteer = clamp((e.clientX - this.touch.x) / (innerWidth * 0.28), -1, 1); return; }
-      const x = (e.clientX / innerWidth) * 2 - 1, ax = Math.max(0, Math.abs(x) - 0.04) / 0.96;
-      this.pointerSteer = Math.sign(x) * Math.pow(ax, 1.15);
+      if (e.pointerType === 'touch' && this.touch && e.pointerId === this.touch.id) this.pointerSteer = clamp((e.clientX - this.touch.x) / (innerWidth * 0.28), -1, 1);
     });
     cv.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') { this.touch = { id: e.pointerId, x: e.clientX }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} } });
     const tEnd = (e) => { if (this.touch && e.pointerId === this.touch.id) { this.touch = null; this.pointerSteer = 0; } };
@@ -104,7 +102,7 @@ export class UI {
     const release = () => { this.space = false; this.driveHeld = false; this.keys.left = this.keys.right = 0; this.touch = null; this.refreshThrottle(); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
-    if (innerWidth < 720 || innerHeight > innerWidth) this.setMin(true);
+    this.setMin(true);   // the deck starts minimised; its title-bar key expands it
     if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Hold Drive · Drag to steer'; document.body.classList.add('touch'); }
   }
 
@@ -125,7 +123,7 @@ export class UI {
   // per-frame: emit coalesced continuous inputs (steer, drag) as timestamped events
   pump() {
     const ks = this.keys.right - this.keys.left;
-    const target = ks !== 0 ? ks * 0.85 : this.pointerSteer;
+    const target = ks !== 0 ? ks : this.pointerSteer;
     const q = Math.round(target * 200) / 200;
     if (Math.abs(q - this.sentSteer) >= 0.005) { this.sentSteer = q; this.ev('steer', { x: q }); }
     if (this.dragging) this.flushWin();

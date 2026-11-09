@@ -48,6 +48,13 @@ export const TURBO = { minAntic: 0.75, sustain: 1.8, recover: 2.7, cooldown: 7.0
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
 export const AUTO_ENV = { time: 40, dist: 1500 };
+// Road layout (world units, x across). The player's lane runs between the grid lines at ±4, traffic keeps to the
+// outer lanes, and the cyan rails sit on the ±8 grid lines. steerX is the car's lateral reach at full lock:
+// its body stays clear of the traffic lights passing on either side.
+export const ROAD = { rail: 8.0, traffic: 6.3, trail: 9.4, steerX: 4.2 };
+// Title exit once cruising starts (cruise time, s): the neon flickers out, the 1986 plate wipes shut,
+// the chrome word pulls toward the camera and then recedes to the horizon. After that the road stays clear.
+export const TITLE_EXIT = { neon: [0.2, 0.62], plate: [0.25, 0.7], chrome: [0.3, 1.35] };
 export const THROTTLE = { rise: 0.42, fall: 0.95 };
 
 export const PRESETS = ['SUNSET', 'BLUE HOUR', 'AFTERGLOW', 'LAGOON'];
