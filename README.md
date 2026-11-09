@@ -2,25 +2,16 @@
 
 An interactive synthwave title sequence. You press PLAY on an old tape and a 10-second chrome-and-neon ignition sequence plays out. Then the title flies off toward the horizon and the road is yours, indefinitely.
 
-## Run it
+## Play online
 
-The site uses ES modules and an AudioWorklet, so it has to be served over `http://`. Opening the file directly will not work.
+### ▶ https://leo-zhang-source.github.io/midnight-cruise/
 
-```bash
-cd midnight-cruise
-python3 tools/serve.py
-```
-
-Then open **http://localhost:8086/** in a current Chrome, Edge, Safari or Firefox. Any static server works too (`npx serve .`, `php -S localhost:8086`, …). Nothing needs installing, and every runtime file is in this folder.
-
-**Online:** `node tools/build.mjs` also writes `dist/midnight-cruise.artifact.html`, the same build without the document shell, for hosts that wrap pages (it is published as a private claude.ai artifact). It is generated, so it is not in the repository.
-
-**No server?** Double-click **`dist/midnight-cruise.html`**. It is a single self-contained file (3.9 MB) with the code, fonts, samples and audio worklet inlined, and it works straight from disk with sound. Double-clicking `index.html` redirects there automatically.
+It opens in a current Chrome, Edge, Safari or Firefox, on desktop or phone, and nothing needs installing. GitHub Pages republishes the site on every push to `main`. A new version is usually live a minute or two after a push, and browsers may keep the previous one for up to 10 minutes, so reload if you don't see a change yet.
 
 **If you hear nothing:**
 - Open the page in a normal browser window (Chrome or Safari). An app's built-in preview pane may not play sound.
-- The deck's LCD (expand the deck with the + key on its title bar) shows `NO AUDIO` or `TAP TO RESUME` when the browser blocks or suspends audio; any click or key press resumes it. Also check that the tab isn't muted and the deck's volume slider isn't at zero.
-- On a non-secure address (for example `http://192.168.x.x:8086` from another device), browsers disable AudioWorklet. The engine then switches automatically to a ScriptProcessor fallback running the same synth on the main thread. You can force that mode with `?audio=compat`.
+- When the browser blocks or suspends audio, the deck's LCD shows `NO AUDIO` or `TAP TO RESUME` (expand the deck with the + key on its title bar to see it). Any click or key press resumes audio. Also check that the tab isn't muted and the deck's volume slider isn't at zero.
+- `?audio=compat` forces the ScriptProcessor fallback. It runs the same synth on the main thread for browsers without AudioWorklet.
 
 ## Controls
 
@@ -46,10 +37,10 @@ Every frame is a pure function of scene time, the fixed seed (1986), the viewpor
 
 | Parameter | What it does |
 |---|---|
-| `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
-| `?script=canonical` | Replay the canonical sequence live: start → steer → accelerate → turbo → presets → pause → replay |
+| [`?t=7.0&script=canonical`](https://leo-zhang-source.github.io/midnight-cruise/?t=7.0&script=canonical) | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
+| [`?script=canonical`](https://leo-zhang-source.github.io/midnight-cruise/?script=canonical) | Replay the canonical sequence live: start → steer → accelerate → turbo → presets → pause → replay |
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
-| `?hud=1` | Debug HUD: time, phase, fps, quality tier, audio state |
+| [`?hud=1`](https://leo-zhang-source.github.io/midnight-cruise/?hud=1) | Debug HUD: time, phase, fps, quality tier, audio state |
 | `?tier=0..3` | Pin a quality tier. Without it, tiers adapt to the measured frame time |
 | `?w=1920&h=1080&capture=1` | Fixed-size render target for stills |
 
@@ -59,7 +50,9 @@ Every frame is a pure function of scene time, the fixed seed (1986), the viewpor
 - `MC.state(T)` returns the full frame description.
 - `MC.events()` returns the recorded live timeline.
 
-## Tools (optional, for verification)
+## Tools (development only)
+
+These scripts are for checking a working copy before pushing. The browser tests drive a copy served by `python3 tools/serve.py`.
 
 ```bash
 cd tools && npm install          # playwright-core, used with your installed Google Chrome
@@ -86,7 +79,7 @@ node tools/perf.mjs              # GPU-synchronised frame cost at several sizes 
 ```
 
 ```bash
-node tools/audio-smoke.mjs webkit http://localhost:8086/   # audio start-up check in chromium | webkit | firefox
+node tools/audio-smoke.mjs webkit https://leo-zhang-source.github.io/midnight-cruise/   # audio start-up check in chromium | webkit | firefox
 ```
 
 ```bash
@@ -129,7 +122,7 @@ js/audio/samples.js   the CC0 sample manifest
 js/audio/worklet.js   AudioWorklet host (worklet.bundle.js = generated, import-free build of it)
 js/audio/engine.js    main-thread audio: worklet loading, sample decoding, clock mapping, volume/mute
 assets/samples/       the 9 CC0 one-shots (48 kHz WAV); assets/src/ = untouched Freesound downloads + sources.json
-dist/                 midnight-cruise.html, the single-file standalone build
+dist/                 midnight-cruise.html, the single-file build (source of the claude.ai artifact)
 vendor/               three.js r169 (MIT)
 fonts/                Chakra Petch, VT323 (SIL OFL 1.1) + licences
 renders/              contact sheet, loudness.json and analysis plots (WAV, MP4 and full-size keyframes are regenerated by tools/, not committed)
