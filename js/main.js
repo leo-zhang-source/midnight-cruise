@@ -5,11 +5,13 @@ import { Timeline, CANONICAL } from './timeline.js';
 import { World } from './world.js';
 import { Title } from './title.js';
 import { Post } from './post.js';
-import { frameState } from './director.js';
+import { frameState, FRAME } from './director.js';
 import { UI } from './ui.js';
 import { AudioEngine } from './audio/engine.js';
 
 const Q = new URLSearchParams(location.search);
+// framing tuning hook: ?frame.vWide=58&frame.carKWide=6 … overrides FRAME (js/director.js)
+for (const [k, v] of Q) if (k.startsWith('frame.') && k.slice(6) in FRAME && isFinite(+v)) FRAME[k.slice(6)] = +v;
 const reducedMQ = matchMedia('(prefers-reduced-motion: reduce)');
 const app = { reduced: Q.get('reduced') === '1' || (Q.get('reduced') !== '0' && reducedMQ.matches) };
 reducedMQ.addEventListener?.('change', (e) => { if (!Q.has('reduced')) app.reduced = e.matches; });

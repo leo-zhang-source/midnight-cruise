@@ -45,6 +45,7 @@ Every frame is a pure function of scene time, the fixed seed (1986), the viewpor
 | `?script=canonical` | Replay the canonical sequence live: start → steer → accelerate → turbo → presets → pause → replay |
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
 | `?hud=1` | Debug HUD: time, phase, fps, quality tier, audio state |
+| `?frame.carKWide=5.2&frame.shiftWide=0` | Override a framing constant (`FRAME` in `js/director.js`) for tuning |
 | `?tier=0..3` | Pin a quality tier. Without it, tiers adapt to the measured frame time |
 | `?w=1920&h=1080&capture=1` | Fixed-size render target for stills |
 

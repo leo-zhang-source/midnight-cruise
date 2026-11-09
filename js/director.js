@@ -24,13 +24,16 @@ export const CHASE_Y = 2.65;
 const FOVK = [[0, 1.08], [1.0, 1.1], [3.8, 1.14], [4.5, 1.08], [5.94, 0.86], [6.0, 0.86]];
 export const SUN_EL = 0.068, SUN_R = 0.183;
 
-// Framing is anchored to the frame HEIGHT, so every aspect keeps the same composition:
-// horizon ≈ 58 % down, sun ≈ 30 % of the height, car ≈ 8 % tall sitting ≈ 15 % below the horizon.
-// A wider screen shows more road, palms and mountains at the sides instead of a bigger car.
-//  · narrow/tall: hfov 76° (vfov up to 78°) · wide: vfov held at 62° (16:9 → hfov 94°)
-//  · ultrawide: hfov capped at 104° so the edges don't stretch (21:9 → vfov 57°)
-// The car's distance scales with 1/tan(vfov/2), which keeps its size and its height on screen constant.
-export const FRAME = { hNarrow: 76, vMax: 78, vWide: 62, hMax: 104, sunFrac: 0.3, carK: 8.96 };
+// Framing is anchored to the frame HEIGHT: sizes are fractions of the height, so a wider screen
+// shows more road, palms and mountains at the sides instead of a stretched, bigger scene.
+//  · field of view — narrow/tall: hfov 76° (vfov up to 78°) · wide: vfov held at 62° (16:9 → hfov 94°)
+//    · ultrawide: hfov capped at 104° so the edges don't stretch (21:9 → vfov 57°)
+//  · widescreen composition: horizon at mid-frame, sun ≈ 30 % of the height, car ≈ 15 % tall in the lower half
+//  · tall windows / phones: horizon ≈ 60 % down and a smaller, more distant car
+// The car's distance is carK / tan(vfov/2), so its size and height on screen hold across fields of view;
+// carK and the lens shift blend from the tall values to the wide values with the aspect (k).
+// URL tuning hook: ?frame.carKWide=5&frame.shiftWide=0.05 … (see js/main.js).
+export const FRAME = { hNarrow: 76, vMax: 78, vWide: 62, hMax: 104, sunFrac: 0.3, carKNarrow: 8.96, carKWide: 5.2, shiftNarrow: 0.2, shiftWide: 0 };
 export function layoutFor(w, h) {
   const a = w / h, k = smooth((a - 0.55) / (1.5 - 0.55));
   const D = Math.PI / 180, vFromH = (hd) => 2 * Math.atan(Math.tan((hd / 2) * D) / a) / D;
@@ -39,9 +42,9 @@ export function layoutFor(w, h) {
   const tv = Math.tan((vfov / 2) * D);
   return {
     k, aspect: a, vfov,
-    shift: lerp(0.2, 0.17, k),
+    shift: lerp(FRAME.shiftNarrow, FRAME.shiftWide, k),
     sunR: Math.atan(FRAME.sunFrac * tv),
-    carZ: -FRAME.carK / tv,
+    carZ: -lerp(FRAME.carKNarrow, FRAME.carKWide, k) / tv,
     titleW: lerp(0.92, 0.58, k), titleCap: lerp(0.06, 0.13, k), titleY: lerp(0.46, 0.45, k), titleX: 0,
     neonX: lerp(-250, -6, k), neonY: lerp(-6, -12, k), neonRot: lerp(0.08, 0.1, k), neonS: lerp(1.0, 0.95, k),
     plateX: lerp(0, -255, k), plateY: lerp(-300, -84, k),

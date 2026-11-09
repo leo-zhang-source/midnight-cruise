@@ -98,7 +98,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .spd-bar i { background: #22300f; border-radius: 1px; }
 .spd-bar i.on { background: var(--acid); box-shadow: 0 0 5px rgba(184,255,46,.7); }
 .spd-bar i.on.hot { background: #ff3fb4; box-shadow: 0 0 6px rgba(255,63,180,.8); }
-#hints { position: fixed; left: 50%; top: 61%; transform: translateX(-50%); display: flex; gap: calc(var(--u) * 2); visibility: hidden; pointer-events: none; white-space: nowrap;
+#hints { position: fixed; left: 50%; top: 56%; transform: translateX(-50%); display: flex; gap: calc(var(--u) * 2); visibility: hidden; pointer-events: none; white-space: nowrap;
   font-family: "VT323", monospace; font-size: calc(var(--u) * 1.6); letter-spacing: .08em; color: #fff;
   text-shadow: -1.5px 0 rgba(255,40,90,.55), 1.5px 0 rgba(40,200,255,.55), 0 0 6px rgba(0,0,0,.9); }
 .h-key { display: inline-flex; align-items: center; gap: .4em; }
