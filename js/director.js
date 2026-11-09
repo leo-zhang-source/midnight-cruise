@@ -24,15 +24,24 @@ export const CHASE_Y = 2.65;
 const FOVK = [[0, 1.08], [1.0, 1.1], [3.8, 1.14], [4.5, 1.08], [5.94, 0.86], [6.0, 0.86]];
 export const SUN_EL = 0.068, SUN_R = 0.183;
 
+// Framing is anchored to the frame HEIGHT, so every aspect keeps the same composition:
+// horizon ≈ 58 % down, sun ≈ 30 % of the height, car ≈ 8 % tall sitting ≈ 15 % below the horizon.
+// A wider screen shows more road, palms and mountains at the sides instead of a bigger car.
+//  · narrow/tall: hfov 76° (vfov up to 78°) · wide: vfov held at 62° (16:9 → hfov 94°)
+//  · ultrawide: hfov capped at 104° so the edges don't stretch (21:9 → vfov 57°)
+// The car's distance scales with 1/tan(vfov/2), which keeps its size and its height on screen constant.
+export const FRAME = { hNarrow: 76, vMax: 78, vWide: 62, hMax: 104, sunFrac: 0.3, carK: 8.96 };
 export function layoutFor(w, h) {
   const a = w / h, k = smooth((a - 0.55) / (1.5 - 0.55));
-  const hfov = 76, vmax = 78;
-  let vfov = 2 * Math.atan(Math.tan((hfov / 2) * Math.PI / 180) / a) * 180 / Math.PI;
-  vfov = Math.min(vfov, vmax);
+  const D = Math.PI / 180, vFromH = (hd) => 2 * Math.atan(Math.tan((hd / 2) * D) / a) / D;
+  let vfov = Math.min(FRAME.vMax, Math.max(FRAME.vWide, vFromH(FRAME.hNarrow)));
+  vfov = Math.min(vfov, vFromH(FRAME.hMax));
+  const tv = Math.tan((vfov / 2) * D);
   return {
     k, aspect: a, vfov,
-    shift: lerp(0.2, 0.0, k),
-    sunR: lerp(0.24, SUN_R, k),
+    shift: lerp(0.2, 0.17, k),
+    sunR: Math.atan(FRAME.sunFrac * tv),
+    carZ: -FRAME.carK / tv,
     titleW: lerp(0.92, 0.58, k), titleCap: lerp(0.06, 0.13, k), titleY: lerp(0.46, 0.45, k), titleX: 0,
     neonX: lerp(-250, -6, k), neonY: lerp(-6, -12, k), neonRot: lerp(0.08, 0.1, k), neonS: lerp(1.0, 0.95, k),
     plateX: lerp(0, -255, k), plateY: lerp(-300, -84, k),
@@ -73,7 +82,7 @@ export function frameState(tl, T, w, h, opt = {}) {
 
   // ── baseline: hero composition ──
   let camX = 0, camY = CHASE_Y, fovK = 1, yaw = 0, roll = 0, pitch = 0;
-  const carZ0 = lerp(-11.8, -8.6, L.k);
+  const carZ0 = L.carZ, zs = -carZ0 / 8.6;   // zs: distance-relative scale for fore/aft car moves
   const car = { visible: true, x: 0, z: carZ0, yaw: 0, roll: 0, pitch: 0, bob: 0, tail: 0.85, glow: 1, exhaust: 0.1, flame: 0, flameHot: 0, streak: 0, lights: 1, wheel: 0 };
   let sunEl = SUN_EL, sunPow = 1, flare = 0, stars = 1, band = tv * 0.055;
   const title = { blur: 0, visible: true, y: 0, z: 0, sx: 1, sy: 1, rx: 0, rotY: 0, shift: 0, road: 0, sweep: -999, sweepI: 0, gather: 0, dim: 1, flash: 0, letters: null };
@@ -231,7 +240,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     camX += car.x * 0.58;
     yaw += -sim.steer * 0.03;
     roll += reduced ? 0 : sim.steer * 0.02 + sim.steerV * 0.004;
-    car.z = carZ0 - sim.thr * 0.6;
+    car.z = carZ0 - sim.thr * 0.6 * zs;
     car.pitch = -sim.thr * 0.018;
     car.flame = sim.thr * 0.65; car.exhaust = 0.1 + 0.9 * sim.thr; car.tail = 0.85 + 0.3 * sim.thr;
     car.streak = Math.max(0, sim.vel - 34) * 0.07;
@@ -294,7 +303,7 @@ export function frameState(tl, T, w, h, opt = {}) {
         post.vignette += 0.25 * k; post.warp = k;
         gridBright *= 1 - 0.25 * k;
         title.gather = k * 0.6;
-        car.z += 0.4 * k; car.flame = 0.15 * (Math.sin(tb.a * 47) > 0 ? 1 : 0); car.glow = 1 + 0.6 * k;
+        car.z += 0.4 * k * zs; car.flame = 0.15 * (Math.sin(tb.a * 47) > 0 ? 1 : 0); car.glow = 1 + 0.6 * k;
       } else {
         const u = tb.u;
         const e = u < TURBO.sustain ? easeOutExpo(u / 0.22) : 1 - easeInOutCubic((u - TURBO.sustain) / TURBO.recover);
@@ -319,7 +328,7 @@ export function frameState(tl, T, w, h, opt = {}) {
         gridBright *= 1 + 0.4 * ee;
         trailI *= 1 + 0.8 * ee;
         band = tv * 0.055 + 0.4 * Math.min(u, TURBO.sustain);
-        car.z -= 1.9 * ee; car.flame = Math.max(car.flame, 1.7 * ee); car.flameHot = ee; car.exhaust = 1;
+        car.z -= 1.9 * ee * zs; car.flame = Math.max(car.flame, 1.7 * ee); car.flameHot = ee; car.exhaust = 1;
         car.glow = 1 + 1.2 * ee; car.tail = 1.3; car.streak = Math.max(car.streak, 9 * ee);
         car.pitch -= 0.02 * ee * Math.exp(-u / 0.4);
       }

@@ -19,6 +19,27 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 14: widescreen framing anchored to the frame height
+
+- **Problem.** The camera held a fixed 76° horizontal field of view, so each extra bit of screen width cost vertical view.
+  - On 16:9 the vertical view was only 47°. The car filled about a quarter of the height and sat close to the lens, with the horizon at mid-frame and an oversized sun and palms.
+  - On 21:9 the car was cut off at the bottom.
+  - Tall windows looked right, because there the vertical view reached 78°.
+- **Fix.** The framing is now anchored to the frame height, so every aspect keeps the tall-window composition: horizon ≈ 58 % down, sun ≈ 30 % of the height, car ≈ 8 % tall about 15 % below the horizon. A wider screen sees more road, palms and mountains at the sides instead of a bigger car.
+- **Field of view by aspect.**
+
+  | Screen shape | Field of view |
+  |---|---|
+  | Narrow / tall | 76° horizontal, up to 78° vertical (unchanged) |
+  | Wide | 62° vertical (16:9 → 94° horizontal) |
+  | Ultrawide | horizontal capped at 104° so the edges don't stretch (21:9 → 57° vertical) |
+
+- **Distance and size.**
+  - The car's distance scales with 1/tan(vfov/2), which keeps its size and its height on screen constant.
+  - The sun's angular radius is set from the same tangent, so it stays about 30 % of the height.
+  - Fore/aft car moves (throttle, turbo) scale with the distance.
+  - All constants are in `FRAME` in `js/director.js`.
+
 ## Revision 13: reliable live site
 
 - **Problem.** On the GitHub Pages link the page could stay on its static first-paint poster, with a START button that did nothing. The site was served as dozens of separate files, each cached by the browser for 10 minutes. A file that failed to download during deployment, or a mix of cached old and new modules after an update, stopped the JavaScript before its first frame. Nothing told the visitor.
