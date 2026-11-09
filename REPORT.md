@@ -26,6 +26,7 @@ Your feedback was that the slam chord sounded like noise and that the site playe
 - **Version check.** The page carries its build id. On open it fetches `version.json` uncached and reloads once if a newer build is live. A sessionStorage guard prevents reload loops.
 - **Boot watchdog.** A small classic script catches load and start-up errors. If the first frame has not been rendered 12 s after `load`, or 3 s after an error, it replaces START with the reason and a RELOAD button. The DRIVE / TURBO / speedometer cluster stays hidden until the app is running, so a stalled page no longer looks like a frozen UI.
 - **Tested.** With `js/director.js` blocked, the panel shows "A file failed to load". A normal load raises no false alarm. The single-file `docs/` build plays and starts audio.
+- **WebGL switched off.** On one Mac the panel reported "Error creating WebGL context": Chrome had been running for days with its GPU process in `--use-gl=disabled` mode, a fallback after a GPU failure that a browser restart clears. When WebGL 2 can't be created, the panel now explains the fix: restart the browser, check that graphics acceleration is on, or use Safari.
 
 ## Revision 12: no mouse steering
 

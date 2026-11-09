@@ -112,6 +112,14 @@
   <noscript><p class="noscript">Midnight Cruise needs JavaScript and WebGL 2.</p></noscript>
   <div id="bootfail" role="alert" hidden>
     <p class="bf-title">MIDNIGHT CRUISE couldn't start</p>
+    <div class="bf-gl">
+      <p>This browser has 3D graphics (WebGL&nbsp;2) switched off, so the road can't be drawn.</p>
+      <ol>
+        <li>Restart the browser. In Chrome, enter <code>chrome://restart</code> in the address bar.</li>
+        <li>Still off? Open <code>chrome://settings/system</code>, turn on “Use graphics acceleration when available”, then relaunch.</li>
+        <li>Or open this page in Safari.</li>
+      </ol>
+    </div>
     <p class="bf-why"></p>
     <button class="start bf-reload" type="button"><span class="start-label">RELOAD</span></button>
   </div>
@@ -123,6 +131,8 @@
       if (window.__ready || shown) return; shown = true;
       var el = document.getElementById('bootfail'), sw = document.getElementById('start-wrap');
       el.querySelector('.bf-why').textContent = why || 'The page took too long to start.';
+      var gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
+      if (!gl) el.classList.add('nogl');
       el.querySelector('.bf-reload').addEventListener('click', function () { location.reload(); });
       el.hidden = false; if (sw) sw.style.display = 'none';
     }

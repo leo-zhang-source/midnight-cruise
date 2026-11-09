@@ -171,6 +171,13 @@ body.touch #hints .h-key:nth-child(2) kbd, body.touch #hints .h-key:nth-child(3)
 #bootfail[hidden] { display: none; }
 #bootfail .bf-title { margin: 0; font-family: "Chakra Petch", system-ui, sans-serif; font-weight: 700; letter-spacing: .18em; font-size: 15px; }
 #bootfail .bf-why { margin: 0 0 6px; font-family: "VT323", ui-monospace, monospace; font-size: 20px; color: #ffb3dd; overflow-wrap: anywhere; }
+#bootfail .bf-gl { display: none; text-align: left; font-size: 14px; line-height: 1.5; color: var(--ink); }
+#bootfail.nogl .bf-gl { display: block; }
+#bootfail.nogl { top: 56%; max-height: calc(100% - 32px); overflow: auto; }
+#bootfail.nogl .bf-why { font-size: 16px; opacity: .6; }
+#bootfail .bf-gl p { margin: 0 0 6px; }
+#bootfail .bf-gl ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
+#bootfail .bf-gl code { font-family: "VT323", ui-monospace, monospace; font-size: 17px; color: #7ff6ff; background: rgba(62, 244, 255, .1); padding: 0 .3em; border-radius: 3px; user-select: all; overflow-wrap: anywhere; }
 
 @media (orientation: portrait) {
   #hints { top: 77%; }

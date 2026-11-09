@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <script>/*VERSION-CHECK*/ window.__BUILD = "8ae6a2c9fc8c";
+  <script>/*VERSION-CHECK*/ window.__BUILD = "b3d8241f2323";
 (function () {
   if (location.protocol !== 'https:' || /[?&](t|capture)=/.test(location.search)) return;
   fetch('version.json?_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
@@ -191,6 +191,13 @@ body.touch #hints .h-key:nth-child(2) kbd, body.touch #hints .h-key:nth-child(3)
 #bootfail[hidden] { display: none; }
 #bootfail .bf-title { margin: 0; font-family: "Chakra Petch", system-ui, sans-serif; font-weight: 700; letter-spacing: .18em; font-size: 15px; }
 #bootfail .bf-why { margin: 0 0 6px; font-family: "VT323", ui-monospace, monospace; font-size: 20px; color: #ffb3dd; overflow-wrap: anywhere; }
+#bootfail .bf-gl { display: none; text-align: left; font-size: 14px; line-height: 1.5; color: var(--ink); }
+#bootfail.nogl .bf-gl { display: block; }
+#bootfail.nogl { top: 56%; max-height: calc(100% - 32px); overflow: auto; }
+#bootfail.nogl .bf-why { font-size: 16px; opacity: .6; }
+#bootfail .bf-gl p { margin: 0 0 6px; }
+#bootfail .bf-gl ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
+#bootfail .bf-gl code { font-family: "VT323", ui-monospace, monospace; font-size: 17px; color: #7ff6ff; background: rgba(62, 244, 255, .1); padding: 0 .3em; border-radius: 3px; user-select: all; overflow-wrap: anywhere; }
 
 @media (orientation: portrait) {
   #hints { top: 77%; }
@@ -308,6 +315,14 @@ body.touch #hints .h-key:nth-child(2) kbd, body.touch #hints .h-key:nth-child(3)
   <noscript><p class="noscript">Midnight Cruise needs JavaScript and WebGL 2.</p></noscript>
   <div id="bootfail" role="alert" hidden>
     <p class="bf-title">MIDNIGHT CRUISE couldn't start</p>
+    <div class="bf-gl">
+      <p>This browser has 3D graphics (WebGL&nbsp;2) switched off, so the road can't be drawn.</p>
+      <ol>
+        <li>Restart the browser. In Chrome, enter <code>chrome://restart</code> in the address bar.</li>
+        <li>Still off? Open <code>chrome://settings/system</code>, turn on “Use graphics acceleration when available”, then relaunch.</li>
+        <li>Or open this page in Safari.</li>
+      </ol>
+    </div>
     <p class="bf-why"></p>
     <button class="start bf-reload" type="button"><span class="start-label">RELOAD</span></button>
   </div>
@@ -319,6 +334,8 @@ body.touch #hints .h-key:nth-child(2) kbd, body.touch #hints .h-key:nth-child(3)
       if (window.__ready || shown) return; shown = true;
       var el = document.getElementById('bootfail'), sw = document.getElementById('start-wrap');
       el.querySelector('.bf-why').textContent = why || 'The page took too long to start.';
+      var gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
+      if (!gl) el.classList.add('nogl');
       el.querySelector('.bf-reload').addEventListener('click', function () { location.reload(); });
       el.hidden = false; if (sw) sw.style.display = 'none';
     }
