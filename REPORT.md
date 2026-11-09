@@ -19,6 +19,25 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 15: sharp picture, and the sky bug behind "the sky is in the wrong place"
+
+- **Sky bug.**
+  - The sky shader rebuilt its view rays from `gl_FragCoord / uRes`, with `uRes` set to the output size. Whenever the scene rendered below native resolution, the sky was mapped to the wrong place: the sun sat high above the horizon and a flat band separated sky from ground. That happens on any Retina screen larger than about 3.2 MP, or after an adaptive quality step-down.
+  - Captures at 1× never showed it, because there the two sizes are equal.
+  - `uRes` is now the render-target size. Checked at quality tiers 0, 2 and 4 on a 1728×1117 @2× viewport, where the sky and ground line up at every scale.
+- **Resolution.** Tier 0 now renders a full Retina laptop screen natively, up to 7.8 MP (was 3.2 MP, about 64 % of native on a 16-inch MacBook Pro). Two lower tiers keep the adaptive step-down path.
+- **Frame cost.** Measured on M3 Max at 3724×2095: cruise 10.8 ms median and 13.7 ms p95. The title-flight motion blur uses 5 sub-frames instead of 8 above 4 MP.
+- **Crisper VHS finish.** Transients (slam, throttle, turbo) keep the same size of kick.
+
+  | Effect | Before | Now |
+  |---|---|---|
+  | RGB split at rest | 1.5 px | 0.6 px |
+  | Chroma bleed | 3 taps × 2.2 px, 85 % mix | 2 taps × 1.6 px, 50 % mix |
+  | Scanline depth | 16 % | 9 % |
+  | Grain | 0.022 | 0.014 |
+
+  A luma-only sharpening step restores edge contrast without colour halos.
+
 ## Revision 14: widescreen framing anchored to the frame height
 
 - **Problem.** The camera held a fixed 76° horizontal field of view, so each extra bit of screen width cost vertical view.

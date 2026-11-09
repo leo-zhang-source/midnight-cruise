@@ -462,8 +462,8 @@ export class World {
     this.scene.add(this.sky, this.mount, this.grid, this.trails, this.traffic, this.palms, this.car.group);
     this._m = new THREE.Matrix4();
   }
-  // s: frame state from the director
-  update(s, w, h) {
+  // s: frame state from the director · w, h: output size (aspect) · rw, rh: size of the render target the sky is drawn into
+  update(s, w, h, rw = w, rh = h) {
     const cam = this.camera, P = s.pal;
     cam.fov = s.cam.fov; cam.aspect = w / h; cam.near = 0.1; cam.far = 20000;
     cam.position.set(s.cam.x, s.cam.y, 0);
@@ -475,7 +475,7 @@ export class World {
     cam.updateMatrixWorld(true);
     const su = this.sky.material.uniforms;
     this._m.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse).invert();
-    su.uInvVP.value.copy(this._m); su.uCam.value.copy(cam.position); su.uRes.value.set(w, h);
+    su.uInvVP.value.copy(this._m); su.uCam.value.copy(cam.position); su.uRes.value.set(rw, rh);   // gl_FragCoord is in render-target pixels, which are fewer than output pixels when the scene renders below native
     su.uTime.value = s.t; su.uSunEl.value = s.sun.el; su.uSunR.value = s.sun.r; su.uSunPow.value = s.sun.pow * P.sunPower; su.uBand.value = s.sun.band;
     su.uStars.value = s.stars * P.stars; su.uFlare.value = s.sun.flare; su.uSunSquash.value = s.sun.squash || 0;
     for (const k of ['skyTop', 'skyMid', 'skyLow', 'horizon', 'haze', 'fog', 'sunTop', 'sunMid', 'sunLow', 'sunGlow']) su[k].value.set(...P[k]);

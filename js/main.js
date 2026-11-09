@@ -78,14 +78,16 @@ const ui = new UI(app);
 for (const t of ['pointerdown', 'keydown', 'touchend']) addEventListener(t, () => audio.resume(), { capture: true, passive: true });
 
 // ── sizing & adaptive quality ─────────────────────────────────────────────
+// Tier 0 renders a full Retina laptop screen natively (3456×2234 ≈ 7.7 MP); slower frames step down a tier.
 const TIERS = [
-  { budget: 3.2e6, msaa: 4, dpr: 2 },
-  { budget: 2.1e6, msaa: 4, dpr: 1.5 },
+  { budget: 7.8e6, msaa: 4, dpr: 2 },
+  { budget: 4.6e6, msaa: 4, dpr: 2 },
+  { budget: 2.6e6, msaa: 2, dpr: 1.5 },
   { budget: 1.3e6, msaa: 2, dpr: 1.25 },
   { budget: 0.75e6, msaa: 0, dpr: 1 },
 ];
 const mobile = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 600;
-let tier = Q.has('tier') ? +Q.get('tier') : mobile ? 2 : 0;
+let tier = Q.has('tier') ? +Q.get('tier') : mobile ? 3 : 0;
 let cssW = 0, cssH = 0, outW = 0, outH = 0;
 function resize() {
   cssW = fixedW || innerWidth; cssH = fixedH || innerHeight;
@@ -106,7 +108,7 @@ function adapt(dt) {
   ema += (dt - ema) * 0.05;
   if (ema > 21) { hot += dt; calm = 0; } else if (ema < 12.5) { calm += dt; hot = 0; } else { hot = Math.max(0, hot - dt); calm = 0; }
   if (hot > 1200 && tier < TIERS.length - 1) { tier++; hot = 0; ema = 16; resize(); }
-  if (calm > 6000 && tier > (mobile ? 1 : 0)) { tier--; calm = 0; resize(); }
+  if (calm > 6000 && tier > (mobile ? 2 : 0)) { tier--; calm = 0; resize(); }
 }
 
 // ── frame ─────────────────────────────────────────────────────────────────
@@ -119,7 +121,7 @@ const syncPx = new Uint8Array(4);
 
 function render(T) {
   const s = frameState(tl, T, outW, outH, { reduced: app.reduced });
-  world.update(s, outW, outH);
+  world.update(s, outW, outH, post.W, post.H);
   title.update(s, outW, outH);
   title.scene.updateMatrixWorld(true);
   const W2 = title.width / 2;
@@ -127,7 +129,7 @@ function render(T) {
   const f = title.project(s.post.flare.tx - W2, s.post.flare.ty - 50);
   // 180° shutter: while the title is flying, average 8 sub-frames across half a frame
   let subs = null;
-  if (s.title.blur && !app.reduced) { const N = 8, SH = 1 / 120; subs = []; for (let k = 0; k < N; k++) subs.push(frameState(tl, T - (k * SH) / (N - 1), outW, outH, { reduced: false })); }
+  if (s.title.blur && !app.reduced) { const N = post.W * post.H > 4e6 ? 5 : 8, SH = 1 / 120; subs = []; for (let k = 0; k < N; k++) subs.push(frameState(tl, T - (k * SH) / (N - 1), outW, outH, { reduced: false })); }
   post.render(world, title, s, g, f, subs);
   ui.update(s, T, cssW, cssH);
   return s;

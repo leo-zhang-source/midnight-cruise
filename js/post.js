@@ -67,7 +67,7 @@ const UP = /* glsl */`
 
 const VHS = /* glsl */`
   precision highp float; varying vec2 vUv;
-  uniform sampler2D tComp, tBloom, tFg; uniform vec2 uRes; uniform float uT, uScale, uAspect;
+  uniform sampler2D tComp, tBloom, tFg; uniform vec2 uRes, uTex; uniform float uT, uScale, uAspect;
   uniform float uRgb, uTrack, uTrackY, uNoise, uScan, uVig, uFlash, uCrt, uBloom, uSpeed, uFfwd, uRew, uWarp, uHz;
   uniform vec4 uGlint; uniform vec3 uFlare; uniform vec3 cA, cB;
   float h11(float p){ p = fract(p * .1031); p *= p + 33.33; p *= p + p; return fract(p); }
@@ -122,13 +122,18 @@ const VHS = /* glsl */`
     } else {
       col = vec3(texture2D(tComp, uv + o).r, texture2D(tComp, uv).g, texture2D(tComp, uv - o).b);
     }
-    // ── VHS chroma bleed: luma stays sharp, chroma smears to the right ──
+    // ── luma sharpening: restores edge contrast lost to resampling (luma only, so no colour halos) ──
+    vec3 nb = texture2D(tComp, uv + vec2(uTex.x, 0.0)).rgb + texture2D(tComp, uv - vec2(uTex.x, 0.0)).rgb
+            + texture2D(tComp, uv + vec2(0.0, uTex.y)).rgb + texture2D(tComp, uv - vec2(0.0, uTex.y)).rgb;
+    float Yc = dot(col, vec3(0.299, 0.587, 0.114)), Yn = dot(nb * 0.25, vec3(0.299, 0.587, 0.114));
+    col += clamp(Yc - Yn, -0.08, 0.08) * 0.6 * (1.0 - min(spd, 1.0));
+    // ── VHS chroma bleed: luma stays sharp, chroma smears a little to the right ──
     vec3 sm = vec3(0.0);
-    for (int k = 1; k <= 3; k++) sm += texture2D(tComp, uv - vec2(float(k) * 2.2 * uScale / uRes.x, 0.0)).rgb;
-    sm = (sm + col) / 4.0;
+    for (int k = 1; k <= 2; k++) sm += texture2D(tComp, uv - vec2(float(k) * 1.6 * uScale / uRes.x, 0.0)).rgb;
+    sm = (sm + col) / 3.0;
     float Y = dot(col, vec3(0.299, 0.587, 0.114));
     float Ys = dot(sm, vec3(0.299, 0.587, 0.114));
-    col = Y + (sm - Ys) * 0.85 + (col - Y) * 0.25;
+    col = Y + (sm - Ys) * 0.5 + (col - Y) * 0.5;
     // ── bloom (wide) ──
     col += texture2D(tBloom, uv).rgb * 0.15 * uBloom;
     // ── star glint & lens flare ──
@@ -160,12 +165,12 @@ const VHS = /* glsl */`
     // ── scanlines (~2 px spacing at 1080p, scaled) ──
     float per = max(2.0, 2.0 * uScale);
     float sl = 0.5 + 0.5 * cos(6.2831853 * gl_FragCoord.y / per);
-    col *= 1.0 - uScan * 0.16 * (1.0 - sl);
+    col *= 1.0 - uScan * 0.09 * (1.0 - sl);
     // ── tape noise, dropouts and grain (seeded by the frame) ──
     float line = floor(gl_FragCoord.y / (2.0 * uScale));
     float spk = step(0.9993, h21(vec2(line, frame))) * step(0.82, h21(vec2(floor(gl_FragCoord.x / (24.0 * uScale)), line + frame)));
     float tn = (h21(gl_FragCoord.xy + frame * 13.1) - 0.5);
-    col += spk * 0.14 * (0.4 + uNoise * 2.0) + tn * (0.022 + uNoise * 0.32) * (0.35 + 0.45 * Y);
+    col += spk * 0.14 * (0.4 + uNoise * 2.0) + tn * (0.014 + uNoise * 0.32) * (0.35 + 0.45 * Y);
     col += band * uTrack * (h21(vec2(gl_FragCoord.x * 0.05, line + frame)) - 0.4) * 0.5;
     col += ffb * (uFfwd + uRew) * 0.25;
     // ── vignette ──
@@ -196,7 +201,7 @@ export class Post {
     this.acc = new Pass('precision highp float; varying vec2 vUv; uniform sampler2D tSrc; uniform float uW; void main(){ gl_FragColor = texture2D(tSrc, vUv) * uW; }', { tSrc: { value: null }, uW: { value: 1 } });
     Object.assign(this.acc.mat, { transparent: true, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor });
     this.vhs = new Pass(VHS, {
-      tComp: { value: null }, tBloom: { value: null }, tFg: { value: null }, uRes: { value: new THREE.Vector2() }, uT: { value: 0 }, uScale: { value: 1 }, uAspect: { value: 1 },
+      tComp: { value: null }, tBloom: { value: null }, tFg: { value: null }, uRes: { value: new THREE.Vector2() }, uTex: { value: new THREE.Vector2() }, uT: { value: 0 }, uScale: { value: 1 }, uAspect: { value: 1 },
       uRgb: { value: 1.5 }, uTrack: { value: 0 }, uTrackY: { value: 0.5 }, uNoise: { value: 0 }, uScan: { value: 1 }, uVig: { value: 0.4 }, uFlash: { value: 0 },
       uCrt: { value: 0 }, uBloom: { value: 1 }, uSpeed: { value: 0 }, uFfwd: { value: 0 }, uRew: { value: 0 }, uWarp: { value: 0 }, uHz: { value: 0.44 },
       uGlint: { value: new THREE.Vector4() }, uFlare: { value: new THREE.Vector3() }, cA: { value: new THREE.Vector3() }, cB: { value: new THREE.Vector3() },
@@ -249,8 +254,8 @@ export class Post {
     }
     const P = s.post, v = this.vhs.u;
     v.tComp.value = this.rtComp.texture; v.tBloom.value = this.ups[0].texture; v.tFg.value = fgTex;
-    v.uRes.value.set(this.outW, this.outH); v.uT.value = s.T; v.uScale.value = this.outH / 1080; v.uAspect.value = this.outW / this.outH;
-    v.uRgb.value = 1.5 * P.rgb; v.uTrack.value = P.tracking; v.uTrackY.value = P.trackY; v.uNoise.value = P.noise; v.uScan.value = P.scan;
+    v.uRes.value.set(this.outW, this.outH); v.uTex.value.set(1 / this.W, 1 / this.H); v.uT.value = s.T; v.uScale.value = this.outH / 1080; v.uAspect.value = this.outW / this.outH;
+    v.uRgb.value = 0.6 + 1.5 * (P.rgb - 1); v.uTrack.value = P.tracking; v.uTrackY.value = P.trackY; v.uNoise.value = P.noise; v.uScan.value = P.scan;
     v.uVig.value = P.vignette; v.uFlash.value = P.flash; v.uCrt.value = P.crt; v.uBloom.value = P.bloom; v.uSpeed.value = s.reduced ? 0 : P.speed;
     v.uFfwd.value = P.ffwd; v.uRew.value = P.rewind; v.uWarp.value = P.warp; v.uHz.value = 0.5 - s.layout.shift * 0.5;
     v.uGlint.value.set(glint[0], glint[1], P.glint.i, P.glint.size * this.outH / 1080 * 1.0);
