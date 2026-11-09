@@ -2,9 +2,13 @@
 //  1. js/audio/worklet.bundle.js — the AudioWorklet as one import-free script (Safari/Firefox-safe).
 //  2. dist/midnight-cruise.html — a single self-contained file (code, fonts, samples, worklet inlined)
 //     that also works when opened directly from disk (file://), no server needed.
+//  3. docs/ — the GitHub Pages site: that same single file as index.html, stamped with a build id,
+//     plus version.json. On load the page compares its id with version.json (fetched uncached) and
+//     reloads once if a newer build is live, so visitors never keep a stale copy from the browser cache.
 // Usage: cd tools && npm install && node build.mjs
 import * as esbuild from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { SAMPLE_FILES } from '../js/audio/samples.js';
 
@@ -39,4 +43,20 @@ const art = html
   .replace(/^\s*(<title>[^<]*<\/title>)?/, '')
   .replace(/<style>/, '<style>\n:root { color-scheme: dark; }\n');
 writeFileSync(R('dist/midnight-cruise.artifact.html'), '<title>Midnight Cruise — 1986</title>\n' + art.replace(/<title>[^<]*<\/title>\s*/i, ''));
-console.log(`worklet.bundle.js ${(workletSrc.length / 1024).toFixed(0)} KB · dist/midnight-cruise.html ${(html.length / 1048576).toFixed(2)} MB`);
+// 4 · GitHub Pages site (docs/): build id + one-shot reload when a newer build is live
+const build = createHash('sha256').update(html).digest('hex').slice(0, 12);
+const check = `<script>/*VERSION-CHECK*/ window.__BUILD = ${JSON.stringify(build)};
+(function () {
+  if (location.protocol !== 'https:' || /[?&](t|capture)=/.test(location.search)) return;
+  fetch('version.json?_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (!j || !j.build || j.build === window.__BUILD) return;
+    var k = 'mc-reload-' + j.build;
+    try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { return; }
+    location.reload();
+  }).catch(function () {});
+})();</script>`;
+mkdirSync(R('docs'), { recursive: true });
+writeFileSync(R('docs/index.html'), html.replace('<meta charset="utf-8">', () => `<meta charset="utf-8">\n  ${check}`));
+writeFileSync(R('docs/version.json'), JSON.stringify({ build }) + '\n');
+writeFileSync(R('docs/.nojekyll'), '');
+console.log(`worklet.bundle.js ${(workletSrc.length / 1024).toFixed(0)} KB · dist/midnight-cruise.html ${(html.length / 1048576).toFixed(2)} MB · docs/ build ${build}`);

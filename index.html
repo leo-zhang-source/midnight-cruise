@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <script>/*FILE-REDIRECT*/ if (location.protocol === 'file:') location.replace('dist/midnight-cruise.html' + location.search);</script>
+  <script>/*FILE-REDIRECT*/ if (location.protocol === 'file:') location.replace('docs/index.html' + location.search);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05020f">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2305020f%22/%3E%3Ccircle cx=%2216%22 cy=%2217%22 r=%229%22 fill=%22%23ff8a3c%22/%3E%3Cpath d=%22M6 19h20M6 22h20M6 25h20%22 stroke=%22%2305020f%22 stroke-width=%221.6%22/%3E%3C/svg%3E">
@@ -110,6 +110,31 @@
 
   <div id="hud" hidden></div>
   <noscript><p class="noscript">Midnight Cruise needs JavaScript and WebGL 2.</p></noscript>
+  <div id="bootfail" role="alert" hidden>
+    <p class="bf-title">MIDNIGHT CRUISE couldn't start</p>
+    <p class="bf-why"></p>
+    <button class="start bf-reload" type="button"><span class="start-label">RELOAD</span></button>
+  </div>
+  <script>/*BOOT-WATCHDOG*/ (function () {
+    // If the app never renders its first frame (a file failed to load, WebGL unavailable, a startup error),
+    // replace the inert START button with the reason and a reload button.
+    var why = '', shown = false;
+    function show() {
+      if (window.__ready || shown) return; shown = true;
+      var el = document.getElementById('bootfail'), sw = document.getElementById('start-wrap');
+      el.querySelector('.bf-why').textContent = why || 'The page took too long to start.';
+      el.querySelector('.bf-reload').addEventListener('click', function () { location.reload(); });
+      el.hidden = false; if (sw) sw.style.display = 'none';
+    }
+    function later(msg) { if (window.__ready) return; if (!why) why = msg; setTimeout(show, 3000); }
+    addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && t !== window && (t.src || t.href)) later('A file failed to load: ' + (t.src || t.href).split('/').slice(-2).join('/'));
+      else later(e.message || 'A script error stopped the start-up.');
+    }, true);
+    addEventListener('unhandledrejection', function (e) { var r = e.reason; later(r && r.message ? r.message : String(r)); });
+    addEventListener('load', function () { setTimeout(show, 12000); });
+  })();</script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

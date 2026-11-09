@@ -65,7 +65,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ghost.on { display: inline-flex; }
 
 /* ── drive controls ── */
-#drivebar { position: fixed; right: var(--gutter); bottom: calc(max(20px, 4.6vh) + var(--safe-b)); display: flex; align-items: flex-end; gap: calc(var(--u) * 1.2); }
+#drivebar { position: fixed; right: var(--gutter); bottom: calc(max(20px, 4.6vh) + var(--safe-b)); display: flex; align-items: flex-end; gap: calc(var(--u) * 1.2); visibility: hidden; }  /* shown by ui.js once running */
 #drivebar button { position: relative; border-radius: 50%; border: 0; display: grid; place-items: center; align-content: center; gap: .15em; touch-action: none; }
 #drivebar .ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; }
 .ring circle { fill: none; stroke-width: 4; }
@@ -167,6 +167,10 @@ body.touch #hints .h-key:nth-child(2) kbd, body.touch #hints .h-key:nth-child(3)
 
 #hud { position: fixed; left: 8px; top: 8px; font: 11px/1.35 ui-monospace, Menlo, monospace; color: #b8ff2e; background: rgba(0,0,0,.6); padding: 6px 8px; border-radius: 4px; pointer-events: none; white-space: pre; z-index: 9; }
 .noscript { position: fixed; inset: auto 0 40% 0; text-align: center; }
+#bootfail { position: fixed; left: 50%; top: 74%; transform: translate(-50%, -50%); width: min(520px, calc(100% - 32px)); box-sizing: border-box; padding: 18px 20px 20px; border-radius: 14px; border: 1px solid rgba(255, 63, 180, .45); background: rgba(8, 2, 18, .86); box-shadow: 0 0 24px rgba(255, 63, 180, .25); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; z-index: 8; }
+#bootfail[hidden] { display: none; }
+#bootfail .bf-title { margin: 0; font-family: "Chakra Petch", system-ui, sans-serif; font-weight: 700; letter-spacing: .18em; font-size: 15px; }
+#bootfail .bf-why { margin: 0 0 6px; font-family: "VT323", ui-monospace, monospace; font-size: 20px; color: #ffb3dd; overflow-wrap: anywhere; }
 
 @media (orientation: portrait) {
   #hints { top: 77%; }

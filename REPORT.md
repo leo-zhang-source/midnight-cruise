@@ -19,6 +19,14 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 13: reliable live site
+
+- **Problem.** On the GitHub Pages link the page could stay on its static first-paint poster, with a START button that did nothing. The site was served as dozens of separate files, each cached by the browser for 10 minutes. A file that failed to download during deployment, or a mix of cached old and new modules after an update, stopped the JavaScript before its first frame. Nothing told the visitor.
+- **One file.** Pages now serves `docs/`: the single-file build (all code, fonts, samples and the worklet inlined) as `index.html`, plus `version.json`. `tools/build.mjs` writes both.
+- **Version check.** The page carries its build id. On open it fetches `version.json` uncached and reloads once if a newer build is live. A sessionStorage guard prevents reload loops.
+- **Boot watchdog.** A small classic script catches load and start-up errors. If the first frame has not been rendered 12 s after `load`, or 3 s after an error, it replaces START with the reason and a RELOAD button. The DRIVE / TURBO / speedometer cluster stays hidden until the app is running, so a stalled page no longer looks like a frozen UI.
+- **Tested.** With `js/director.js` blocked, the panel shows "A file failed to load". A normal load raises no false alarm. The single-file `docs/` build plays and starts audio.
+
 ## Revision 12: no mouse steering
 
 - The mouse no longer steers. Steering is now `←` `→` / `A` `D` on a keyboard, or a horizontal drag on a touch screen, which is unchanged.
