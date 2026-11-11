@@ -46,7 +46,7 @@ Four points after playing Revision 18.
 
 **Limits**
 
-- The grappler reading of "towing tool" is my guess. If you meant something else (a tow truck, a harpoon and cable, spike strips), the mechanic underneath stays the same and only the look changes.
+- The grappler reading of "towing tool" was a guess when this was built; the user has since confirmed it is the tool they meant.
 - The helicopter is still built from boxes and is small on screen.
 - Your own car was not touched. If the modelling remark was about it, I need to know what looks wrong.
 
