@@ -49,7 +49,7 @@ export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
 export const AUTO_ENV = { time: 40, dist: 1500 };
 // Road layout (world units, x across): three lanes of `lane` width (a car is ~2 wide), centred on −lane, 0, +lane.
-// The grid is offset so its lines fall on the dashed lane dividers (±lane/2) and on the cyan rails (±1.5·lane).
+// The grid is offset so its lines fall on the lane edges (±lane/2) and on the cyan rails (±1.5·lane); no lane markings.
 // Traffic runs outside the rails, so it never meets the player's car.
 export const ROAD = { lane: 4.0, rail: 6.0, traffic: 7.8, trail: 9.4 };
 // Lane change feel (sim, 240 Hz): the lateral move is a critically damped spring on a lightly smoothed target

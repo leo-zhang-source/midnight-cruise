@@ -22,7 +22,7 @@ Your feedback was that the slam chord sounded like noise and that the site playe
 ## Revision 16: three lanes with drift (lane-runner controls)
 
 - **Road.** The road is now three lanes, each 4 units wide, so each holds one car (a car is about 2 wide).
-  - The grid is offset so its lines fall on the lane edges. Dashed, travelling lane dividers sit at ±2, and the cyan rails moved back to ±6.
+  - The grid is offset so its lines fall on the lane edges (±2), and the cyan rails moved back to ±6. The dashed lane dividers were tried and then removed at the user's request, so the lanes are marked only by the regular grid lines.
   - Traffic tail lights run outside the rails (±7.8), so they never meet the player's car.
   - Layout constants are in `ROAD` in `js/cue.js`.
 - **Controls.** `←` `→` / `A` `D` move one lane per press; holding a key does not repeat. A tap or click on the left or right half of the scene does the same, firing on press with no wait. The mouse still does not steer by moving.
