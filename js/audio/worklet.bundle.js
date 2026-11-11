@@ -41,34 +41,34 @@
   };
   var TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
   var ENV_XFADE = 1.6;
-  var AUTO_ENV = { time: 40, dist: 1900 };
+  var AUTO_ENV = { time: 40, dist: 2900 };
   var GAME = {
-    vTraffic: 9,
-    vOncoming: -22,
-    gears: [36, 41, 46, 52, 58, 64],
-    // base speed per gear (×3.6 = MPH on the speedometer)
-    gearAt: [0, 700, 1700, 3e3, 4600, 6500],
+    mph: 2.4,
+    // speedometer: road units per second → MPH
+    vTraffic: 12,
+    gears: [54, 61, 69, 78, 87, 96],
+    // cruising speed per gear
+    gearAt: [0, 1e3, 2500, 4500, 7e3, 1e4],
     // run distance at which each gear engages
-    creep: [700, 14],
-    // past the last gear: +1 u/s per 700 units, up to +14
-    driveMul: 0.5,
-    // DRIVE held: +50 % speed (and distance points ×2)
-    nitroBoost: 1.6,
+    creep: [1e3, 20],
+    // past the last gear: +1 u/s per 1000 units, up to +20
+    brakeMul: 0.55,
+    brakeLinger: 2.2,
+    // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
+    // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
+    nitroBoost: 0.85,
     nitroTail: 0.55,
     nitroGrace: 0.7,
-    // nitro: speed ×2.6, smashes traffic; invulnerable a little longer
-    nitroStart: 0.35,
-    nitroIdle: 0.012,
-    nitroNear: 0.2,
-    nitroDraft: 0.32,
-    nitroCell: 0.012,
-    nitroFree: 1 / 7,
-    ahead: 280,
-    firstRow: 150,
-    despawn: 24,
+    nitroMax: 3,
+    nitroFirst: 700,
+    nitroEvery: [1100, 1900],
+    nitroFree: 7,
+    ahead: 340,
+    firstRow: 260,
+    despawn: 30,
     // spawn distance ahead of the car, first row of a run, cull distance behind
     rowGap: [1.5, 0.9],
-    // seconds between rows at the gear's base closing speed (gear 1 → 6)
+    // seconds between rows at the gear's closing speed (gear 1 → 6)
     nearT: 0.32,
     draftT: 0.9,
     // close-call and slipstream windows, in seconds of closing time
@@ -76,43 +76,64 @@
     taxiBlink: 0.7,
     taxiMove: 0.6,
     // a taxi signals 2.2 s before you reach it, then changes lane
-    oncEvery: [520, 900],
-    oncFrom: 1,
-    // oncoming cars: spacing (road units) and first gear index
+    introT: 2.8,
+    introHold: 1.1,
+    introClose: 1.7,
+    introV: 16,
+    // every run opens with the police on your bumper, then you floor it
     swipeInv: 0.5,
-    swipeKick: 7,
+    swipeKick: 9,
     reviveInv: 2,
-    heatSmash: 0.5,
-    heatHold: 8,
-    heatDecay: 7,
-    // wanted level: +1 per sideswipe, +0.5 per smash; cools after 8 s
-    drEvery: 6.5,
-    drWarn: 1.3,
-    drStrike: 0.5,
-    // police drone: locks your lane, strikes 1.3 s later
-    wallP: 0.3,
-    // wanted level 3: share of rows replaced by a police barrier
+    // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and ramming, 3 = helicopter and drone strikes.
+    // A stumble (sideswipe, rammed, drone hit) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+    star2At: 3500,
+    star3At: 8e3,
+    // distance floors: the longer you run, the more they send
+    heatSwipe: 1,
+    heatSmash: 0.34,
+    heatHold: 10,
+    heatDecay: 12,
+    closeT: 6,
+    stumbleGrace: 0.9,
+    polClose: 6.5,
+    polFar: 19,
+    ramFirst: 6,
+    ramEvery: [6, 9],
+    ramWarn: 1.1,
+    ramV: 26,
+    ramBack: 34,
+    ramSlow: 1,
+    ramSlowMul: 0.7,
+    ramClear: 2.7,
+    ramOwn: 1.8,
+    // a ram only starts when a lane beside you stays clear for ramClear s
+    blockP: [0, 0, 0.2, 0.3],
+    // share of rows that are police roadblocks, by star
+    drEvery: 6,
+    drWarn: 1.2,
+    drStrike: 0.45,
+    drClear: 2.7,
     ptsDist: 1,
     ptsNear: 150,
     ptsPass: 25,
     ptsCell: 10,
     ptsSmash: 200,
+    ptsDraft: 80,
     comboNear: 3,
     comboCap: 40,
     comboStep: 0.1,
-    heatBonus: 0.25,
+    starBonus: 0.25,
     tapeEvery: 100,
     tapesStart: 1,
     maxTapes: 3,
     // spare tapes: one per 100 cells; a tape rewinds the crash
     overLock: 0.7,
     rewindSec: 3,
-    reviveHold: 0.8,
-    rewindV: -70
+    reviveHold: 1.3
   };
-  var ROAD = { lane: 4, rail: 6, traffic: 7.8, trail: 9.4 };
-  var LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 56e-4, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
-  var THROTTLE = { rise: 0.42, fall: 0.95 };
+  var ROAD = { lane: 5, rail: 7.5, traffic: 5, trail: 9.7 };
+  var LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 46e-4, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
+  var THROTTLE = { rise: 0.32, fall: 0.2 };
   var FLICK = [
     // [time, level] steps
     [7, 0],
@@ -381,13 +402,23 @@
   var VF = 9;
   var NC = 16;
   var CF = 5;
-  var T_TRUCK = 1;
-  var T_TAXI = 2;
-  var T_ONC = 3;
-  var T_WALL = 4;
-  var HALF_W = [0, 1.2, 1, 1, 2];
+  var NI = 4;
+  var IF = 3;
+  var T_CAR = 1;
+  var T_VAN = 2;
+  var T_TRUCK = 3;
+  var T_TAXI = 4;
+  var T_BLOCK = 5;
+  var HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.5];
+  var HALF_W = [0, 1.05, 1.15, 1.4, 1.05, 2.4];
   var CAR_HL = 2.2;
   var CAR_HW = 0.95;
+  var POL_HL = 2.4;
+  var POL_HW = 1.05;
+  var P_TAIL = 0;
+  var P_WARN = 1;
+  var P_CHARGE = 2;
+  var P_BACK = 3;
   var LAT = 1;
   var LON = 2;
   var THREAT = 4;
@@ -403,14 +434,13 @@
       gd: 0,
       veh: new Float64Array(NV * VF),
       cel: new Float64Array(NC * CF),
+      itm: new Float64Array(NI * IF),
       nid: 1,
       genU: GAME.firstRow,
       genI: 0,
       path: 0,
       lastPat: 0,
-      oncLane: 0,
-      oncUntil: 0,
-      oncNext: GAME.oncEvery[1],
+      itmNext: GAME.nitroFirst,
       score: 0,
       cells: 0,
       combo: 0,
@@ -419,21 +449,35 @@
       smash: 0,
       passed: 0,
       vmax: 0,
-      heatMax: 0,
-      nitro: free ? 1 : GAME.nitroStart,
-      nf: free ? 1 : 0,
-      heat: 0,
-      heatGt: -1e9,
-      lvl: 0,
+      starMax: 1,
       gear: 0,
+      nstock: free ? 1 : 0,
+      nfree: 0,
+      heat: 1,
+      heatGt: -1e9,
+      star: 1,
+      pcl: 0,
+      stG: 0,
+      slow: 0,
+      brkAcc: 0,
+      // tail-close until, stumble grace until, slowed until
+      polM: P_TAIL,
+      polT: 0,
+      polLane: 0,
+      polZ: -GAME.polClose,
+      polX: 0,
+      polF: 0,
+      ramNext: GAME.ramFirst,
       drT: -1,
       drLane: 0,
       drHit: 0,
+      drS: 0,
       drAcc: 0,
       drNext: 0,
       inv: 0,
       draft: 0,
       draftEv: -1e9,
+      goEv: 0,
       over: 0
     };
   }
@@ -441,17 +485,19 @@
     const c = { ...g };
     c.veh = g.veh.slice();
     c.cel = g.cel.slice();
+    c.itm = g.itm.slice();
     return c;
   }
-  var gameMult = (g) => (1 + Math.min(g.combo, GAME.comboCap) * GAME.comboStep) * (1 + GAME.heatBonus * g.lvl);
+  var gameMult = (g) => (1 + Math.min(g.combo, GAME.comboCap) * GAME.comboStep) * (1 + GAME.starBonus * (g.star - 1));
   var gameBase = (g) => GAME.gears[g.gear] + Math.min(GAME.creep[1], Math.max(0, g.gd - GAME.gearAt[5]) / GAME.creep[0]);
+  var policeClose = (g) => g.gt < GAME.introClose || g.gt < g.pcl;
   function rnd(g) {
     let t = g.rs = g.rs + 1831565813 | 0;
     t = Math.imul(t ^ t >>> 15, t | 1);
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   }
-  function spawn(g, type, lane, u, v, hl, a = 0, b = 0) {
+  function spawn(g, type, lane, u, a = 0, b = 0) {
     const veh = g.veh;
     for (let i = 0; i < NV; i++) {
       const o = i * VF;
@@ -459,8 +505,8 @@
       veh[o] = type;
       veh[o + 1] = lane;
       veh[o + 2] = u + GAME.vTraffic * g.gt;
-      veh[o + 3] = v;
-      veh[o + 4] = hl;
+      veh[o + 3] = GAME.vTraffic;
+      veh[o + 4] = HALF_L[type];
       veh[o + 5] = 0;
       veh[o + 6] = a;
       veh[o + 7] = b;
@@ -482,6 +528,17 @@
       return;
     }
   }
+  function canister(g, lane, u) {
+    const itm = g.itm;
+    for (let i = 0; i < NI; i++) {
+      const o = i * IF;
+      if (itm[o]) continue;
+      itm[o] = 1;
+      itm[o + 1] = lane;
+      itm[o + 2] = u + GAME.vTraffic * g.gt;
+      return;
+    }
+  }
   function genRow(g) {
     const G = GAME, gear = g.gear, u = g.genU, p = g.path, i = g.genI++;
     const w = G.gears[gear] - G.vTraffic;
@@ -489,81 +546,105 @@
     const side = () => rnd(g) < 0.5 ? -1 : 1;
     const adj = (l) => l === 0 ? side() : 0;
     const third = (a, b) => -(a + b);
-    const wall = g.lvl >= 3 && rnd(g) < G.wallP;
-    const block = (lane, type = wall ? T_WALL : T_TRUCK) => spawn(g, type, lane, u, G.vTraffic, type === T_WALL ? 0.6 : type === T_TRUCK ? 4.5 : 2.2);
-    let len = 9, f = p, pat;
-    if (g.oncLane !== 0) {
-      if (u >= g.oncUntil) {
-        spawn(g, T_ONC, g.oncLane, u, G.vOncoming, 2.2);
-        g.oncLane = 0;
-        g.oncNext = u + G.oncEvery[0] + rnd(g) * (G.oncEvery[1] - G.oncEvery[0]);
-        g.genU = u + 30;
-        g.path = 0;
+    const block = i >= 3 && rnd(g) < G.blockP[g.star];
+    let len = 5;
+    const put = (lane) => {
+      if (block) {
+        spawn(g, T_BLOCK, lane, u);
         return;
       }
-      const far = -g.oncLane;
-      if (rnd(g) < 0.7) block(far, T_TRUCK);
-      cellLine(g, 0, u - 10, 5, 5);
-      g.path = 0;
-      g.genU = u + len + w * tg * (0.9 + 0.3 * rnd(g));
-      return;
-    }
-    if (gear >= G.oncFrom && u >= g.oncNext && !wall) {
-      g.oncLane = side();
-      g.oncUntil = u + G.ahead * 0.62;
-      g.path = 0;
-      cellLine(g, 0, u - 10, 5, 5);
-      g.genU = u + 14;
-      return;
-    }
+      const r2 = rnd(g), type = r2 < 0.46 ? T_CAR : r2 < 0.72 ? T_VAN : T_TRUCK;
+      if (type === T_TRUCK) len = 12.4;
+      spawn(g, type, lane, u);
+    };
+    let f = p, pat;
     const r = rnd(g);
-    const wConvoy = 0.1 + 0.05 * gear, wGate = 0.08 + 0.02 * gear, wTaxi = gear >= 1 && !wall ? 0.14 : 0, wRest = 0.06;
+    const wConvoy = 0.1 + 0.05 * gear, wGate = 0.08 + 0.02 * gear, wTaxi = gear >= 1 && !block ? 0.14 : 0, wRest = 0.06;
     const wSingle = 0.4, wDecoy = 0.2;
-    const tot = wSingle + wConvoy + wDecoy + wGate + wTaxi + wRest;
-    let x = r * tot;
-    if (i < 3) pat = i === 0 ? 1 : r < 0.7 ? 1 : 3;
+    let x = r * (wSingle + wConvoy + wDecoy + wGate + wTaxi + wRest);
+    if (block) pat = r < 0.6 ? 2 : 4;
+    else if (i < 3) pat = i === 0 ? 1 : r < 0.7 ? 1 : 3;
     else if ((x -= wSingle) < 0) pat = 1;
     else if ((x -= wConvoy) < 0) pat = 2;
     else if ((x -= wDecoy) < 0) pat = 3;
     else if ((x -= wGate) < 0) pat = 4;
     else if ((x -= wTaxi) < 0) pat = 5;
     else pat = 0;
-    if ((pat === 3 || pat === 4 || pat === 0) && (g.lastPat === 3 || g.lastPat === 4 || g.lastPat === 0)) pat = 1;
+    if ((pat === 3 || pat === 4 || pat === 0) && (g.lastPat === 3 || g.lastPat === 4 || g.lastPat === 0)) pat = block ? 2 : 1;
     g.lastPat = pat;
     if (pat === 1) {
       f = adj(p);
-      block(p);
-      if (rnd(g) < 0.35) cellLine(g, p, u - 26, 3, 5);
+      put(p);
     } else if (pat === 2) {
       f = adj(p);
-      block(p);
-      block(third(p, f));
+      put(p);
+      put(third(p, f));
     } else if (pat === 3) {
-      block(p === 0 ? side() : rnd(g) < 0.5 ? 0 : -p);
+      put(p === 0 ? side() : rnd(g) < 0.5 ? 0 : -p);
     } else if (pat === 4) {
       const a = p === 0 ? -1 : 0, b = p === 0 ? 1 : -p;
-      block(a);
-      block(b);
+      put(a);
+      put(b);
     } else if (pat === 5) {
       const d = side();
-      spawn(g, T_TAXI, 0, u, G.vTraffic, 2.2, d, 0);
-      f = 0;
-      len = 4.4;
-      cellLine(g, p === 0 ? -d : p, u - 22, 4, 5);
+      spawn(g, T_TAXI, 0, u, d, 0);
+      cellLine(g, p === 0 ? -d : p, u - 26, 4, 6);
       g.path = 0;
-      g.genU = u + len + w * tg * 1.25;
+      g.genU = u + 5 + w * tg * 1.25;
       return;
     } else {
       const l2 = adj(p);
-      cellLine(g, p, u - 12, 4, 5);
-      cellLine(g, l2, u + 12, 4, 5);
+      cellLine(g, p, u - 14, 4, 6);
+      cellLine(g, l2, u + 14, 4, 6);
       g.path = p;
-      g.genU = u + 30 + w * tg * 0.6;
+      g.genU = u + 36 + w * tg * 0.6;
       return;
     }
-    cellLine(g, f, u - 10, 5, 5);
+    cellLine(g, f, u - 12, 5, 6);
+    const next = u + len + w * tg * (0.9 + 0.3 * rnd(g));
+    if (u >= g.itmNext) {
+      g.itmNext = u + G.nitroEvery[0] + rnd(g) * (G.nitroEvery[1] - G.nitroEvery[0]);
+      canister(g, f === 0 ? side() : rnd(g) < 0.5 ? f : 0, (u + len * 0.5 + next) * 0.5);
+    }
     g.path = f;
-    g.genU = u + len + w * tg * (0.9 + 0.3 * rnd(g));
+    g.genU = next;
+  }
+  function addHeat(g, n) {
+    g.heat = Math.min(3.999, g.heat + n);
+    g.heatGt = g.gt;
+  }
+  function stumble(g, out, by) {
+    const gt = g.gt;
+    if (gt < g.stG) return false;
+    g.combo = 0;
+    if (gt < g.pcl) {
+      g.over = 2;
+      out.push({ k: "bust", by });
+      return true;
+    }
+    g.pcl = gt + GAME.closeT;
+    g.stG = gt + GAME.stumbleGrace;
+    out.push({ k: "stumble", by });
+    return true;
+  }
+  function taxiPending(g) {
+    const veh = g.veh;
+    for (let i = 0; i < NV; i++) {
+      const o = i * VF;
+      if (veh[o] === T_TAXI && veh[o + 6] !== 0 && veh[o + 2] - g.gd > -6) return true;
+    }
+    return false;
+  }
+  function laneClear(g, l, vel, secs) {
+    const veh = g.veh, L = ROAD.lane;
+    for (let i = 0; i < NV; i++) {
+      const o = i * VF, type = veh[o];
+      if (!type) continue;
+      if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !(type === T_TAXI && veh[o + 6] !== 0 && (l === 0 || l === veh[o + 6]))) continue;
+      const dz = veh[o + 2] - g.gd, reach = veh[o + 4] + CAR_HL + 1.5, rel = Math.max(1, vel * 1.12 - veh[o + 3]);
+      if (dz > -reach && dz < reach + rel * secs) return false;
+    }
+    return true;
   }
   function stepGame(g, inp, out) {
     const DT2 = inp.dt, G = GAME, L = ROAD.lane;
@@ -576,15 +657,22 @@
       g.gear = gear;
       out.push({ k: "gear", n: gear + 1 });
     }
-    if (g.gt > 1.5 && inp.vel > g.vmax) g.vmax = inp.vel;
+    if (gt > G.introT && inp.vel > g.vmax) g.vmax = inp.vel;
     if (g.free) {
-      g.nitro = Math.min(1, g.nitro + G.nitroFree * DT2);
-      if (g.nitro >= 1 && !g.nf) {
-        g.nf = 1;
-        out.push({ k: "full" });
+      if (g.nstock < 1) {
+        g.nfree += DT2;
+        if (g.nfree >= G.nitroFree) {
+          g.nstock = 1;
+          g.nfree = 0;
+          out.push({ k: "full" });
+        }
       }
-      g.score += inp.vel * DT2 * G.ptsDist * (1 + inp.thr);
+      g.score += inp.vel * DT2 * G.ptsDist;
       return;
+    }
+    if (!g.goEv && gt >= G.introHold) {
+      g.goEv = 1;
+      out.push({ k: "go" });
     }
     const up = gd - G.vTraffic * gt;
     for (let n = 0; g.genU < up + G.ahead && n < 6; n++) genRow(g);
@@ -622,26 +710,17 @@
           g.smash++;
           g.combo++;
           g.score += G.ptsSmash * mult;
-          g.heat = Math.min(3, g.heat + G.heatSmash);
-          g.heatGt = gt;
+          addHeat(g, type === T_BLOCK ? 1 : G.heatSmash);
           out.push({ k: "smash", lane: veh[o + 1], dz, type });
           continue;
         }
         if (gt >= g.inv) {
-          const wasLon = fl & LON, wasLat = fl & LAT;
-          if (type !== T_ONC && (wasLon ? !wasLat : !wasLat)) {
+          if (!(fl & LAT)) {
             const dir = px < vx ? -1 : 1;
-            const back = clamp2(Math.round(veh[o + 1]) + dir, -1, 1);
-            g.combo = 0;
             g.inv = gt + G.swipeInv;
-            if (g.heat >= 3 - 1e-9) {
-              g.over = 2;
-              out.push({ k: "bust" });
-            } else {
-              g.heat = Math.min(3, Math.floor(g.heat + 1e-9) + 1);
-              g.heatGt = gt;
-            }
-            out.push({ k: "swipe", back, dir, lane: veh[o + 1] });
+            addHeat(g, G.heatSwipe);
+            stumble(g, out, "swipe");
+            out.push({ k: "swipe", back: clamp2(Math.round(veh[o + 1]) + dir, -1, 1), dir, lane: veh[o + 1] });
           } else {
             g.over = 1;
             out.push({ k: "crash", type, lane: veh[o + 1] });
@@ -655,7 +734,6 @@
           g.near++;
           g.combo += G.comboNear;
           g.score += G.ptsNear * mult;
-          g.nitro = Math.min(1, g.nitro + G.nitroNear);
           out.push({ k: "near", lane: veh[o + 1], pts: Math.round(G.ptsNear * mult) });
         }
         if (!(fl & PASSED) && dz < -reach) {
@@ -664,7 +742,7 @@
           g.combo++;
           g.score += G.ptsPass * mult;
         }
-        if (lat && type <= T_TAXI && gap > 0 && gap < clamp2(rel * G.draftT, 10, 45)) draft = 1;
+        if (lat && type !== T_BLOCK && gap > 0 && gap < clamp2(rel * G.draftT, 12, 60)) draft = 1;
       }
       veh[o + 5] = fl & ~(LAT | LON) | (lat ? LAT : 0) | (lon ? LON : 0);
     }
@@ -672,19 +750,12 @@
     mult = gameMult(g);
     g.draft += (draft - g.draft) * (1 - Math.exp(-DT2 / 0.15));
     if (draft) {
-      g.nitro = Math.min(1, g.nitro + G.nitroDraft * DT2);
+      g.score += G.ptsDraft * mult * DT2;
       if (gt - g.draftEv > 2.5) {
         g.draftEv = gt;
         out.push({ k: "draft" });
       }
     }
-    g.nitro = Math.min(1, g.nitro + G.nitroIdle * DT2);
-    if (g.nitro >= 1) {
-      if (!g.nf) {
-        g.nf = 1;
-        out.push({ k: "full" });
-      }
-    } else g.nf = 0;
     const cel = g.cel;
     for (let i = 0; i < NC; i++) {
       const o = i * CF, n = cel[o];
@@ -695,39 +766,137 @@
         cel[o] = 0;
         continue;
       }
-      if (Math.abs(px - cel[o + 1] * L) > 1.7) continue;
+      if (Math.abs(px - cel[o + 1] * L) > 1.9) continue;
       const k = Math.round((gd - z0) / sp);
-      if (k < 0 || k >= n || Math.abs(z0 + k * sp - gd) > 2) continue;
+      if (k < 0 || k >= n || Math.abs(z0 + k * sp - gd) > 2.2) continue;
       const bit = 1 << k;
       if (cel[o + 4] & bit) continue;
       cel[o + 4] |= bit;
       g.cells++;
       g.score += G.ptsCell * mult;
-      g.nitro = Math.min(1, g.nitro + G.nitroCell);
       out.push({ k: "cell" });
       if (g.cells % G.tapeEvery === 0) out.push({ k: "tape" });
     }
-    if (g.heat > 0 && gt - g.heatGt > G.heatHold) g.heat = Math.max(0, g.heat - DT2 / G.heatDecay);
-    let lvl = Math.min(3, Math.ceil(g.heat - 1e-9));
-    if (lvl >= 2) {
+    const itm = g.itm;
+    for (let i = 0; i < NI; i++) {
+      const o = i * IF;
+      if (!itm[o]) continue;
+      itm[o + 2] += G.vTraffic * DT2;
+      const dz = itm[o + 2] - gd;
+      if (dz < -8) {
+        itm[o] = 0;
+        continue;
+      }
+      if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
+        itm[o] = 0;
+        if (g.nstock < G.nitroMax) g.nstock++;
+        else g.score += 500 * mult;
+        out.push({ k: "item", n: g.nstock });
+      }
+    }
+    const floor = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1;
+    if (g.heat < floor) g.heat = floor;
+    else if (g.heat > floor && gt - g.heatGt > G.heatHold) g.heat = Math.max(floor, g.heat - DT2 / G.heatDecay);
+    const star = Math.min(3, Math.floor(g.heat + 1e-9));
+    if (star !== g.star) {
+      out.push({ k: "star", n: star, up: star > g.star ? 1 : 0 });
+      g.star = star;
+      if (star > g.starMax) g.starMax = star;
+    }
+    if (inp.brk) g.brkAcc += DT2;
+    else g.brkAcc = Math.max(0, g.brkAcc - 2 * DT2);
+    if (g.brkAcc > G.brakeLinger && gt >= g.pcl - 1) {
+      if (gt >= g.pcl) out.push({ k: "tail" });
+      g.pcl = gt + 1.6;
+    }
+    const eK = (tau) => 1 - Math.exp(-DT2 / tau);
+    if (g.polM === P_TAIL) {
+      const close = policeClose(g);
+      g.polZ += ((close ? -G.polClose : -G.polFar) - g.polZ) * eK(close ? 0.3 : 1.1);
+      g.polX += (px - g.polX) * eK(0.3);
+      if (g.star >= 2 && gt >= g.ramNext && gt > G.introT + 4 && g.drT < 0 && !inp.nitro && !taxiPending(g)) {
+        const l = inp.lane, s = G.ramClear;
+        if (laneClear(g, l, inp.vel, G.ramOwn) && (l > -1 && laneClear(g, l - 1, inp.vel, s) || l < 1 && laneClear(g, l + 1, inp.vel, s))) {
+          g.polM = P_WARN;
+          g.polT = gt;
+          g.polLane = l;
+          g.polF = 0;
+          out.push({ k: "ramwarn", lane: l });
+        }
+      }
+    } else {
+      const u = gt - g.polT;
+      g.polX += (g.polLane * L - g.polX) * eK(0.1);
+      if (g.polM === P_WARN) {
+        g.polZ += (-(G.polClose + 2) - g.polZ) * eK(0.25);
+        if (u >= G.ramWarn) {
+          g.polM = P_CHARGE;
+          g.polT = gt;
+          out.push({ k: "ram", lane: g.polLane });
+        }
+      } else if (g.polM === P_CHARGE) {
+        g.polZ += G.ramV * DT2;
+        if (g.polZ >= 1.5) {
+          g.polM = P_BACK;
+          g.polT = gt;
+        }
+      } else {
+        g.polZ -= G.ramBack * DT2 * Math.min(1, u / 0.25);
+        if (g.polZ <= -G.polFar) {
+          g.polM = P_TAIL;
+          g.ramNext = gt + G.ramEvery[0] + rnd(g) * (G.ramEvery[1] - G.ramEvery[0]);
+        }
+      }
+      const lat = Math.abs(px - g.polX) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.polZ) < POL_HL + CAR_HL - 0.2;
+      if (lat && lon && g.polM !== P_WARN) {
+        if (inp.nitro) {
+          g.polM = P_BACK;
+          g.polT = gt;
+          addHeat(g, 0.5);
+          out.push({ k: "shove" });
+        } else if (gt >= g.inv) {
+          g.inv = gt + G.swipeInv;
+          if (g.polF & LAT) {
+            g.slow = gt + G.ramSlow;
+            stumble(g, out, "ram");
+            g.polM = P_BACK;
+            g.polT = gt;
+          } else {
+            const dir = px < g.polX ? -1 : 1;
+            addHeat(g, G.heatSwipe);
+            stumble(g, out, "swipe");
+            out.push({ k: "swipe", back: clamp2(g.polLane + dir, -1, 1), dir, lane: g.polLane });
+          }
+        }
+      }
+      g.polF = lat ? LAT : 0;
+    }
+    if (g.star >= 3) {
       if (g.drT < 0) {
-        if (gt >= g.drNext) {
-          g.drT = gt;
-          g.drLane = inp.lane;
-          g.drAcc = 0;
-          g.drHit = 0;
-          out.push({ k: "lock", lane: inp.lane });
+        if (gt >= g.drNext && g.polM === P_TAIL && !taxiPending(g)) {
+          const l = inp.lane, s = G.drClear;
+          if (l > -1 && laneClear(g, l - 1, inp.vel, s) || l < 1 && laneClear(g, l + 1, inp.vel, s)) {
+            g.drT = gt;
+            g.drLane = l;
+            g.drAcc = 0;
+            g.drHit = 0;
+            g.drS = 0;
+            out.push({ k: "lock", lane: l });
+          }
         }
       } else {
         const u = gt - g.drT;
-        if (u >= G.drWarn && u < G.drWarn + G.drStrike && Math.abs(px - g.drLane * L) < 1.7) {
+        if (u >= G.drWarn && !g.drS) {
+          g.drS = 1;
+          out.push({ k: "strike", lane: g.drLane });
+        }
+        if (u >= G.drWarn && u < G.drWarn + G.drStrike && Math.abs(px - g.drLane * L) < 2 && !inp.nitro && gt >= g.inv) {
           g.drAcc += DT2;
-          if (g.drAcc >= 0.12 && !g.drHit) {
+          if (g.drAcc >= 0.1 && !g.drHit) {
             g.drHit = 1;
-            g.heat = Math.min(3, Math.floor(g.heat + 1e-9) + 1);
-            g.heatGt = gt;
-            lvl = Math.min(3, Math.ceil(g.heat - 1e-9));
-            out.push({ k: "scan" });
+            g.slow = gt + G.ramSlow;
+            g.inv = gt + G.swipeInv;
+            stumble(g, out, "emp");
           }
         }
         if (u >= G.drWarn + G.drStrike) {
@@ -737,14 +906,9 @@
       }
     } else {
       g.drT = -1;
-      g.drNext = gt + 2.5;
+      g.drNext = gt + 3;
     }
-    if (lvl !== g.lvl) {
-      out.push({ k: "heat", n: lvl, up: lvl > g.lvl ? 1 : 0 });
-      g.lvl = lvl;
-      if (lvl > g.heatMax) g.heatMax = lvl;
-    }
-    g.score += inp.vel * DT2 * G.ptsDist * (1 + inp.thr) * mult;
+    g.score += inp.vel * DT2 * G.ptsDist * mult;
   }
 
   // js/timeline.js
@@ -753,7 +917,7 @@
   var freshState = () => ({
     pos: 0,
     vel: 5.5,
-    thrOn: 0,
+    brkOn: 0,
     thrA: 0,
     thr: 0,
     lane: 0,
@@ -771,14 +935,16 @@
     autoT0: 0,
     autoPos0: 0,
     // the game: run counter, the cruise segment it belongs to, game-over kind (1 crashed, 2 busted) and time,
-    // revive rewind in progress until `hold`, spare tapes, revives used this run, nitro smashing flag, game state
+    // rewind in progress until `hold` (replaying scene time rwA back to rwB), spare tapes, revives used this run,
+    // nitro smashing flag, game state
     run: 0,
     segC: -1,
     runT: 0,
-    retry: 0,
     over: 0,
     overT: 0,
     hold: 0,
+    rwA: 0,
+    rwB: 0,
     paused: 0,
     tapes: GAME.tapesStart,
     rev: 0,
@@ -853,6 +1019,7 @@
     _derive() {
       if (this._derived) return this._derived;
       const segs = [], envs = [], music = [], wins = [], autos = [], opts = { seed: SEED, free: 0 };
+      const quick = (t) => segs.push({ rew: null, s: t, end: t, C: t + SKIP_FF, skip: t, until: Infinity, quick: true });
       for (const e of this.events) {
         const cur = segs[segs.length - 1];
         switch (e.type) {
@@ -861,11 +1028,23 @@
               segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
               if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
               opts.free = e.free ? 1 : 0;
+            } else if (cur.home !== void 0 && e.t >= cur.home) quick(e.t);
+            break;
+          case "home":
+            if (cur && e.t >= cur.C && cur.until === Infinity) {
+              cur.until = e.t;
+              cur.home = e.t;
+            }
+            break;
+          case "restart":
+            if (cur && e.t >= cur.C && cur.until === Infinity) {
+              cur.until = e.t;
+              quick(e.t);
             }
             break;
           case "replay":
-            if (cur && e.t >= cur.C) {
-              cur.until = e.t;
+            if (cur && e.t >= cur.C && (cur.until === Infinity || cur.home !== void 0 && e.t >= cur.home)) {
+              cur.until = Math.min(cur.until, e.t);
               const s = e.t + REWIND;
               segs.push({ rew: e.t, s, end: s + IGNITION, C: s + IGNITION, skip: null, until: Infinity });
             }
@@ -914,12 +1093,12 @@
       if (this._T < T) this.stateAt(T);
       return this._nitros;
     }
-    // charge of the nitro (0..1); 1 = ready to fire
+    // 1 when a nitro canister can be fired now
     turboReady(T) {
       if (this.phaseAt(T).phase !== "cruise") return 0;
       const st = this.stateAt(T);
       if (!st.run || st.over || st.paused || T < st.hold || this.turboAt(T)) return 0;
-      return st.g.nitro;
+      return st.g.nstock > 0 ? 1 : 0;
     }
     turboMul(T) {
       const tb = this.turboAt(T);
@@ -996,6 +1175,7 @@
     baseSpeed(ph) {
       switch (ph.phase) {
         case "idle":
+        case "home":
           return 5.5;
         case "rewind":
           return -70;
@@ -1007,12 +1187,11 @@
           return 24;
       }
     }
-    _newRun(st, T, seg, retry) {
+    _newRun(st, T, seg) {
       const o = this._derive().opts;
       st.run++;
       st.segC = seg.C;
       st.runT = T;
-      st.retry = retry ? 1 : 0;
       st.over = 0;
       st.overT = 0;
       st.rev = 0;
@@ -1022,34 +1201,41 @@
       st.lane = 0;
       st.g = freshGame(runSeed(o.seed, st.run), o.free);
       this._endNitro(T);
-      this._gev.push({ t: T, k: "run", n: st.run, retry: st.retry });
+      this._gev.push({ t: T, k: "run", n: st.run });
     }
     _endNitro(T) {
       const n = this._nitros[this._nitros.length - 1];
       if (n && n.until > T && T - n.p < TURBO.cooldown) n.until = T;
     }
-    // Rewind the tape: restore the game as it was about three seconds before the crash (from the
-    // simulation's own one-second checkpoints) and resume after a short rewind transition.
+    // Rewind the tape: restore the game — and the road — as they were about three seconds before the crash (from the
+    // simulation's own one-second checkpoints). While `hold` lasts the picture plays scene time rwA → rwB backwards.
     _revive(st, T) {
       let src = null, first = null;
       for (let i = this._ck.length - 1; i >= 0; i--) {
         const c = this._ck[i];
         if (c.st.run !== st.run || c.st.rev !== st.rev) break;
-        if (c.st.over || c.T < c.st.hold) continue;
-        first = c.st;
-        if (!src && c.T <= st.overT - GAME.rewindSec) src = c.st;
+        if (c.st.over || c.T < c.st.hold || c.st.paused) continue;
+        first = c;
+        if (!src && c.T <= st.overT - GAME.rewindSec) src = c;
       }
       src = src || first;
+      st.rwA = st.overT;
+      st.rwB = st.overT;
       if (src) {
-        st.g = copyGame(src.g);
-        st.lane = src.lane;
-        st.laneS = src.laneS;
-        st.x = src.x;
-        st.camX = src.camX;
+        const o = src.st;
+        st.g = copyGame(o.g);
+        st.rwB = src.T;
+        st.lane = o.lane;
+        st.laneS = o.laneS;
+        st.x = o.x;
+        st.camX = o.camX;
+        st.pos = o.pos;
+        st.vel = o.vel;
+        st.thr = o.thr;
+        st.thrA = o.thrA;
       } else {
         const o = this._derive().opts, keep = st.g;
         st.g = freshGame(runSeed(o.seed, st.run), o.free);
-        st.g.score = 0;
         st.g.cells = keep.cells;
         st.lane = 0;
       }
@@ -1057,9 +1243,18 @@
       st.yaw = 0;
       st.yawV = 0;
       st.camXv = 0;
-      st.g.over = 0;
-      st.g.inv = st.g.gt + GAME.reviveInv;
-      st.g.combo = 0;
+      const g = st.g;
+      g.over = 0;
+      g.inv = g.gt + GAME.reviveInv;
+      g.combo = 0;
+      g.pcl = 0;
+      g.stG = 0;
+      g.slow = 0;
+      g.brkAcc = 0;
+      g.polM = P_TAIL;
+      g.drT = -1;
+      g.drNext = g.gt + 4;
+      g.ramNext = Math.max(g.ramNext, g.gt + 5);
       st.over = 0;
       st.tapes--;
       st.rev++;
@@ -1068,11 +1263,42 @@
       this._endNitro(T);
       this._gev.push({ t: T, k: "revive" });
     }
+    // The simulation state at an earlier time T, computed on a scratch copy: the live simulation is not disturbed.
+    // Used to play the last seconds backwards during a rewind.
+    peek(T) {
+      if (this._pk && this._pk.T === T && this._pk.n === this.events.length) return this._pk.st;
+      const k = { T: this._T, st: this._st, prev: this._prev, ei: this._ei, n: this._n, ck: this._ck, gev: this._gev, nit: this._nitros, aut: this._autoSw };
+      let i = k.ck.length - 1;
+      while (i > 0 && k.ck[i].T > T) i--;
+      const c = k.ck[i];
+      this._ck = k.ck.slice(0, i + 1);
+      this._T = c.T;
+      this._st = copy(c.st);
+      this._prev = copy(c.st);
+      this._ei = c.ei;
+      this._n = Math.round(c.T * SIM_HZ);
+      this._gev = k.gev.filter((a) => a.t < c.T);
+      this._autoSw = k.aut.filter((a) => a.t < c.T);
+      this._nitros = k.nit.filter((a) => a.s < c.T).map((a) => ({ ...a, until: a.until >= c.T ? Infinity : a.until }));
+      const r = this.stateAt(Math.max(T, c.T));
+      const out = { ...r, tb: this.turboAt(T) };
+      this._T = k.T;
+      this._st = k.st;
+      this._prev = k.prev;
+      this._ei = k.ei;
+      this._n = k.n;
+      this._ck = k.ck;
+      this._gev = k.gev;
+      this._nitros = k.nit;
+      this._autoSw = k.aut;
+      this._pk = { T, n: this.events.length, st: out };
+      return out;
+    }
     _step() {
       const T = this._T, st = this._st, ev = this.events;
       const ph = this.phaseAt(T);
       const cruise = ph.phase === "cruise";
-      if (cruise && st.segC !== ph.seg.C) this._newRun(st, T, ph.seg, false);
+      if (cruise && st.segC !== ph.seg.C) this._newRun(st, T, ph.seg);
       if (!cruise) {
         st.over = 0;
         st.hold = 0;
@@ -1082,7 +1308,7 @@
       while (this._ei < ev.length && ev[this._ei].t <= T) {
         const e = ev[this._ei++];
         const ok = cruise && !st.over && T >= st.hold && !st.paused;
-        if (e.type === "thr") st.thrOn = e.on ? 1 : 0;
+        if (e.type === "brk") st.brkOn = e.on ? 1 : 0;
         else if (e.type === "env") {
           st.cur = e.preset;
           st.autoT0 = T;
@@ -1094,13 +1320,13 @@
         } else if (e.type === "lane") {
           if (ok) st.lane = Math.max(-1, Math.min(1, st.lane + (e.dir > 0 ? 1 : -1)));
         } else if (e.type === "turbo") {
-          if (ok && st.g.nitro >= 1 && !this.turboAt(T)) {
+          if (ok && st.g.nstock > 0 && !this.turboAt(T)) {
             const C = ph.seg.C, q = TURBO.grid;
             const I = C + Math.ceil((e.t + TURBO.minAntic - C) / q - 1e-9) * q;
             this._nitros.push({ p: e.t, I, s: T, until: Infinity });
-            st.g.nitro = 0;
-            st.g.nf = 0;
-            this._gev.push({ t: T, k: "nitro", p: e.t, I });
+            st.g.nstock--;
+            st.g.nfree = 0;
+            this._gev.push({ t: T, k: "nitro", p: e.t, I, left: st.g.nstock });
           }
         } else if (e.type === "pause") {
           const on = e.on ? 1 : 0;
@@ -1109,8 +1335,6 @@
             if (on) this._endNitro(T);
             this._gev.push({ t: T, k: "pause", on });
           }
-        } else if (e.type === "retry") {
-          if (cruise && st.over && T - st.overT >= GAME.overLock) this._newRun(st, T, ph.seg, true);
         } else if (e.type === "revive") {
           if (cruise && st.over && st.tapes > 0 && T - st.overT >= GAME.overLock) this._revive(st, T);
         }
@@ -1125,10 +1349,12 @@
         st.autoT0 = T;
         st.autoPos0 = st.pos;
       }
-      const thrT = live && st.thrOn ? 1 : 0;
-      const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
-      st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
-      st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
+      if (!(cruise && T < st.hold)) {
+        const thrT = live && !st.brkOn ? 1 : 0;
+        const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
+        st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
+        st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
+      }
       if (!st.over) {
         const F = LANE_FEEL, L = ROAD.lane;
         st.laneS += (st.lane * L - st.laneS) * (1 - Math.exp(-DT / F.tauIn));
@@ -1153,7 +1379,7 @@
         st.nOn = nOn ? 1 : 0;
         const out = this._out;
         out.length = 0;
-        stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, thr: st.thr, nitro: nOn }, out);
+        stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, brk: st.brkOn, nitro: nOn }, out);
         for (const o of out) {
           o.t = T;
           this._gev.push(o);
@@ -1169,26 +1395,28 @@
           this._gev.push({ t: T, k: "over", kind: g.over });
         }
       }
-      let vt, tauV;
-      if (!cruise) {
-        vt = this.baseSpeed(ph) * (1 + 1.35 * st.thr);
-        tauV = 0.09;
-      } else if (T < st.hold) {
-        vt = GAME.rewindV;
-        tauV = 0.06;
-      } else if (st.over) {
-        vt = 0;
-        tauV = st.over === 2 ? 0.7 : 0.3;
-      } else if (st.paused) {
-        vt = 0;
-        tauV = 0.1;
-      } else {
-        const tm = this.turboMul(T), dm = 1 + GAME.driveMul * st.thr;
-        vt = gameBase(st.g) * (tm >= 1 ? Math.max(dm, tm) : dm * tm);
-        tauV = 0.2;
+      if (!(cruise && T < st.hold)) {
+        let vt, tauV;
+        if (!cruise) {
+          vt = this.baseSpeed(ph);
+          tauV = ph.phase === "home" ? 0.5 : 0.09;
+        } else if (st.over) {
+          vt = 0;
+          tauV = st.over === 2 ? 0.7 : 0.3;
+        } else if (st.paused) {
+          vt = 0;
+          tauV = 0.1;
+        } else {
+          const g = st.g, tm = this.turboMul(T), dm = GAME.brakeMul + (1 - GAME.brakeMul) * st.thr;
+          let k = tm > 1 ? Math.max(dm, tm) : dm * tm;
+          if (g.gt < g.slow) k *= GAME.ramSlowMul;
+          const intro = !g.free && g.gt < GAME.introHold;
+          vt = intro ? GAME.introV : gameBase(g) * k;
+          tauV = intro ? 0.12 : g.gt < GAME.introT ? 0.5 : 0.2;
+        }
+        st.vel += (vt - st.vel) * (1 - Math.exp(-DT / tauV));
+        st.pos += st.vel * DT;
       }
-      st.vel += (vt - st.vel) * (1 - Math.exp(-DT / tauV));
-      st.pos += st.vel * DT;
       this._T = T + DT;
       if (++this._n % SIM_HZ === 0) this._ck.push({ T: this._T, st: copy(st), ei: this._ei });
     }
@@ -1221,7 +1449,7 @@
         thr: lerp(a.thr, b.thr, f),
         steer: lerp(a.steer, b.steer, f),
         steerV: lerp(a.steerV, b.steerV, f),
-        thrOn: b.thrOn,
+        brkOn: b.brkOn,
         lane: b.lane,
         x: lerp(a.x, b.x, f),
         xv: lerp(a.xv, b.xv, f),
@@ -1232,18 +1460,19 @@
         autoOn: b.autoOn,
         autoT0: b.autoT0,
         autoPos0: b.autoPos0,
-        // the game: `g` is the live game state (read only), `gf` how far T is between the last two steps
+        // the game: `g` is a copy of the game state, `gf` how far T is between the last two steps
         run: b.run,
         runT: b.runT,
-        retry: b.retry,
         over: b.over,
         overT: b.overT,
         hold: b.hold,
+        rwA: b.rwA,
+        rwB: b.rwB,
         paused: b.paused,
         tapes: b.tapes,
         rev: b.rev,
         nOn: b.nOn,
-        g: b.g,
+        g: copyGame(b.g),
         gf: f
       };
     }
@@ -1256,6 +1485,7 @@
     if (seg.rew !== null && T < seg.s) return { phase: "rewind", u: T - seg.rew, seg, prev: segs[i - 1] };
     if (T < seg.end) return { phase: "ign", it: T - seg.s, seg };
     if (T < seg.C) return { phase: "ff", u: T - seg.skip, it: T - seg.s, seg };
+    if (seg.home !== void 0 && T >= seg.home) return { phase: "home", ht: T - seg.home, seg };
     return { phase: "cruise", ct: T - seg.C, seg };
   }
 
@@ -1272,7 +1502,7 @@
   var exp = Math.exp;
   var sin = Math.sin;
   var tanh = Math.tanh;
-  var MASTER = { ignTrimDb: -0.55, cruiseTrimDb: -0.45, ceilingDbtp: -1.5 };
+  var MASTER = { ignTrimDb: -0.55, cruiseTrimDb: -1.4, ceilingDbtp: -1.5 };
   var RNG = class {
     constructor(s) {
       this.s = s >>> 0 || 2654435769;
@@ -2199,6 +2429,9 @@
       this.fired = /* @__PURE__ */ new Set();
       this.arpPan = 0;
       this.p = { bassCut: 600, bassDrive: 1.3, padCut: 2e3, padMul: 1, arpCut: 3600, kickMul: 1, hatMul: 1 };
+      this.sirG = 0;
+      this.sirP = 0;
+      this.sirW = 0;
       this.eng = [new Saw(0), new Saw(0.5)];
       this.engLp = new SVF();
       this.windL = new SVF();
@@ -2361,6 +2594,9 @@
         case "rewind":
           v = new Squeal(s, o, n.d ?? 0.6, false);
           break;
+        case "rewindlong":
+          v = new Squeal(s, o, 1.25, false);
+          break;
         // game
         case "cell":
           v = new Blip(s, o, 1560, 2350, 0.035, 0.05, 0.15);
@@ -2516,13 +2752,32 @@
       const vs = this.voices;
       for (let j = vs.length - 1; j >= 0; j--) if (!vs[j].run(B, N)) vs.splice(j, 1);
       const mus = tl.musicAt(T);
-      const active = ph.phase !== "idle";
+      const active = ph.phase !== "idle" && ph.phase !== "home";
       const vel = Math.abs(this._st.vel), thr = this._st.thr;
       const ambG = active ? 1 : 0;
       this.engLp.set(140 + vel * 2.2, 0.8);
       this.windL.set(250 + vel * 22, 0.7);
       this.windR.set(280 + vel * 24, 0.7);
       const ef = 46 + vel * 0.42, eg = 0.016 * (0.5 + thr) * ambG, wg = 9e-4 * Math.pow(vel, 1.1) * ambG;
+      {
+        const st = this._st, g = st.g, run = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
+        const close = run && (st.over === 2 || policeClose(g));
+        const tgt = !run ? 0 : close ? 0.034 : 6e-3 + 3e-3 * g.star, rate = close ? 3.1 : 0.62;
+        if (tgt > 0 || this.sirG > 1e-5) {
+          const kA = 1 - exp(-1 / (0.25 * SR));
+          for (let i = 0; i < N; i++) {
+            this.sirG += (tgt - this.sirG) * kA;
+            this.sirW += rate / SR;
+            if (this.sirW >= 1) this.sirW -= 1;
+            const wail = this.sirW < 0.5 ? this.sirW * 2 : 2 - this.sirW * 2;
+            this.sirP += (640 + 520 * wail * wail * (3 - 2 * wail)) / SR;
+            if (this.sirP >= 1) this.sirP -= 1;
+            const a = this.sirP * TAU, y = (Math.sin(a) + 0.35 * Math.sin(2 * a) + 0.12 * Math.sin(3 * a)) * this.sirG;
+            B.sfxL[i] += y * 0.8;
+            B.sfxR[i] += y;
+          }
+        }
+      }
       const lpOn = this._lpT < 19e3 || this.lpC < 19e3;
       const ring = this.ring, rm = (1 << 17) - 1;
       const gA = 1 - exp(-1 / (5e-4 * SR)), gR = 1 - exp(-1 / (0.02 * SR));

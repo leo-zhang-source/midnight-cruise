@@ -12,21 +12,22 @@ export class UI {
     this.app = app;
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
-      skip: $('skip'), replay: $('replay'), drivebar: $('drivebar'), drive: $('drive'), driveRing: $('drive-ring'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
+      skip: $('skip'), replay: $('replay'), drivebar: $('drivebar'), brake: $('brake'), brakeRing: $('brake-ring'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
       deck: $('deck'), deckBar: $('deck-bar'), deckMin: $('deck-min'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
-      ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gHeat: $('g-heat'), gTapes: $('g-tapes'), gear: $('gear'),
-      pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), retry: $('retry'), revive: $('revive'), live: $('g-live'),
+      ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTapes: $('g-tapes'), gear: $('gear'),
+      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'),
+      gpops: $('gpops'), pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), revive: $('revive'), live: $('g-live'),
       ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovDist: $('ov-dist'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovNear: $('ov-near'), ovTapes: $('ov-tapes'),
     };
-    this.best = 0;
+    this.best = 0; this.last = -1;      // best score (kept in this browser) and the last run's score, for the home screen
     try { this.best = +localStorage.getItem('mc86.best') || 0; } catch (_) { /* storage unavailable: best score lasts for this visit */ }
     this.el.lcdMeter.innerHTML = '<i></i>'.repeat(8);
     this.meterBars = [...this.el.lcdMeter.children];
     this.el.spdBar.innerHTML = '<i></i>'.repeat(14);
     this.spdSegs = [...this.el.spdBar.children];
-    this.space = false; this.driveHeld = false;
+    this.keyBrake = false; this.btnBrake = false;
     this.win = { n: 0, ei: 0, st: null };
     this.cache = {};
     this.bind();
@@ -37,30 +38,37 @@ export class UI {
 
   phase() { return this.app.tl.phaseAt(this.app.now()).phase; }
 
-  setThrottle(on) {
-    const cur = this.app.tl.stateAt(this.app.tl.frontier()).thrOn;
-    if (!!on === !!cur) return;
-    this.ev('thr', { on: !!on });
+  // The car drives flat out by itself; the brake is the only pedal.
+  setBrake(on) {
+    // compare with the last brake event sent (not with the simulation, which may not have reached it yet:
+    // a press and release inside one frame must still release)
+    const ev = this.app.tl.events; let cur = false;
+    for (let i = ev.length - 1; i >= 0; i--) if (ev[i].type === 'brk') { cur = !!ev[i].on; break; }
+    if (!!on === cur) return;
+    this.ev('brk', { on: !!on });
   }
-  refreshThrottle() { this.setThrottle(this.space || this.driveHeld); }
+  refreshBrake() { this.setBrake(this.keyBrake || this.btnBrake); }
 
   bind() {
     const E = this.el;
     E.start.addEventListener('click', () => this.app.start());
     E.skip.addEventListener('click', () => { if (this.phase() === 'ign') { this.ev('skip'); } });
-    E.replay.addEventListener('click', () => { if (this.phase() === 'cruise') { this.ev('replay'); this.sfx('clunk'); } });
-    // DRIVE: hold to accelerate (pointer capture so release is never missed)
-    const dDown = (e) => { e.preventDefault(); try { E.drive.setPointerCapture(e.pointerId); } catch (_) {} this.driveHeld = true; this.refreshThrottle(); };
-    const dUp = () => { if (!this.driveHeld) return; this.driveHeld = false; this.refreshThrottle(); };
-    E.drive.addEventListener('pointerdown', dDown);
-    for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) E.drive.addEventListener(t, dUp);
-    E.drive.addEventListener('contextmenu', (e) => e.preventDefault());
-    E.drive.addEventListener('keydown', (e) => { if ((e.key === 'Enter') && !e.repeat) { this.driveHeld = true; this.refreshThrottle(); } });
-    E.drive.addEventListener('keyup', (e) => { if (e.key === 'Enter') { this.driveHeld = false; this.refreshThrottle(); } });
+    E.replay.addEventListener('click', () => this.replay());
+    // BRAKE: hold to slow down (pointer capture so the release is never missed)
+    const bDown = (e) => { e.preventDefault(); try { E.brake.setPointerCapture(e.pointerId); } catch (_) {} this.btnBrake = true; this.refreshBrake(); };
+    const bUp = () => { if (!this.btnBrake) return; this.btnBrake = false; this.refreshBrake(); };
+    E.brake.addEventListener('pointerdown', bDown);
+    for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) E.brake.addEventListener(t, bUp);
+    E.brake.addEventListener('contextmenu', (e) => e.preventDefault());
+    E.brake.addEventListener('keydown', (e) => { if ((e.key === 'Enter') && !e.repeat) { this.btnBrake = true; this.refreshBrake(); } });
+    E.brake.addEventListener('keyup', (e) => { if (e.key === 'Enter') { this.btnBrake = false; this.refreshBrake(); } });
+    E.turbo.addEventListener('pointerdown', (e) => e.preventDefault());   // a pointer press must not leave the focus here: Space is the brake
     E.turbo.addEventListener('click', () => this.turbo());
-    E.retry.addEventListener('click', () => this.retry());
     E.pause.addEventListener('click', () => this.pause(true));
     E.resume.addEventListener('click', () => this.pause(false));
+    E.restart.addEventListener('click', () => this.restart());
+    E.home.addEventListener('click', () => this.home());
+    E.home2.addEventListener('click', () => this.home());
     E.revive.addEventListener('click', () => this.revive());
     E.play.addEventListener('click', () => { const on = this.app.tl.musicAt(this.app.now()).on; this.ev('music', { on: !on }); this.sfx('clunk'); });
     E.mute.addEventListener('click', () => { const m = !this.app.audio.muted; this.app.audio.setMuted(m); this.ev('mute', { on: m }); this.sfx('click'); E.mute.setAttribute('aria-pressed', String(m)); E.mute.setAttribute('aria-label', m ? 'Unmute' : 'Mute'); });
@@ -84,30 +92,45 @@ export class UI {
       this.lane(e.clientX < innerWidth / 2 ? -1 : 1);
     });
     // keyboard
-    const interactive = (t) => t && t !== document.body && t !== E.drive && t.matches && t.matches('button, input, a, [tabindex]');
+    const interactive = (t) => t && t !== document.body && t !== E.brake && t.matches && t.matches('button, input, a, [tabindex]');
     addEventListener('keydown', (e) => {
-      const k = e.key;
-      if (k === ' ' || e.code === 'Space') { if (interactive(document.activeElement)) return; e.preventDefault(); if (!e.repeat) { if (this.phase() === 'idle') { this.app.start(); return; } if (this.isPaused()) { this.pause(false); return; } if (this.overState()) { this.retry(); return; } this.space = true; this.refreshThrottle(); } return; }
+      const k = e.key, down = k === 'ArrowDown', space = k === ' ' || e.code === 'Space';
+      if (space || down) {                                   // the brake; Space also starts and resumes
+        if (space && interactive(document.activeElement)) return;      // a focused button takes Space itself
+        e.preventDefault();
+        if (e.repeat) return;
+        const ph = this.phase();
+        if (ph === 'idle' || ph === 'home') { if (space) this.app.start(); return; }
+        if (this.isPaused()) { if (space) this.pause(false); return; }
+        if (this.overState()) return;
+        this.keyBrake = true; this.refreshBrake();
+        return;
+      }
       if (e.repeat) return;
+      const ph = this.phase();
       if (k === 'ArrowLeft' || k === 'a' || k === 'A') { e.preventDefault(); this.lane(-1); }
       else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); this.lane(1); }
-      else if (k === 't' || k === 'T') this.turbo();
+      else if (k === 't' || k === 'T' || k === 'ArrowUp' || k === 'w' || k === 'W') { e.preventDefault(); this.turbo(); }
       else if (k === 'p' || k === 'P') this.pause(!this.isPaused());
-      else if (k === 'Escape' || k === 's' || k === 'S') { if (this.phase() === 'ign') this.ev('skip'); else if (k === 'Escape') this.pause(!this.isPaused()); }
-      else if (k === 'r' || k === 'R') { if (this.overState()) this.revive(); else if (this.phase() === 'cruise') { this.ev('replay'); this.sfx('clunk'); } }
+      else if (k === 'Escape') { if (ph === 'ign') this.ev('skip'); else this.pause(!this.isPaused()); }
+      else if (k === 's' || k === 'S') { if (ph === 'ign') this.ev('skip'); }
+      else if (k === 'r' || k === 'R') { if (this.overState()) this.revive(); else if (this.isPaused()) this.restart(); else if (ph === 'home') this.replay(); }
+      else if (k === 'h' || k === 'H') this.home();
       else if (k === 'm' || k === 'M') E.mute.click();
-      else if (k === 'Enter' && !interactive(document.activeElement)) { if (this.phase() === 'idle') this.app.start(); else if (this.isPaused()) this.pause(false); else if (this.overState()) this.retry(); }
-      else if (/^[1-4]$/.test(k) && this.phase() !== 'idle') E.presets[+k - 1].click();
+      else if (k === 'Enter' && !interactive(document.activeElement)) {
+        const st = this.overState();
+        if (ph === 'idle' || ph === 'home') this.app.start(); else if (this.isPaused()) this.pause(false); else if (st) { if (st.tapes > 0) this.revive(); else this.home(); }
+      }
+      else if (/^[1-4]$/.test(k) && ph !== 'idle' && ph !== 'home') E.presets[+k - 1].click();
     });
     addEventListener('keyup', (e) => {
-      const k = e.key;
-      if (k === ' ' || e.code === 'Space') { this.space = false; this.refreshThrottle(); }
+      if (e.key === ' ' || e.code === 'Space' || e.key === 'ArrowDown') { this.keyBrake = false; this.refreshBrake(); }
     });
-    const release = () => { this.space = false; this.driveHeld = false; this.refreshThrottle(); this.pause(true, true); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
+    const release = () => { this.keyBrake = false; this.btnBrake = false; this.refreshBrake(); this.pause(true, true); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
     this.setMin(true);   // the deck starts minimised; its title-bar key expands it
-    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Hold Drive · Tap left / right to change lane'; document.body.classList.add('touch'); }
+    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Hold Brake to slow down'; document.body.classList.add('touch'); }
   }
 
   setMin(m) {
@@ -127,15 +150,33 @@ export class UI {
     const tl = this.app.tl, st = tl.stateAt(tl.frontier());
     return st.over && this.app.now() - st.overT >= GAME.overLock ? st : null;
   }
-  retry() { if (this.overState()) this.ev('retry'); }
   isPaused() { const tl = this.app.tl; return !!tl.stateAt(tl.frontier()).paused; }
   // Pause or resume the run. auto: the window lost focus or the tab was hidden — only a live run with traffic pauses.
   pause(on, auto = false) {
     if (this.phase() !== 'cruise') return;
     const tl = this.app.tl, st = tl.stateAt(tl.frontier());
-    if (!st.run || st.over || !!st.paused === !!on || (auto && st.g.free)) return;
+    if (!st.run || st.over || this.app.now() < st.hold || !!st.paused === !!on || (auto && st.g.free)) return;
     this.ev('pause', { on: !!on }); this.sfx('clunk');
   }
+  // remember the score of the run that is ending (and the best one, in this browser)
+  commit(st) {
+    if (st.g.free) return;
+    this.last = Math.floor(st.g.score);
+    if (this.last > this.best) { this.best = this.last; try { localStorage.setItem('mc86.best', String(this.best)); } catch (_) { /* not stored */ } }
+  }
+  // which menu is open: the pause menu or the EJECT panel (null while driving)
+  menu() {
+    if (this.phase() !== 'cruise') return null;
+    const tl = this.app.tl, st = tl.stateAt(tl.frontier());
+    if (!st.run) return null;
+    if (st.over) return this.app.now() - st.overT >= GAME.overLock ? st : null;
+    return st.paused ? st : null;
+  }
+  // back to the home screen — from the pause menu, or after a crash (a new run always starts from there)
+  home() { const st = this.menu(); if (!st) return; this.commit(st); this.ev('home'); this.sfx('clunk'); }
+  // a new run right away — from the pause menu only
+  restart() { const st = this.menu(); if (!st || st.over) return; this.commit(st); this.ev('restart'); this.sfx('clunk'); }
+  replay() { if (this.phase() === 'home') { this.ev('replay'); this.sfx('clunk'); } }
   revive() { const st = this.overState(); if (st && st.tapes > 0) this.ev('revive'); }
   // Sounds for what the simulation just derived (close calls, crashes …). Only the picture's timeline announces:
   // it never runs ahead of the visitor's input, so a sound is never played for something that is then avoided.
@@ -149,14 +190,17 @@ export class UI {
       else if (k === 'near') this.sfx('near');
       else if (k === 'smash') this.sfx('smash');
       else if (k === 'swipe') this.sfx('swipe');
-      else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = e.kind === 2 ? 'Busted. Press Enter to retry.' : 'Crashed. Press Enter to retry.'; }
+      else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = (e.kind === 2 ? 'Busted.' : 'Crashed.') + ' Press R to rewind the tape, or H for the home screen.'; }
       else if (k === 'gear') this.sfx('gear');
-      else if (k === 'heat') { if (e.up) this.sfx('siren'); }
-      else if (k === 'scan') this.sfx('zap');
-      else if (k === 'lock') this.sfx('lock');
+      else if (k === 'star') { if (e.up) this.sfx('siren'); }
+      else if (k === 'stumble' || k === 'tail' || k === 'run') this.sfx('siren');
+      else if (k === 'ramwarn' || k === 'lock') this.sfx('lock');
+      else if (k === 'strike') this.sfx('zap');
+      else if (k === 'shove') this.sfx('smash');
+      else if (k === 'go') this.sfx('whoosh');
+      else if (k === 'item') { this.sfx('chime'); this.sfx('gear'); }
       else if (k === 'tape' || k === 'full') this.sfx('chime');
-      else if (k === 'revive') this.sfx('rewind');
-      else if (k === 'run' && e.retry) this.sfx('ffwd');
+      else if (k === 'revive') this.sfx('rewindlong');
     }
   }
 
@@ -238,27 +282,28 @@ export class UI {
     set('osdText', text, (v) => { E.osdText.textContent = v; });
     const mins = Math.floor(T / 60) % 60;
     set('clock', mins, (m) => { E.osdClock.textContent = `AM 12:${String(m).padStart(2, '0')}`; });
-    // start
-    const startA = U.start ? 1 : 0;
-    const st = s.phase === 'ign' ? Math.max(0, 1 - s.it / 0.25) : startA;
-    set('startA', st.toFixed(3), () => { E.startWrap.style.opacity = st; E.startWrap.style.visibility = st > 0 ? 'visible' : 'hidden'; E.startWrap.style.transform = `translate(-50%, calc(-50% + ${(1 - st) * 14}px)) scale(${1 + (1 - st) * 0.06})`; });
+    // start (first load and the home screen)
+    const st = s.phase === 'ign' ? Math.max(0, 1 - s.it / 0.25) : +U.start;
+    set('startA', st.toFixed(3), () => { E.startWrap.style.opacity = st; E.startWrap.style.visibility = st > 0 ? 'visible' : 'hidden'; E.startWrap.style.pointerEvents = st > 0.6 ? 'auto' : 'none'; E.startWrap.style.transform = `translate(-50%, calc(-50% + ${(1 - st) * 14}px)) scale(${1 + (1 - st) * 0.06})`; });
+    set('homeS', U.home && this.last >= 0 ? this.last + '|' + this.best : '', (v) => { E.homeScore.hidden = !v; if (v) { E.hsLast.textContent = this.last.toLocaleString('en-US'); E.hsBest.textContent = this.best.toLocaleString('en-US'); } });
+    set('homeF', U.home && st > 0.9 ? 1 : 0, (v) => { if (v) { try { E.start.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
     set('skip', U.skip, (v) => E.skip.classList.toggle('on', !!v));
-    set('replay', U.replay && s.phase === 'cruise' ? 1 : 0, (v) => E.replay.classList.toggle('on', !!v));
-    // drive controls
+    set('replay', U.replay ? 1 : 0, (v) => E.replay.classList.toggle('on', !!v));
+    // drive controls: the brake ring shows how hard the car is braking, the nitro button how many canisters are aboard
     const ca = U.controls;
     set('ctrl', ca.toFixed(3), () => { E.drivebar.style.opacity = ca; E.drivebar.style.visibility = ca > 0.01 ? 'visible' : 'hidden'; E.drivebar.style.transform = `translateY(${(1 - ca) * 28}px)`; E.drivebar.style.pointerEvents = ca > 0.6 ? 'auto' : 'none'; });
-    const active = s.phase === 'cruise';
-    set('drv', (U.thr).toFixed(3), (v) => { E.driveRing.style.strokeDashoffset = CIRC * (1 - +v); });
-    set('drvp', U.drive ? 'true' : 'false', (v) => E.drive.setAttribute('aria-pressed', v));
-    const rd = active ? U.ready : 0;
-    set('trb', rd.toFixed(3), (v) => { E.turboRing.style.strokeDashoffset = CIRC * (1 - +v); });
-    const boosting = active && s.ui.g && s.ui.g.on && this.app.tl.turboAt(T) ? 1 : 0;
-    set('trbR', (rd >= 1 ? 'true' : 'false') + boosting, (v) => { const ready = v.startsWith('true'); E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = ready ? 'READY · T' : boosting ? 'BOOST' : active ? 'CHARGING' : 'STANDBY'; });
+    const active = s.phase === 'cruise', Gq = U.g;
+    set('brk', (U.thr).toFixed(3), (v) => { E.brakeRing.style.strokeDashoffset = CIRC * (1 - +v); });
+    set('brkp', U.drive ? 'true' : 'false', (v) => E.brake.setAttribute('aria-pressed', v));
+    const stock = active && Gq && Gq.on ? Gq.nstock : 0, ready = active && U.ready >= 1;
+    const boosting = active && Gq && Gq.on && this.app.tl.turboAt(T) ? 1 : 0;
+    set('trb', stock, (n) => { E.turboRing.style.strokeDashoffset = CIRC * (1 - Math.min(1, n / GAME.nitroMax)); E.turbo.dataset.n = n; });
+    set('trbR', `${ready}|${boosting}|${stock}|${active}`, () => { E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = boosting ? 'BOOST' : ready ? 'READY · T' : stock ? 'WAIT' : active ? 'EMPTY' : 'STANDBY'; });
     set('trbF', this.fireT !== undefined && T - this.fireT < 0.18 ? 'true' : 'false', (v) => { E.turbo.dataset.fire = v; });
     // speedometer (MPH from the simulated road speed) and the control hints
-    const mph = Math.round(Math.abs(s.road.vel) * 3.6);
+    const mph = Math.round(Math.abs(s.road.vel) * GAME.mph);
     set('spd', mph, (v) => { E.spd.textContent = String(Math.min(999, v)).padStart(3, '0'); });
-    const segs = Math.round(Math.min(1, Math.abs(s.road.vel) / 170) * 14);
+    const segs = Math.round(Math.min(1, Math.abs(s.road.vel) / 180) * 14);
     set('spdSeg', segs, (n) => this.spdSegs.forEach((g, i) => { g.className = i < n ? (i >= 10 ? 'on hot' : 'on') : ''; }));
     const ha = U.hint;
     set('hint', ha.toFixed(2), () => { E.hints.style.visibility = ha > 0.01 ? 'visible' : 'hidden'; E.hints.style.opacity = ha; E.hints.style.transform = `translateX(-50%) translateY(${(1 - ha) * 10}px)`; });
@@ -323,10 +368,11 @@ export class UI {
       set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
       set('gMult', Gm.mult.toFixed(1), (v) => { E.gMult.textContent = '×' + v; });
       set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
-      set('gHeat', Gm.lvl, (v) => { E.gHeat.dataset.n = v; });
+      set('gStars', Gm.star + (Gm.close > 0 ? 'h' : ''), () => { E.gStars.dataset.n = Gm.star; E.gStars.dataset.hot = Gm.close > 0 ? '1' : '0'; });
       set('gTapes', Gm.tapes, (v) => { E.gTapes.dataset.n = v; });
     }
     // callouts: the three most recent, newest on top; they rise and fade with their age
+    set('popLow', on && s.phase === 'cruise' && s.ct < GAME.introT ? 1 : 0, (v) => E.gpops.classList.toggle('low', !!v));   // below the title while it leaves
     const pops = on ? Gm.pops.slice(-3).reverse() : [];
     for (let i = 0; i < 3; i++) {
       const el = E.pops[i], p = pops[i], key = 'pop' + i;
@@ -339,10 +385,14 @@ export class UI {
         el.style.transform = `translate(-50%, ${(i * 1.6).toFixed(2)}em) scale(${sc.toFixed(3)})`;   // newest on top, older ones below it
       });
     }
-    // police lights: alternate red and blue at the bottom corners; steady when motion is reduced
-    const lvl = on && !Gm.over ? Gm.lvl : on && Gm.over === 2 ? 3 : 0;
-    const ph = s.reduced ? 0.5 : (T * (1.6 + 0.5 * lvl)) % 1;
-    const pa = lvl ? (0.3 + 0.22 * lvl) : 0, l = s.reduced ? pa * 0.5 : pa * (ph < 0.5 ? 1 : 0.12), r = s.reduced ? pa * 0.5 : pa * (ph < 0.5 ? 0.12 : 1);
+    // the police on the tail: a timer bar that drains while a second mistake would mean being busted
+    const tail = on && !Gm.over ? Gm.close : 0;
+    set('tail', tail.toFixed(3), () => { E.gTail.style.visibility = tail > 0 ? 'visible' : 'hidden'; E.gTailBar.style.transform = `scaleX(${tail.toFixed(3)})`; });
+    // police lights at the bottom corners, alternating red and blue: faint while they hang back, strong on the tail
+    // (steady when motion is reduced)
+    const lvl = !on || Gm.paused || Gm.rew ? 0 : Gm.over === 2 ? 1 : Gm.over ? 0 : Gm.pol ? 0.85 : 0.16 + 0.07 * Gm.star;
+    const ph = s.reduced ? 0.5 : (T * (lvl > 0.5 ? 2.6 : 1.3)) % 1;
+    const l = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 1 : 0.12), r = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 0.12 : 1);
     set('pol', lvl ? l.toFixed(2) + r.toFixed(2) : '', (v) => { E.police.style.visibility = v ? 'visible' : 'hidden'; if (v) { E.police.children[0].style.opacity = l; E.police.children[1].style.opacity = r; } });
     // run over
     const show = on && Gm.over && Gm.overU >= GAME.overLock ? Gm.run * 10 + Gm.over : 0;
@@ -350,16 +400,18 @@ export class UI {
       E.over.hidden = !v;
       if (!v) return;
       const S = Gm.stats, best = Math.max(this.best, Gm.score), isNew = Gm.score > this.best && Gm.score > 0;
+      this.last = Gm.score;
       if (isNew) { this.best = Gm.score; try { localStorage.setItem('mc86.best', String(this.best)); } catch (_) { /* not stored */ } }
-      E.overTitle.textContent = Gm.over === 2 ? 'BUSTED · SIGNAL LOST' : 'CRASHED';
+      E.overTitle.textContent = Gm.over === 2 ? 'BUSTED' : 'WRECKED';
       E.ovScore.textContent = Gm.score.toLocaleString('en-US'); E.ovBest.textContent = best.toLocaleString('en-US'); E.ovBestL.textContent = isNew ? 'NEW BEST' : 'BEST';
-      E.ovDist.textContent = (S.dist / 1000).toFixed(2) + ' KM'; E.ovSpeed.textContent = Math.round(S.vmax * 3.6) + ' MPH';
-      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near;
-      try { E.retry.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }
+      E.ovDist.textContent = (S.dist / 1000).toFixed(2) + ' KM'; E.ovSpeed.textContent = Math.round(S.vmax * GAME.mph) + ' MPH';
+      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near; E.ovSmash.textContent = S.smash; E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(3 - S.star);
+      const can = Gm.tapes > 0;
+      E.ovTapes.textContent = Gm.tapes === 1 ? '1 TAPE' : Gm.tapes + ' TAPES'; E.revive.disabled = !can; E.ovRk.hidden = !can;
+      try { (can ? E.revive : E.home).focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }
     });
-    const pz = on && Gm.paused && !Gm.over ? 1 : 0;
+    const pz = Gm && Gm.on && Gm.paused && !Gm.over ? 1 : 0;
     set('paused', pz, (v) => { E.paused.hidden = !v; if (v) { try { E.resume.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
-    set('pauseBtn', Gm && Gm.on && !Gm.over && !Gm.paused ? 1 : 0, (v) => E.pause.classList.toggle('on', !!v));
-    if (show) set('ovTapes', Gm.tapes, (n) => { E.ovTapes.textContent = n === 1 ? '1 TAPE' : n + ' TAPES'; E.revive.disabled = n < 1; });
+    set('pauseBtn', Gm && Gm.on && !Gm.over && !Gm.paused && !Gm.rew ? 1 : 0, (v) => E.pause.classList.toggle('on', !!v));
   }
 }

@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { SR, TICK, TPB, IGN, TURBO, BAR, ignitionBar, cruiseBar, turboNotes, cruiseChord, neonPower } from '../cue.js';
 import { Timeline } from '../timeline.js';
+import { policeClose } from '../game.js';
 import { REVCRASH_PEAK } from './samples.js';
 
 const TAU = Math.PI * 2;
@@ -17,7 +18,7 @@ const panR = (p) => Math.sin((p + 1) * Math.PI / 4);
 const exp = Math.exp, sin = Math.sin, tanh = Math.tanh;
 
 // Mastering trims (dB) — set from measured reference renders (tools/render-audio.mjs).
-export const MASTER = { ignTrimDb: -0.55, cruiseTrimDb: -0.45, ceilingDbtp: -1.5 };
+export const MASTER = { ignTrimDb: -0.55, cruiseTrimDb: -1.4, ceilingDbtp: -1.5 };
 
 class RNG {
   constructor(s) { this.s = (s >>> 0) || 0x9e3779b9; }
@@ -501,6 +502,7 @@ export class Synth {
     this.arpPan = 0;
     this.p = { bassCut: 600, bassDrive: 1.3, padCut: 2000, padMul: 1, arpCut: 3600, kickMul: 1, hatMul: 1 };
     // ambience
+    this.sirG = 0; this.sirP = 0; this.sirW = 0;   // police siren: level, oscillator phase, wail phase
     this.eng = [new Saw(0), new Saw(0.5)]; this.engLp = new SVF(); this.windL = new SVF(); this.windR = new SVF(); this.wr = [new RNG(77), new RNG(78)];
     this.levels = { music: 0, peak: 0 };
     this.smp = {};
@@ -555,6 +557,7 @@ export class Synth {
       case 'chime': v = new Blip(s, o, 1320, 1318.5, 0.25, 0.06, -0.2); this.voices.push(new Blip(s, o, 1980, 1975.5, 0.3, 0.05, 0.2, 0.09)); break;
       case 'select': v = new Click(s, o, 0.6, 1); this.voices.push(new Blip(s, o, 880, 520, 0.06, 0.06, 0, 0.05)); break;
       case 'rewind': v = new Squeal(s, o, n.d ?? 0.6, false); break;
+      case 'rewindlong': v = new Squeal(s, o, 1.25, false); break;
       // game
       case 'cell': v = new Blip(s, o, 1560, 2350, 0.035, 0.05, 0.15); break;
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
@@ -675,13 +678,30 @@ export class Synth {
     for (let j = vs.length - 1; j >= 0; j--) if (!vs[j].run(B, N)) vs.splice(j, 1);
     // music transport
     const mus = tl.musicAt(T);
-    const active = ph.phase !== 'idle';
+    const active = ph.phase !== 'idle' && ph.phase !== 'home';
     // ambience (engine + wind), follows speed
     const vel = Math.abs(this._st.vel), thr = this._st.thr;
     const ambG = active ? 1 : 0;
     this.engLp.set(140 + vel * 2.2, 0.8);
     this.windL.set(250 + vel * 22, 0.7); this.windR.set(280 + vel * 24, 0.7);
     const ef = 46 + vel * 0.42, eg = 0.016 * (0.5 + thr) * ambG, wg = 0.0009 * Math.pow(vel, 1.1) * ambG;
+    // the police siren, behind us for the whole run: distant while they hang back, loud and fast when they are on the tail
+    {
+      const st = this._st, g = st.g, run = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
+      const close = run && (st.over === 2 || policeClose(g));
+      const tgt = !run ? 0 : close ? 0.034 : 0.006 + 0.003 * g.star, rate = close ? 3.1 : 0.62;
+      if (tgt > 0 || this.sirG > 1e-5) {
+        const kA = 1 - exp(-1 / (0.25 * SR));
+        for (let i = 0; i < N; i++) {
+          this.sirG += (tgt - this.sirG) * kA;
+          this.sirW += rate / SR; if (this.sirW >= 1) this.sirW -= 1;
+          const wail = this.sirW < 0.5 ? this.sirW * 2 : 2 - this.sirW * 2;                     // triangle 0..1
+          this.sirP += (640 + 520 * wail * wail * (3 - 2 * wail)) / SR; if (this.sirP >= 1) this.sirP -= 1;
+          const a = this.sirP * TAU, y = (Math.sin(a) + 0.35 * Math.sin(2 * a) + 0.12 * Math.sin(3 * a)) * this.sirG;
+          B.sfxL[i] += y * 0.8; B.sfxR[i] += y;
+        }
+      }
+    }
     const lpOn = this._lpT < 19000 || this.lpC < 19000;
     const ring = this.ring, rm = (1 << 17) - 1;
     const gA = 1 - exp(-1 / (0.0005 * SR)), gR = 1 - exp(-1 / (0.02 * SR));

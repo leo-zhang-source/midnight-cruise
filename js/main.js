@@ -66,7 +66,9 @@ app.addEvent = (type, data = {}) => {
   return ev;
 };
 app.start = () => {
-  if (tl.phaseAt(now()).phase !== 'idle') return;
+  const ph = tl.phaseAt(now());
+  if (ph.phase === 'home') { if (ph.ht > 0.45) app.addEvent('start'); return; }   // from the home screen: straight into a new run
+  if (ph.phase !== 'idle') return;
   // each visit gets its own traffic (the seed travels with the start event, so replays stay exact); ?seed= pins it,
   // ?free=1 is the plain cruise with no traffic
   const seed = Q.has('seed') ? +Q.get('seed') | 0 : (Math.random() * 0x7fffffff) | 0;

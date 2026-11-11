@@ -49,45 +49,52 @@ export const IGN = {
 export const TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
-export const AUTO_ENV = { time: 40, dist: 1900 };
-// ── The game: a three-lane racer through traffic (all values in road units and seconds) ──
+export const AUTO_ENV = { time: 40, dist: 2900 };
+// ── The game: a police chase down the highway into the city (all values in road units and seconds) ──
 // Same-direction traffic shares ONE speed, so formations never close up and a row that was passable when it was
-// generated stays passable. The player is always faster; DRIVE and nitro trade reaction time for score.
+// generated stays passable. The car always drives flat out; the brake buys reaction time but lets the police close in.
 export const GAME = {
-  vTraffic: 9, vOncoming: -22,
-  gears: [36, 41, 46, 52, 58, 64],               // base speed per gear (×3.6 = MPH on the speedometer)
-  gearAt: [0, 700, 1700, 3000, 4600, 6500],      // run distance at which each gear engages
-  creep: [700, 14],                              // past the last gear: +1 u/s per 700 units, up to +14
-  driveMul: 0.5,                                 // DRIVE held: +50 % speed (and distance points ×2)
-  nitroBoost: 1.6, nitroTail: 0.55, nitroGrace: 0.7,   // nitro: speed ×2.6, smashes traffic; invulnerable a little longer
-  nitroStart: 0.35, nitroIdle: 0.012, nitroNear: 0.2, nitroDraft: 0.32, nitroCell: 0.012, nitroFree: 1 / 7,
-  ahead: 280, firstRow: 150, despawn: 24,        // spawn distance ahead of the car, first row of a run, cull distance behind
-  rowGap: [1.5, 0.9],                            // seconds between rows at the gear's base closing speed (gear 1 → 6)
+  mph: 2.4,                                      // speedometer: road units per second → MPH
+  vTraffic: 12,
+  gears: [54, 61, 69, 78, 87, 96],               // cruising speed per gear
+  gearAt: [0, 1000, 2500, 4500, 7000, 10000],    // run distance at which each gear engages
+  creep: [1000, 20],                             // past the last gear: +1 u/s per 1000 units, up to +20
+  brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
+  // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
+  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 700, nitroEvery: [1100, 1900], nitroFree: 7,
+  ahead: 340, firstRow: 260, despawn: 30,        // spawn distance ahead of the car, first row of a run, cull distance behind
+  rowGap: [1.5, 0.9],                            // seconds between rows at the gear's closing speed (gear 1 → 6)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
   taxiAt: 2.2, taxiBlink: 0.7, taxiMove: 0.6,    // a taxi signals 2.2 s before you reach it, then changes lane
-  oncEvery: [520, 900], oncFrom: 1,              // oncoming cars: spacing (road units) and first gear index
-  swipeInv: 0.5, swipeKick: 7, reviveInv: 2.0,
-  heatSmash: 0.5, heatHold: 8, heatDecay: 7,     // wanted level: +1 per sideswipe, +0.5 per smash; cools after 8 s
-  drEvery: 6.5, drWarn: 1.3, drStrike: 0.5,      // police drone: locks your lane, strikes 1.3 s later
-  wallP: 0.3,                                    // wanted level 3: share of rows replaced by a police barrier
-  ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200,
-  comboNear: 3, comboCap: 40, comboStep: 0.1, heatBonus: 0.25,
+  introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
+  swipeInv: 0.5, swipeKick: 9, reviveInv: 2.0,
+  // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and ramming, 3 = helicopter and drone strikes.
+  // A stumble (sideswipe, rammed, drone hit) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+  star2At: 3500, star3At: 8000,                  // distance floors: the longer you run, the more they send
+  heatSwipe: 1, heatSmash: 0.34, heatHold: 10, heatDecay: 12,
+  closeT: 6, stumbleGrace: 0.9, polClose: 6.5, polFar: 19,
+  ramFirst: 6, ramEvery: [6, 9], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.7, ramOwn: 1.8,   // a ram only starts when a lane beside you stays clear for ramClear s
+  blockP: [0, 0, 0.2, 0.3],                      // share of rows that are police roadblocks, by star
+  drEvery: 6, drWarn: 1.2, drStrike: 0.45, drClear: 2.7,
+  ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80,
+  comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
   tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash
-  overLock: 0.7, rewindSec: 3, reviveHold: 0.8, rewindV: -70,
+  overLock: 0.7, rewindSec: 3, reviveHold: 1.3,
 };
-// Road layout (world units, x across): three lanes of `lane` width (a car is ~2 wide), centred on −lane, 0, +lane.
-// The grid is offset so its lines fall on the lane edges (±lane/2) and on the cyan rails (±1.5·lane); no lane markings.
-// Traffic runs outside the rails, so it never meets the player's car.
-export const ROAD = { lane: 4.0, rail: 6.0, traffic: 7.8, trail: 9.4 };
+// Road layout (world units, x across): a three-lane highway. Lanes are `lane` wide (a car is ~2 wide, a truck ~2.8),
+// centred on −lane, 0, +lane. The grid cell equals the lane width, so grid lines fall on the lane edges and on the
+// cyan rails (±1.5·lane). `traffic`: the ambient tail lights of the intro sit in the outer lanes.
+export const ROAD = { lane: 5.0, rail: 7.5, traffic: 5.0, trail: 9.7 };
 // Lane change feel (sim, 240 Hz): the lateral move is a critically damped spring on a lightly smoothed target
 // (≈ 0.21 s to 90 %), so a second press mid-move retargets with the velocity it already has. The drift is
-// visual only: body yaw follows the lateral speed (capped at yawMax, so a two-lane dash stays slight) through an under-damped spring (lag, then a small counter-steer),
-// the tail swings out around a pivot near the front axle, and the body rolls with the lateral speed.
-export const LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 0.0056, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
+// visual only: body yaw follows the lateral speed (capped at yawMax, so a two-lane dash stays slight) through an
+// under-damped spring (lag, then a small counter-steer), the tail swings out around a pivot near the front axle,
+// and the body rolls with the lateral speed.
+export const LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 0.0046, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
 // Title exit once cruising starts (cruise time, s): the neon flickers out, the 1986 plate wipes shut,
 // the chrome word pulls toward the camera and then recedes to the horizon. After that the road stays clear.
 export const TITLE_EXIT = { neon: [0.2, 0.62], plate: [0.25, 0.7], chrome: [0.3, 1.35] };
-export const THROTTLE = { rise: 0.42, fall: 0.95 };
+export const THROTTLE = { rise: 0.32, fall: 0.2 };   // drive amount: back to full speed after braking / brake bites
 
 export const PRESETS = ['SUNSET', 'BLUE HOUR', 'AFTERGLOW', 'LAGOON'];
 

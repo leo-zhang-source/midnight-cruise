@@ -16,4 +16,6 @@ renders/**/*.mp4
 renders/keyframes/*.png
 !renders/keyframes/contact_sheet_1920.png
 renders/test_cruise.png
+renders/test_busted.png
+renders/scenes/
 tools/renders/

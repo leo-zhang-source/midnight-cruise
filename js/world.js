@@ -119,7 +119,7 @@ function makeGrid() {
       uniform vec3 grid, gridAlt, ground, horizon, sunLow, sunMid, fog;
       ${COMMON}
       void main(){
-        const float S = 4.0;
+        const float S = ${ROAD.lane.toFixed(2)};   // one grid cell per lane
         vec3 v = vW - cameraPosition; float dist = length(v); vec3 dir = v / dist;
         float gx = (vW.x - ${(ROAD.lane / 2).toFixed(2)}) / S;   // lines on the lane edges
         float gz = (vW.z - uPos) / S;

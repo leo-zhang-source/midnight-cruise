@@ -1,6 +1,6 @@
 # MIDNIGHT CRUISE — 1986
 
-A synthwave lane racer on a 1986 videotape. You press PLAY, a 10-second chrome-and-neon ignition sequence plays out, the title flies off toward the horizon, and then you race through neon traffic on a three-lane road until you crash.
+A synthwave highway chase on a 1986 videotape. You press PLAY, a 10-second chrome-and-neon ignition sequence plays out, the title flies off toward the horizon, and then you run from the police on a three-lane highway into the neon city, through slower traffic, until they catch you or you wreck the car.
 
 ## Play online
 
@@ -19,17 +19,19 @@ It opens in a current Chrome, Edge, Safari or Firefox, on desktop or phone, and 
 
 ## Controls
 
+The car drives flat out by itself. You steer, brake and fire nitro.
+
 | Action | Mouse / touch | Keyboard |
 |---|---|---|
 | Start (also enables audio) | **START DRIVE** | `Enter` / `Space` |
 | Skip the intro | **SKIP INTRO** (top right) | `Esc` / `S` |
-| Replay the intro | **REPLAY INTRO** (top right) | `R` |
 | Change lane (three lanes) | tap or click the left / right half of the scene | `←` `→` or `A` `D`, one lane per press |
-| Go faster (+50 % speed, double distance points) | hold **DRIVE** | hold `Space` |
-| Nitro, when its ring is full | **NITRO** | `T` |
-| Pause / resume | the pause key (top right) / **RESUME** | `P` or `Esc`; `Enter` resumes |
-| Retry after a crash | **RETRY** | `Enter` / `Space` |
-| Rewind 3 s with a spare tape | **REWIND** | `R` |
+| Brake (slows to 55 %) | hold **BRAKE** | hold `Space` or `↓` |
+| Nitro, when a canister is aboard | **NITRO** (its pips show how many you carry) | `T`, `↑` or `W` |
+| Pause | the pause key (top right) | `P` or `Esc` |
+| In the pause menu | **RESUME** · **RESTART** · **HOME** | `P` / `Enter` · `R` · `H` |
+| After a crash | **REWIND 3 S** (needs a spare tape) · **HOME** | `R` · `H` |
+| On the home screen | **START DRIVE** · **REPLAY INTRO** (top right) | `Enter` / `Space` · `R` |
 | Music play / pause, mute, volume | cassette deck | `M` toggles mute |
 | Colours | cassette deck: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
 | Automatic colour change | cassette deck **AUTO** key (on by default; its bar fills towards the next change) | — |
@@ -38,49 +40,53 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 ## The game
 
-You are always faster than the traffic, so the road comes at you in rows. Each press moves the car one lane, in about 0.2 s.
+**How a run goes.** Every run opens with a police cruiser on your bumper ("POLICE! PULL OVER"). After a second you floor it and the cruiser drops back, but it follows you for the whole run: you hear its siren and see its lights at the bottom of the screen. All traffic drives in your direction, slower than you, so the road comes at you in rows. Each press moves the car one lane, in about 0.2 s.
 
 **What is on the road**
 
 | Thing | What it does |
 |---|---|
-| Maglev truck | Blocks a lane. Two side by side leave one lane open. |
-| Holo taxi | Drives in the middle lane, signals, then cuts to one side as you close in. |
-| Oncoming car | Comes at you in an outer lane. A red warning sign hangs over that lane before it arrives. |
-| Energy cells | Mark the open lane. Each one adds score and a little nitro; 100 of them earn a spare tape (up to 3). |
-| Police barrier | At wanted level 3: a hard-light wall across two lanes. |
+| Car, van | Blocks a lane. Each is at least as big as your car. |
+| Truck | A cab and a long trailer: blocks a lane for longer. |
+| Taxi | Drives in the middle lane, signals, then pulls over to one side as you close in. |
+| Roadblock | From two stars: a police cruiser parked across a lane behind a hard-light barrier, usually two lanes wide. |
+| Energy cells | Mark the open lane. Each adds score; 100 of them earn a spare tape (up to 3). |
+| Nitro canister | A blue ring with a light pillar, now and then. Drive through it to take it aboard; you can carry three. |
 
-**Crashing**
+**Mistakes**
 
-- Driving into the back of a vehicle, or into an oncoming car, ends the run.
-- Changing lane into a vehicle that is alongside is a **sideswipe**: the car bounces back, the combo resets and the wanted level rises by one.
-- A sideswipe at wanted level 3 gets you **busted**, which also ends the run.
-- After a crash, **RETRY** starts a new run. **REWIND** spends a spare tape, winds the game back about 3 s and gives you 2 s of invulnerability. You start with one tape.
+- Driving into the back of a vehicle or a roadblock **wrecks** the car. The run is over.
+- Changing lane into a vehicle that is alongside is a **sideswipe**: the car bounces back, the combo resets, you gain a star, and the police close in.
+- A **stumble** (a sideswipe, being rammed, a drone hit) puts the pursuit car on your tail for 6 s. The camera pulls back so you see it, and a timer bar counts down under the stars. A second stumble while it is there and you are **busted**.
+- Holding the brake for more than about 2 s also brings the pursuit car onto your tail.
+
+**After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability. **HOME** goes back to the home screen. A new run always starts from the home screen.
+
+**Wanted level: three stars**
+
+| Stars | You get there by | What the police do |
+|---|---|---|
+| ★ | every run starts here | One cruiser follows you. |
+| ★★ | a sideswipe (+1 star), three vehicles smashed with nitro (+⅓ each), or 3.5 km driven | Roadblocks appear. The cruiser makes ramming runs: chevrons race up your lane from behind for 1.1 s, then it charges. Change lane. If it hits, it shoves you and you lose speed for a second. |
+| ★★★ | more of the same, or 8 km driven | A helicopter paces you with its searchlight. A drone locks the lane you are in (amber target), and 1.2 s later it strikes that lane. More roadblocks. |
+
+Heat cools by one star every 12 s once 10 s pass without an incident, but never below the level your distance has earned.
 
 **Scoring and speed**
 
-- **Distance** scores points. Holding DRIVE doubles them, but leaves you less time to react.
-- **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per wanted level.
+- **Distance** scores points all the time.
+- **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per star above the first.
 - **Gears** engage with distance: the base speed rises from 130 MPH in gear 1 to 230 MPH in gear 6, and rows come closer together.
-- **Nitro** charges from close calls, cells and above all from **slipstream**: staying close behind a vehicle before you pull out. A full ring gives a 3.6 s burst at 2.6× speed during which you smash through traffic. Each vehicle smashed raises the wanted level by half a step.
+- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and roadblocks, and shove the pursuit car back if it is in your way. Each vehicle smashed scores points and adds a third of a star.
+- **Slipstream**: staying close behind a vehicle before you pull out scores a bonus.
 
-**Wanted level**
+**The road.** One highway into the city for the whole run: megastructure towers on the horizon, a sign gantry over the road every 2,400 units, and a big billboard every 1,600. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 2,900 road units, whichever comes first.
 
-| Level | What happens |
-|---|---|
-| 1 | Police lights behind you. |
-| 2 | A drone locks the lane you are in; leave it within 1.3 s or the level rises. |
-| 3 | Police barriers replace some rows. One more sideswipe and you are busted. |
-
-The level cools by one step every 7 s once 8 s pass without an incident.
-
-**Regions.** The colours change every 40 s or 1900 road units, whichever comes first. BLUE HOUR and LAGOON add a megastructure skyline; holographic billboards line the road everywhere.
-
-**Fairness.** All traffic in your direction moves at one speed, so a row that had an open lane when it appeared keeps it, and every row leaves a lane open within one lane of the previous opening. `tools/bot.mjs` drives 16 different seeds for 5 minutes each without DRIVE and never crashes. With DRIVE held, the same bot does crash now and then: that is the risk you take for the points.
+**Fairness.** All traffic moves at one speed, so a row that had an open lane when it appeared keeps it, and every row leaves a lane open within one lane of the previous opening. A ramming run or a drone lock only starts when a neighbouring lane is clear. `tools/bot.mjs` drives 16 different seeds for 5 minutes each without a single stumble (4–9 ramming runs and 5–13 drone strikes dodged per run). With nitro the same bot crashes in 3 of 16 runs, after 220 s or more: coming out of a burst into dense gear-6 traffic is the risk you take for the points.
 
 **Pause.** `P` pauses the run like a VCR: the game clock stops and the music carries on, muffled. The run also pauses by itself when the tab is hidden or the window loses focus, and stays paused until you resume.
 
-Each visit gets its own traffic. `?seed=7` pins it, and `?free=1` is the plain cruise with no traffic at all.
+Each visit gets its own traffic. `?seed=7` pins it, and `?free=1` is the plain cruise with no traffic and no police.
 
 ## Inspection and determinism
 
@@ -91,9 +97,9 @@ Every frame is a pure function of scene time, the seed, the viewport and the eve
 | Parameter | What it does |
 |---|---|
 | `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
-| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with DRIVE and nitro, the four presets, a music pause, then a replay |
+| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with two nitro canisters picked up and fired, the four presets, a music pause, then the home screen and a replay of the intro |
 | `?seed=7` | Pin the traffic seed (each visit otherwise gets a random one, stored in its start event) |
-| `?free=1` | Free cruise: no traffic and no game over; nitro recharges on a 7 s timer |
+| `?free=1` | Free cruise: no traffic, no police and no game over; a nitro canister is refilled 7 s after you use one |
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
 | `?hud=1` | Debug HUD: time, phase, fps, quality tier, audio state |
 | `?frame.carKWide=5.2&frame.shiftWide=0` | Override a framing constant (`FRAME` in `js/director.js`) for tuning |
@@ -127,15 +133,19 @@ node tools/interact.mjs          # end-to-end input test in free mode (mouse, ke
 ```
 
 ```bash
-node tools/game-test.mjs         # game simulation unit tests: determinism, crash, retry, rewind, sideswipe, nitro, wanted level, pause
+node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, ram, drone, nitro stock, stars, pause
 ```
 
 ```bash
-node tools/game-ui.mjs           # browser test of the game flow: HUD, EJECT panel, rewind, retry, police lights, phone layout
+node tools/game-ui.mjs           # browser test of the game flow: run opening, brake, EJECT panel, rewind, home, pause menu, busted, nitro stock, phone layout
 ```
 
 ```bash
-node tools/bot.mjs               # fairness soak: a look-ahead bot drives several seeds (add --drive, --nitro, --secs 300)
+node tools/bot.mjs               # fairness soak: a look-ahead bot drives several seeds (add --nitro, --secs 300, --seeds 16)
+```
+
+```bash
+node tools/scenes.mjs renders/scenes 1280x720   # stills of the moments worth checking: ram warning, drone, roadblock, rewind, menus …
 ```
 
 ```bash
@@ -178,9 +188,10 @@ The tools need Node 18+, Google Chrome, Python 3 with numpy, and ffmpeg (for the
 index.html            semantic shell, controls, cassette deck, VCR OSD
 css/style.css         UI styling (no CSS transitions drive animation)
 js/cue.js             THE cue sheet: timecodes, harmony, patterns — read by picture and sound
-js/timeline.js        event log + 240 Hz fixed-step simulation (speed, lanes, runs, retry, rewind-revive)
-js/game.js            the game simulation: traffic generator, collisions, score, nitro charge, wanted level
-js/gameview.js        game layer and sci-fi scenery: vehicles, cells, barrier, drone, debris, billboards, skyline
+js/timeline.js        event log + 240 Hz fixed-step simulation (speed, brake, lanes, runs, home / restart, rewind)
+js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car, drone
+js/gameview.js        game layer and highway scenery: traffic, police, roadblock, drone, helicopter, pickups, debris, city, gantries, billboards
+js/vehicles.js        instanced car / van / truck-cab bodies lofted from cross-sections
 js/director.js        pure choreography: (T, events, viewport) → frame description
 js/world.js           sky/sun, grid, wireframe mountains, palms, light trails (GLSL)
 js/title.js           extruded chamfered logotype + chrome material, 1986 plate

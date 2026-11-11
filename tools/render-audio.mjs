@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { SAMPLE_FILES } from '../js/audio/samples.js';
+import { CANONICAL } from '../js/timeline.js';
 
 // Load the CC0 sample set exactly as the browser does (48 kHz stereo 16-bit WAV → Float32).
 function readWav(path) {
@@ -70,25 +71,27 @@ const START = 1.0;
 const segIdx = process.argv.indexOf('--segment');
 if (segIdx > 0) {
   const [from, to, outPath] = [+process.argv[segIdx + 1], +process.argv[segIdx + 2], process.argv[segIdx + 3]];
-  const r = render([{ type: 'start', t: START }], from, to);
+  const r = render(CANONICAL, from, to);
   wav24(outPath, r.L, r.R);
   console.log('segment', from, to, '→', outPath, JSON.stringify(measure(outPath)));
   process.exit(0);
 }
 const scenarios = {
   // 1) The authored ignition: exactly 10.000 s from START DRIVE.
-  ignition: { events: [{ type: 'start', t: START }], from: START, to: START + 10 },
-  // 2) Reference cruise mix: one full 64 s form cycle at cruising speed, SUNSET preset, no input.
-  cruise_ref: { events: [{ type: 'start', t: START }], from: START + 10, to: START + 10 + 64 },
-  // 3) Loudest interactive combination: full throttle + turbo + AFTERGLOW (heaviest preset) + UI SFX bursts.
+  ignition: { events: [{ type: 'start', t: START, free: 1 }], from: START, to: START + 10 },
+  // 2) Reference cruise mix: one full 64 s form cycle, SUNSET preset, no input (free cruise: no traffic, no police).
+  cruise_ref: { events: [{ type: 'start', t: START, free: 1 }], from: START + 10, to: START + 10 + 64 },
+  // 3) Loudest interactive combination: nitro bursts + AFTERGLOW (heaviest preset) + UI SFX bursts.
   loudest: {
     events: [
-      { type: 'start', t: START }, { type: 'env', t: START + 10.5, preset: 2 },
-      { type: 'thr', t: START + 11, on: true }, { type: 'turbo', t: START + 14.2 }, { type: 'turbo', t: START + 21.3 },
+      { type: 'start', t: START, free: 1 }, { type: 'env', t: START + 10.5, preset: 2 },
+      { type: 'turbo', t: START + 14.2 }, { type: 'turbo', t: START + 21.4 },
       ...Array.from({ length: 24 }, (_, k) => ({ type: 'sfx', t: START + 14 + k * 0.5, name: ['click', 'clunk', 'select', 'chime'][k % 4] })),
     ],
     from: START + 12, to: START + 28,
   },
+  // 4) A real run: the canonical script (police siren, two nitro bursts, presets, a music pause).
+  chase: { events: CANONICAL, from: START + 10, to: 80 },
 };
 
 const report = {};

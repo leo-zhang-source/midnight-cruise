@@ -9,7 +9,7 @@ const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text().slice(0, 200)); });
 const ok = (name, cond, info = '') => console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${info ? '  — ' + info : ''}`);
-const st = () => p.evaluate(() => { const T = MC.tl.frontier(); const s = MC.state(); return { T: s.T, phase: s.phase, it: s.it, ct: s.ct, thr: s.thr, steer: s.steer, thrOn: MC.tl.stateAt(MC.tl.frontier()).thrOn, preset: s.ui.preset, music: s.ui.music, audio: window.__audio?.state }; });
+const st = () => p.evaluate(() => { const T = MC.tl.frontier(); const s = MC.state(); return { T: s.T, phase: s.phase, it: s.it, ct: s.ct, thr: s.thr, vel: s.road.vel, steer: s.steer, brkOn: MC.tl.stateAt(MC.tl.frontier()).brkOn, preset: s.ui.preset, music: s.ui.music, audio: window.__audio?.state }; });
 await p.goto('http://localhost:8086/?free=1');
 await p.waitForFunction(() => window.__ready === true);
 const ff = await p.evaluate(() => window.__firstFrameMs);
@@ -31,29 +31,32 @@ if (!deviceOk) console.log(`SKIP  worklet signal checks — this machine's audio
 const ns = await p.evaluate(() => MC._audio.samples);
 ok('CC0 samples loaded into the worklet', ns === 9, `${ns}/9`);
 if (deviceOk) ok('worklet producing signal', lv.level > 0.001, `rms=${lv.level?.toFixed(4)} audioT=${lv.renderT?.toFixed(3)} picT=${lv.T.toFixed(3)}`);
-await p.keyboard.press('Space'); // ignored during ignition (no throttle)
+await p.keyboard.press('Space'); // a dab of brake during the ignition changes nothing
 await p.waitForTimeout(9000);
 s = await st(); ok('ignition → cruise at 10 s', s.phase === 'cruise', `ct=${s.ct?.toFixed(2)}`);
 const sync = await p.evaluate(() => { const a = MC._audio; const h = a.heardSceneTime(performance.now()); return { err: h === null ? null : h - MC.state().T, lat: a.lat }; });
 if (deviceOk) ok('picture/audio clock agreement', sync.err === null || Math.abs(sync.err) < 0.02, `${sync.err === null ? 'no output timestamp in this browser' : (sync.err * 1000).toFixed(1) + ' ms'}; output latency ${(sync.lat * 1000).toFixed(1)} ms`);
-// accelerate with Space
-await p.keyboard.down('Space'); await p.waitForTimeout(1800);
-s = await st(); ok('hold Space accelerates', s.thr > 0.8 && s.thrOn === 1, `thr=${s.thr.toFixed(2)}`);
+// the car drives flat out by itself; Space is the brake
+s = await st(); const v0 = s.vel; ok('cruising flat out without any input', s.thr > 0.95 && s.brkOn === 0 && v0 > 45, `drive=${s.thr.toFixed(2)} v=${v0.toFixed(0)} u/s`);
+await p.keyboard.down('Space'); await p.waitForTimeout(1500);
+s = await st(); ok('hold Space brakes', s.thr < 0.1 && s.brkOn === 1 && s.vel < v0 * 0.7 && (await p.getAttribute('#brake', 'aria-pressed')) === 'true', `drive=${s.thr.toFixed(2)} v=${s.vel.toFixed(0)} u/s`);
 await p.keyboard.up('Space'); await p.waitForTimeout(250);
-s = await st(); ok('release Space stops throttle', s.thrOn === 0, `thr=${s.thr.toFixed(2)} (decaying)`);
+s = await st(); ok('release Space lets go of the brake', s.brkOn === 0, `drive=${s.thr.toFixed(2)} (recovering)`);
 await p.waitForTimeout(2500);
-s = await st(); ok('throttle returns to cruise', s.thr < 0.1, `thr=${s.thr.toFixed(3)}`);
-// DRIVE button with pointer (hold, then release outside the button)
-const d = await p.locator('#drive').boundingBox();
+s = await st(); ok('back to full speed', s.thr > 0.95 && s.vel > v0 * 0.95, `drive=${s.thr.toFixed(3)} v=${s.vel.toFixed(0)}`);
+await p.keyboard.down('ArrowDown'); await p.waitForTimeout(300);
+s = await st(); ok('↓ brakes too', s.brkOn === 1); await p.keyboard.up('ArrowDown');
+// BRAKE button with pointer (hold, then release outside the button)
+const d = await p.locator('#brake').boundingBox();
 await p.mouse.move(d.x + d.width / 2, d.y + d.height / 2); await p.mouse.down(); await p.waitForTimeout(900);
-s = await st(); ok('hold DRIVE accelerates', s.thrOn === 1 && s.thr > 0.5, `thr=${s.thr.toFixed(2)}`);
+s = await st(); ok('hold BRAKE brakes', s.brkOn === 1 && s.thr < 0.5, `drive=${s.thr.toFixed(2)}`);
 await p.mouse.move(W / 2, H / 3); await p.mouse.up(); await p.waitForTimeout(200);
-s = await st(); ok('release DRIVE (pointer moved away) stops throttle', s.thrOn === 0);
+s = await st(); ok('release BRAKE (pointer moved away) lets go', s.brkOn === 0);
 // focus loss while holding Space
 await p.keyboard.down('Space'); await p.waitForTimeout(300);
 await p.evaluate(() => window.dispatchEvent(new Event('blur'))); await p.waitForTimeout(150);
-s = await st(); ok('focus loss cancels acceleration', s.thrOn === 0);
-await p.keyboard.up('Space');
+s = await st(); ok('focus loss releases the brake', s.brkOn === 0);
+await p.keyboard.up('Space'); await p.waitForTimeout(1500);
 // three lanes (s.steer = lateral position in lanes: −1, 0, +1)
 const lane = () => p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).lane);
 await p.mouse.move(W * 0.95, H * 0.4); await p.waitForTimeout(500);
@@ -76,11 +79,11 @@ await p.click('#turbo');
 await p.waitForTimeout(100);
 let tb = await p.evaluate(() => { const T = MC.state().T; const t = MC.tl.turboAt(T); return t && { antic: t.antic, onGrid: (() => { const k = (t.I - MC.tl.phaseAt(T).seg.C) / 0.25; return Math.abs(k - Math.round(k)) < 1e-6; })() }; });
 ok('NITRO fires, impact quantised to the half-beat', tb && tb.onGrid && tb.antic >= 0.2 - 1e-9 && tb.antic <= 0.45 + 1e-9, JSON.stringify(tb));
-await p.click('#turbo', { force: true }); await p.waitForTimeout(50);
+await p.click('#turbo', { force: true }); await p.keyboard.press('KeyT'); await p.keyboard.press('ArrowUp'); await p.waitForTimeout(50);
 const nT = await p.evaluate(() => MC.tl.nitros(MC.state().T).length);
 ok('no overlapping nitro', nT === 1, `bursts=${nT}`);
 const rdy = await p.evaluate(() => document.getElementById('turbo').dataset.ready);
-ok('nitro shows it is not ready while it recharges', rdy === 'false');
+ok('nitro shows it is not ready once the canister is spent', rdy === 'false' && (await p.getAttribute('#turbo', 'data-n')) === '0');
 const boost = await p.evaluate(async () => { const v0 = MC.state().road.vel; await new Promise((r) => setTimeout(r, 900)); return { v0, v1: MC.state().road.vel }; });
 ok('nitro boosts the speed', boost.v1 > boost.v0 * 1.5, `${boost.v0.toFixed(0)} → ${boost.v1.toFixed(0)} u/s`);
 ok('free mode hides the game HUD and never ends the run', await p.evaluate(() => getComputedStyle(document.getElementById('ghud')).visibility === 'hidden' && !MC.state().ui.g.over));
@@ -109,16 +112,25 @@ const inside = dk2.x >= 0 && dk2.y >= 0 && dk2.x + dk2.width <= W + 1 && dk2.y +
 const clear = !(dk2.x + dk2.width > db.x && dk2.y + dk2.height > db.y);
 ok('deck drag settles inside viewport, clear of drive controls', inside && clear, `deck=${dk2.x.toFixed(0)},${dk2.y.toFixed(0)} ${dk2.width.toFixed(0)}x${dk2.height.toFixed(0)}`);
 await p.screenshot({ path: 'renders/test_cruise.png' });
-// replay → rewind → ignition, then skip
+// pause menu → home screen → replay the intro → skip
 await p.waitForTimeout(6000);
+await p.keyboard.press('KeyP'); await p.waitForTimeout(300);
+ok('P pauses and opens the menu (RESUME, RESTART, HOME)', await p.evaluate(() => !document.getElementById('paused').hidden && document.activeElement.id === 'resume' && !!document.getElementById('restart').offsetParent && !!document.getElementById('home2').offsetParent));
+await p.click('#home2'); await p.waitForTimeout(1200);
+s = await st(); ok('HOME → home screen with START and REPLAY INTRO', s.phase === 'home' && await p.evaluate(() => getComputedStyle(document.getElementById('start-wrap')).visibility === 'visible' && document.getElementById('replay').classList.contains('on') && document.getElementById('paused').hidden && getComputedStyle(document.getElementById('drivebar')).visibility === 'hidden'));
 await p.click('#replay'); await p.waitForTimeout(300);
-s = await st(); ok('REPLAY → rewind', s.phase === 'rewind');
+s = await st(); ok('REPLAY INTRO → rewind', s.phase === 'rewind');
 await p.waitForTimeout(1500);
 s = await st(); ok('rewind → ignition', s.phase === 'ign', `it=${s.it?.toFixed(2)}`);
 await p.keyboard.press('Escape'); await p.waitForTimeout(100);
 s = await st(); ok('SKIP → fast-forward', s.phase === 'ff' || s.phase === 'cruise');
 await p.waitForTimeout(600);
 s = await st(); ok('skip lands in cruise', s.phase === 'cruise');
+// home again, then START goes straight into a new run (no ignition)
+await p.keyboard.press('Escape'); await p.waitForTimeout(200); await p.keyboard.press('KeyH'); await p.waitForTimeout(1300);
+s = await st(); ok('Esc pauses, H goes home', s.phase === 'home');
+await p.keyboard.press('Enter'); await p.waitForTimeout(900);
+s = await st(); ok('Enter on the home screen starts a run after a 0.4 s fast-forward', s.phase === 'cruise' && s.ct < 1.2, `ct=${s.ct?.toFixed(2)}`);
 const ign = await p.evaluate(() => { const sg = MC.tl._derive().segs[0]; return sg.end - sg.s; });
 ok('ignition length 10.000 s', Math.abs(ign - 10) < 1e-9, ign.toFixed(6));
 // frame timing (headless GPU)

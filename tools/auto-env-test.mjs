@@ -7,9 +7,11 @@ const auto = (tl, T) => tl.envChanges(T).filter((e) => e.auto).map((e) => `${e.t
 // 1) cruising only: the time rule fires first (cruise starts at 11 s)
 let tl = new Timeline(); tl.add('start', 1, { free: 1 });
 let a = auto(tl, 140); ok('time rule: switches every 40 s of cruising', a.length === 3 && Math.abs(parseFloat(a[0]) - 51) < 0.01, a.join(' '));
-// 2) full throttle: the distance rule fires first
-tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('thr', 12, { on: true });
-a = auto(tl, 60); ok('distance rule: accelerating switches sooner', a.length >= 1 && parseFloat(a[0]) < 45, a.join(' '));
+// 2) covering ground faster (nitro bursts): the distance rule fires first; braking all the way: the time rule still does
+tl = new Timeline(); tl.add('start', 1, { free: 1 }); for (const t of [12, 20, 28, 36, 44]) tl.add('turbo', t);
+a = auto(tl, 60); ok('distance rule: nitro bursts switch sooner', a.length >= 1 && parseFloat(a[0]) < 50.5, a.join(' '));
+tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('brk', 12, { on: true });
+a = auto(tl, 60); ok('time rule: braking all the way still switches after 40 s', a.length === 1 && Math.abs(parseFloat(a[0]) - 51) < 0.01, a.join(' '));
 // 3) a manual choice restarts the countdown and the cycle continues from it
 tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('env', 30, { preset: 2 });
 a = auto(tl, 75); ok('manual preset restarts the countdown', a.length === 1 && Math.abs(parseFloat(a[0]) - 70) < 0.01 && a[0].endsWith('→3'), a.join(' '));
@@ -20,7 +22,7 @@ a = auto(tl, 125); ok('AUTO off pauses, on resumes with a fresh timer', a.length
 tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('replay', 45);
 a = auto(tl, 100); ok('ignition and replay reset the countdown', a.length === 1 && Math.abs(parseFloat(a[0]) - (45.6 + 10 + 40)) < 0.02, a.join(' '));
 // 6) determinism: same events → same switches, regardless of query order
-const ev = [{ type: 'start', t: 1, free: 1 }, { type: 'thr', t: 14, on: true }, { type: 'thr', t: 30, on: false }, { type: 'turbo', t: 40 }];
+const ev = [{ type: 'start', t: 1, free: 1 }, { type: 'brk', t: 14, on: true }, { type: 'brk', t: 30, on: false }, { type: 'turbo', t: 40 }];
 const t1 = new Timeline(); t1.load(ev); const t2 = new Timeline(); t2.load(ev);
 t2.stateAt(90); t2.stateAt(20); t2.stateAt(55);
 ok('deterministic regardless of seek order', JSON.stringify(auto(t1, 200)) === JSON.stringify(auto(t2, 200)), auto(t1, 200).join(' '));

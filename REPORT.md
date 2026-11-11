@@ -19,6 +19,61 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 18: a police chase on a highway into the city
+
+Your eleven points after playing the first version, and what changed for each.
+
+| # | You asked for | What it is now |
+|---|---|---|
+| 1 | Pause, restart and home buttons; after a failure, go back to the home screen first | The pause key opens a menu: RESUME, RESTART, HOME. The crash panel offers REWIND (a spare tape) or HOME, and no direct retry. The home screen shows the title, last and best score, START DRIVE and REPLAY INTRO. |
+| 2 | "I can't feel the police chasing me" | Every run opens with a cruiser on your bumper ("POLICE! PULL OVER"), then you floor it. For the rest of the run a siren follows you and red and blue light flickers at the bottom of the screen. Whenever the cruiser closes in, the camera lifts and drops back so the cruiser is in the picture behind your car. |
+| 3 | Obstacles that fit a road into a future city, such as slower cars | All traffic drives your way, slower than you: cars, vans, trucks with trailers, taxis that pull over. Oncoming cars are gone. |
+| 4 | Bigger obstacle vehicles, a wider road | Lanes are 5.0 units wide (were 4.0), the road 15 (was 12). A traffic car is 5.0 × 2.1, against your 4.4 × 1.9; a truck is 12.4 long. |
+| 5, 6 | The holo signs were ugly, too frequent and out of place; a high-tech highway into the city with an occasional big billboard | The roadside holograms are removed. A billboard on tall posts comes up every 1,600 units, alternating sides (five fictional brands), and a sign gantry spans the road every 2,400. |
+| 7 | The same elements in every region; a region change is only a change of mood or of time | The city skyline, gantries, billboards and palms are the same in all four presets. The presets change colour only. |
+| 8 | GTA-style stars: one star, a police car always follows; two, roadblocks and ramming from behind; three, a helicopter and a drone attacking from the air. The exact penalty rules still to be designed | Built as you described. The rules I designed are below. |
+| 9 | Reviving is a tape rewind: time runs backwards, cars drive in reverse | REWIND plays the last three seconds backwards for 1.3 s: road, traffic, your lane changes, the police. Then the run continues from that moment. |
+| 10 | Nitro is a pickup on the road, usable only once collected, and it can be stored | Canisters appear every 1,100–1,900 units in an open lane. You carry up to three; the NITRO key shows them as pips. |
+| 11 | Hold-to-drive becomes a brake; the car always drives flat out | Done. BRAKE (Space or ↓) slows to 55 %. |
+
+**The star rules** (the part you left to me). The idea is Subway Surfers' inspector: one mistake brings the police close, a second one while they are close ends the run.
+
+- You start at one star. A sideswipe adds a star. Each vehicle smashed with nitro adds a third of a star. Distance sets a floor: two stars from 3.5 km, three from 8 km.
+- Heat cools by one star every 12 s after 10 s without an incident, down to the distance floor.
+- A **stumble** is a sideswipe, being rammed, or a drone hit. It puts the cruiser on your tail for 6 s (0.9 s of grace first, so one accident cannot count twice). A second stumble inside that window is **busted**.
+- Braking for more than 2.2 s also brings the cruiser onto your tail, for as long as you keep braking.
+- **Two stars:** roadblocks replace 20 % of the rows. Every 6–9 s the cruiser makes a ramming run: it lines up in your lane, 1.1 s of warning, then charges. A hit is a stumble and costs 30 % of your speed for a second.
+- **Three stars:** roadblocks replace 30 % of the rows. A helicopter appears. Every 6 s a drone locks your lane, and 1.2 s later it strikes that lane for 0.45 s. A hit is a stumble.
+- Rams and drone locks only start when a neighbouring lane is clear, and never both at once.
+- Nitro makes you immune to all of it and shoves the cruiser back.
+
+**How it was built**
+
+- **Simulation** (`js/game.js`, `js/timeline.js`). New events `brk`, `home`, `restart`; `retry` and the throttle are gone. The pursuit car is simulated (tail, warning, charge, drop back), so the bot, the audio thread and the picture agree on it.
+- **Rewind.** The simulation keeps a checkpoint per second. REWIND restores the one about 3 s before the crash, including the road position. While the rewind plays, the picture asks the timeline for past states on a scratch copy (`peek`), from the crash time back to the checkpoint.
+- **Vehicles** (`js/vehicles.js`). Car, van and truck-cab bodies are lofted from cross-sections, like your own car, and drawn instanced with paint, glass, tail lights and a roof bar (taxi sign or police lights).
+- **Sound.** A two-tone siren runs in the synth for the whole chase: quiet and slow while the cruiser hangs back, louder and faster when it is on your tail. The rewind has a longer tape squeal. Since the car is now always flat out, the cruise mix came out 0.9 dB louder, so its trim was lowered to keep −14 LUFS.
+- **A fix found by the tests.** A brake press and release inside one frame left the brake stuck on. The UI now compares with the last brake event it sent.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` (simulation) | 41/41: determinism under any query order and late events, audio-thread parity, crash, home, restart, rewind, sideswipe, busted, ram, drone, nitro stock, stars, brake, pause |
+| `tools/game-ui.mjs` (browser, desktop and phone) | 39/39: run opening, brake, crash panel, rewind running backwards, home screen, new run, pause menu, restart, sideswipe → tail timer → busted, nitro stock, phone layout |
+| `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak | 16 seeds × 300 s: no stumble in any run (4–9 ramming runs and 5–13 drone strikes dodged per run). With nitro: 3 of 16 runs crash, after 220 s or more |
+| `tools/perf.mjs` | 6.5–8.3 ms median per frame at 1920×1080, 9–10 ms at 3724×2095 (M3 Max) |
+| Loudness (`tools/render-audio.mjs`) | ignition −14.1 LUFS, cruise −13.9, a full chase with siren and nitro −13.7; true peak −1.5 dBTP in all |
+
+**Limits of this version**
+
+- Nobody but the bot has played these rules for long. The numbers above (6 s on the tail, ram every 6–9 s, drone every 6 s) are first guesses.
+- When you are busted, the cruiser cuts in front of your car, but the result panel covers most of it.
+- The helicopter and the drone are built from boxes. The police car is the traffic car body in police paint.
+- The siren is a plain two-tone synth.
+- The best score is kept in this browser only.
+
 ## Revision 17: the game (first playable version)
 
 The free cruise became a lane racer: weave through traffic, build a combo, charge nitro, keep the wanted level down. README.md describes the rules; this section records how it was built and checked.
@@ -279,9 +334,8 @@ Measured onsets in the rendered ignition (`tools/onsets.py`): first pulse +1 ms,
 |---|---|
 | **Visual idle** | The poster frame in gentle motion, audio off. The world drifts at 5.5 u/s, the unlit glass tube of “Cruise” is faintly visible, a glint sweeps every 6 s, and the START DRIVE pill invites interaction. Page load opens with a 0.45 s tracking disturbance and the PLAY ▶ OSD. |
 | **Ignition** | The authored 10.000 s sequence. SKIP INTRO is available. |
-| **Cruising** | 24 u/s. Steering is enabled with a 1.4 s blend-in so a key already held when cruising starts never jerks the camera. |
-| **Accelerating** | Layered as described above; release eases back. |
-| **Turbo** | Anticipation, impact, sustain, recovery, cooldown. |
+| **Run** | The chase (Revision 18): flat out at the gear's base speed, 54 → 96 u/s; brake to 55 %; nitro when a canister is aboard (anticipation, impact, sustain, recovery). |
+| **Paused / crashed / home** | Pause menu, EJECT panel (rewind or home), and the home screen with the title and START DRIVE. |
 | **Reduced motion** | Follows `prefers-reduced-motion` or `?reduced=1`. The title fades in instead of flying and slamming; there is no hit-stop, frame stepping, shake, speed blur or camera banking; flashes and tracking are ×0.2; the neon fades up smoothly; turbo becomes a glow surge; road speed is ×0.6. Artwork, typography and every control are preserved. |
 
 ## How each signature feature is realised
@@ -324,14 +378,15 @@ Measured onsets in the rendered ignition (`tools/onsets.py`): first pulse +1 ms,
 | Frame cost during the motion-blurred title flight (8 sub-frames) | 1920×1080: 8.9 ms median, 11.8 ms p95; 3840×2160 output: 11.6 ms median, 13.8 ms p95 |
 | Frame cost, GPU-synchronised (render + readPixels fence), Apple M3 Max, Chrome 156 | 1920×1080 tier 0 (MSAA 4): **7.0–7.6 ms median, ≤ 9.7 ms p95** in slam, cruise, accelerate and turbo. 3840×2160 output (internal 2385×1342): 7.7–9.4 ms median, ≤ 10.5 ms p95. Tier 3: 5.6 ms. Phone 390×844 @3×: 5.3 ms. Live rAF cadence 16.7 ms median, 16.8 ms p95 (60 Hz vsync-locked). |
 | Audio format | Stereo, **48 000 Hz**, AudioWorklet (context requested at 48 kHz); CC0 samples stored as 48 kHz WAV; reference renders are 24-bit WAV |
-| Ignition reference mix (0–10.000 s, no input) | **−14.0 LUFS integrated, −1.5 dBTP**, LRA 2.3 LU |
-| Cruise reference mix (the full 64 s form cycle, SUNSET, cruising speed, no input) | **−14.0 LUFS integrated, −1.5 dBTP**, LRA 1.1 LU |
-| Loudest interactive combination (AFTERGLOW + full throttle + two turbos + 24 UI sounds in 12 s; 16 s window) | −12.4 LUFS, **−1.5 dBTP**, limiter peak gain reduction 4.8 dB, ≥1 dB GR 18 % of the time |
+| Ignition reference mix (0–10.000 s, no input) | **−14.1 LUFS integrated, −1.5 dBTP**, LRA 2.3 LU |
+| Cruise reference mix (the full 64 s form cycle, SUNSET, free cruise, no input) | **−13.9 LUFS integrated, −1.5 dBTP**, LRA 0.9 LU |
+| A full chase (the canonical script: siren, two nitro bursts, presets, a music pause; 69 s) | −13.7 LUFS, −1.5 dBTP, LRA 1.3 LU |
+| Loudest interactive combination (AFTERGLOW + two nitro bursts + 24 UI sounds in 12 s; 16 s window) | −13.1 LUFS, **−1.5 dBTP**, limiter peak gain reduction 4.0 dB, ≥1 dB GR 9 % of the time |
 | Headroom guarantee | Master chain ends in a 4×-oversampled (16-tap) look-ahead true-peak limiter with a −1.5 dBTP ceiling; volume and mute only attenuate after it |
 | Measurement scope | ffmpeg `ebur128=peak=true` (BS.1770-4 gating, 4× true peak) on the offline renders of the same engine (`renders/audio/*.wav`, `loudness.json`). These are not captures of the browser's output device. |
 | Picture/sound sync | Heard-sample clock vs. picture clock: 0.3 ms. Output latency is compensated (174 ms in headless Chrome). Rendered onsets are within −5…+2 ms of cue times; the slam's −5 ms is the reverse cymbal cresting into the hit. |
 | Audio start-up matrix | `tools/audio-smoke.mjs`: Chrome and WebKit × {http + AudioWorklet, http + ScriptProcessor fallback, file:// standalone}, all running at 48 kHz with 9/9 samples and non-zero signal. Your own Chrome over the non-secure LAN address: fallback mode, running. |
-| Interaction tests | `tools/interact.mjs` passes all checks: start and audio unlock, cruise at 10 s, Space/DRIVE hold and release (including release off the button and on focus loss), arrow steering (left, right, re-centre), mouse not steering, turbo quantisation and no overlap, presets, pause/resume, mute, volume, deck drag clamped clear of controls, replay → rewind → ignition, skip → cruise. `tools/touch.mjs`: tap start, drag-steer, touch-cancel recentre, touch-hold DRIVE and cancel, all visible targets ≥ 44 px. Zero console errors or warnings. |
+| Interaction tests | `tools/interact.mjs` passes all checks: start and audio unlock, cruise at 10 s, Space/BRAKE hold and release (including release off the button and on focus loss), lane changes by key and click, mouse not steering, nitro quantisation and no overlap, presets, music pause/resume, mute, volume, deck drag clamped clear of controls, pause menu → home → replay → rewind → ignition, skip → cruise, start from home. `tools/touch.mjs`: tap start, tap to change lane, touch-hold BRAKE and cancel, a quick tap not sticking, all visible targets ≥ 44 px. Zero console errors or warnings. |
 | Fonts | All on-screen glyphs verified present in the packaged fonts (fontTools); icons are SVG, not glyphs |
 | Banding | Half-float pipeline and ±1 LSB triangular dither on output |
 

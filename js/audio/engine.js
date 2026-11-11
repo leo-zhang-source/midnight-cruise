@@ -31,7 +31,7 @@ function makeCompatNode(ctx) {
   return node;
 }
 
-const AUDIO_TYPES = new Set(['start', 'skip', 'replay', 'thr', 'turbo', 'env', 'auto', 'music', 'sfx', 'lane', 'retry', 'revive', 'pause']);   // every event the simulation reads, plus sounds
+const AUDIO_TYPES = new Set(['start', 'skip', 'replay', 'home', 'restart', 'brk', 'turbo', 'env', 'auto', 'music', 'sfx', 'lane', 'revive', 'pause']);   // every event the simulation reads, plus sounds
 
 function b64ToArrayBuffer(b64) {
   const bin = atob(b64), u = new Uint8Array(bin.length);
