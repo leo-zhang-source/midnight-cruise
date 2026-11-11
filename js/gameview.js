@@ -1,15 +1,17 @@
 // The game layer and the highway scenery, drawn into the world scene (so they pass through the same VHS finish):
 //  · vehicles — lofted car / van / truck-cab shells, instanced (js/vehicles.js): traffic, taxis, the police
-//  · solids   — instanced neon-edged boxes: trailers, pylons, gantries, the helicopter, debris
+//  · helicopter — one lofted body with blurred rotor discs (js/heli.js), from three stars
+//  · solids   — instanced neon-edged boxes: trailers, pylons, gantries, debris
 //  · glows    — instanced additive quads: lights, energy cells, nitro canisters, the hard-light roadblock,
-//               ram and drone warnings, searchlights
+//               the grappler and searchlight warnings, beams, tracer fire
 //  · scenery  — the megastructure city on the horizon, overhead sign gantries, and a big billboard now and then
 // Everything is rebuilt each frame from the frame state: no hidden state, so seeking and replays stay exact.
 import * as THREE from '../vendor/three.module.min.js';
 import { ROAD } from './cue.js';
 import { T_CAR, T_VAN, T_TRUCK, T_TAXI, T_BLOCK } from './game.js';
 import { Vehicles } from './vehicles.js';
-import { hash1 } from './util.js';
+import { Heli, HELI } from './heli.js';
+import { hash1, lerp, smooth } from './util.js';
 
 const MAXB = 560, MAXG = 420;
 const HASH = /* glsl */`
@@ -126,12 +128,15 @@ function makeGlows() {
           a = smoothstep(0.22, 0.1, c1) * smoothstep(1.0, 0.8, abs(q.y)) * smoothstep(1.0, 0.5, abs(q.x));
         } else if (t < 8.5) {                        // 8 · beam
           a = smoothstep(1.0, 0.0, abs(q.x)) * (0.2 + 0.8 * smoothstep(-1.0, 1.0, q.y)) * 0.5;
-        } else {                                     // 9 · nitro canister: a ring with a double chevron
+        } else if (t < 9.5) {                        // 9 · nitro canister: a ring with a double chevron
           float r = length(q);
           float ring = smoothstep(0.1, 0.04, abs(r - 0.82));
           vec2 p = q * 1.35; float ch = 0.0;
           for (int k = 0; k < 2; k++) { float x = p.x + 0.42 - float(k) * 0.62; float d = abs(x - (0.34 - abs(p.y) * 0.62)); ch += smoothstep(0.14, 0.06, d) * step(abs(p.y), 0.56); }
           a = ring + ch * step(r, 0.74) + exp(-r * r * 3.0) * 0.25;
+        } else {                                     // 10 · searchlight cone from −V (the lamp) to +V (the road): narrow and bright, then wide and thin
+          float v = q.y * 0.5 + 0.5, w = mix(0.07, 1.0, v), x = abs(q.x) / w;
+          a = (smoothstep(1.0, 0.0, x) * 0.7 + smoothstep(1.0, 0.82, x) * 0.3) * mix(1.0, 0.3, v) * smoothstep(0.0, 0.03, v);
         }
         gl_FragColor = vec4(col * a * vM.y * exp(-vD / 750.0), 1.0);
       }`,
@@ -259,12 +264,12 @@ const PAINT = [[0.85, 0.1, 0.16], [0.08, 0.5, 0.82], [0.82, 0.84, 0.9], [0.92, 0
 const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2];
 const BB_SPAN = 4800, BB = [{ z0: 700, side: 1 }, { z0: 2300, side: -1 }, { z0: 3900, side: 1 }];      // a billboard every 1600 units
 const GA_SPAN = 4800, GA = [1500, 3900];                                                              // a sign gantry every 2400
-const mod = (a, n) => ((a % n) + n) % n;
+const mod = (a, n) => ((a % n) + n) % n, V1 = new THREE.Vector3();
 
 export class GameView {
   constructor() {
-    this.solids = makeSolids(); this.glows = makeGlows(); this.skyline = makeSkyline(); this.veh = new Vehicles();
-    this.group = new THREE.Group(); this.group.add(this.skyline, this.solids, this.veh.group, this.glows);
+    this.solids = makeSolids(); this.glows = makeGlows(); this.skyline = makeSkyline(); this.veh = new Vehicles(); this.heli = new Heli(this.veh.u);
+    this.group = new THREE.Group(); this.group.add(this.skyline, this.solids, this.veh.group, this.heli.group, this.glows);
     this.nb = 0; this.ng = 0;
     this.ads = ADS.map(adTexture);
     this.boards = BB.map(() => { const m = makePanel(21.3, 9, this.ads[0]); this.group.add(m); return m; });
@@ -297,7 +302,7 @@ export class GameView {
     this.nb = 0; this.ng = 0;
     const P = s.pal, T = s.T, G = s.game, L = ROAD.lane, R = ROAD.rail;
     const edge = P.gridAlt, edge2 = P.post2;
-    this.veh.begin(P);
+    this.veh.begin(P); this.heli.group.visible = false;
     const pos = s.road.pos, sc = s.scenery ?? 1;
 
     // ── scenery: the city ahead ──
@@ -415,27 +420,33 @@ export class GameView {
         }
       }
       const h = G.heli;
-      if (h) {                                                               // the helicopter, ahead and above; its searchlight sweeps, locks our lane, then it fires down the beam
-        const hx = h.x, hy = 12.6 + Math.sin(T * 0.6) * 0.5, hz = cz - 34, B = [0.2, 0.22, 0.36], E = [0.3, 0.55, 1.0];
-        this.box(hx, hy, hz, 2.0, 1.7, 3.6, E, 0); this.box(hx, hy - 0.15, hz - 2.3, 1.5, 1.2, 1.3, B, 3); this.box(hx, hy + 0.1, hz - 2.2, 1.3, 0.5, 1.2, [0.2, 0.5, 0.7], 1, 1, 0.35);   // cabin, nose, canopy
-        this.box(hx, hy + 0.25, hz + 3.6, 0.45, 0.45, 3.8, B, 3); this.box(hx, hy + 0.95, hz + 5.6, 0.14, 1.5, 0.7, B, 3); this.box(hx, hy + 1.05, hz, 0.2, 0.4, 0.2, B, 3);              // boom, fin, mast
-        for (const sx of [-1, 1]) { this.box(hx + sx * 0.95, hy - 1.32, hz - 0.2, 0.12, 0.12, 3.4, B, 3); for (const dz of [-1.1, 0.9]) this.box(hx + sx * 0.88, hy - 1.05, hz + dz, 0.08, 0.5, 0.08, B, 3); }
-        this.glow(hx, hy + 1.3, hz, 4.8, 0, 0, 0, 0, 4.8, [0.8, 0.85, 1.0], 3, 0.55); this.glow(hx + 0.12, hy + 1.0, hz + 5.7, 0, 0, 0.75, 0, 0.75, 0, [0.8, 0.85, 1.0], 3, 0.4);
-        this.sprite(hx - 1.05, hy, hz + 1.5, 0.6, [1, 0.1, 0.15], Math.floor(T * 3) % 2 ? 1.8 : 0.3); this.sprite(hx + 1.05, hy, hz + 1.5, 0.6, [0.2, 1, 0.3], 1.2); this.sprite(hx, hy + 1.7, hz + 5.6, 0.5, [1, 1, 1], Math.floor(T * 2.3) % 2 ? 1.6 : 0);
-        const sk = h.sk, fire = h.strike >= 0, hot = sk > 0.5 && (fire || Math.floor(T * (4 + 8 * h.warn)) % 2 === 0);
+      if (h) {
+        // The helicopter hangs ahead of us, nose towards us: three-quarter on while its searchlight hunts, squared up to us
+        // once it has our lane, then it fires down the beam. It flies in from high ahead, and lifts over the sign gantries.
+        const e = 1 - h.a, e2 = e * e, hz0 = cz - 22, sk = h.sk, fire = h.strike >= 0, f = smooth(h.a * 3);
+        let hop = 0; for (const z0 of GA) hop = Math.max(hop, smooth(1 - Math.abs(30 - mod(z0 - pos, GA_SPAN) - hz0) / 66));
+        const hx = h.x + 26 * e2, hy = 5.6 + Math.sin(T * 0.6) * 0.3 + 6.6 * hop + 30 * e2, hz = hz0 - 80 * e2;
+        const yaw = Math.PI + lerp(0.8 * Math.tanh(2.5 * Math.cos(h.gt * 0.37)), Math.atan2(s.car.x - hx, cz - hz), sk) - 0.9 * e;
+        const hot = sk > 0.5 && (fire || Math.floor(T * (4 + 8 * h.warn)) % 2 === 0);
         const c = fire ? [1.0, 0.16, 0.14] : sk > 0.5 ? (hot ? [1.0, 0.3, 0.12] : [1.0, 0.75, 0.2]) : [0.9, 0.95, 1.0];
-        const lx = hx, ly = hy - 1.0, lz = hz - 1.4, sx = h.sx, sz = cz - (15 - 14 * sk), wd = 1.3 + 0.9 * sk;
-        this.glow((lx + sx) / 2, ly / 2, (lz + sz) / 2, wd, 0, 0, (sx - lx) / 2, -ly / 2, (sz - lz) / 2, c, 8, 0.3 + 0.35 * sk);     // the beam
-        this.glow(sx, 0.05, sz, 3.0 + sk, 0, 0, 0, 0, 4.6 + 1.5 * sk, c, 0, 0.55 + 0.5 * sk); this.sprite(lx, ly, lz, 1.1, c, 1.6);   // its pool on the road, the lamp
+        this.heli.place(hx, hy, hz, yaw, -0.05 + 0.1 * sk - 0.25 * e + (fire ? 0.012 * Math.sin(T * 95) : 0), 0.3 * e - h.bank, 1.5, f, T, c);
+        const at = (k) => { this.heli.at(HELI[k], V1); return [V1.x, V1.y, V1.z]; };
+        const [nlx, nly, nlz] = at('navL'), [nrx, nry, nrz] = at('navR'), [stx, sty, stz] = at('strobe'), [bx, by, bz] = at('beacon');
+        this.sprite(nlx, nly, nlz, 0.55, [1, 0.1, 0.15], 1.3 * f); this.sprite(nrx, nry, nrz, 0.55, [0.2, 1, 0.3], 1.1 * f);        // red to port, green to starboard
+        this.sprite(stx, sty, stz, 0.7, [1, 1, 1], ((T * 1.1) % 1 < 0.07 || (T * 1.1 + 0.16) % 1 < 0.07 ? 2.6 : 0) * f);               // the tail strobe's double flash
+        this.sprite(bx, by, bz, 0.6, [1, 0.1, 0.15], (Math.floor(T * 1.6) % 2 ? 1.5 : 0.15) * f);
+        const [lx, ly, lz] = at('lamp'), sx = h.sx, sz = cz - (15 - 14 * sk), wd = 2.5 + 0.6 * sk;
+        this.glow((lx + sx) / 2, ly / 2, (lz + sz) / 2, wd, 0, 0, (sx - lx) / 2, -ly / 2, (sz - lz) / 2, c, 10, (0.55 + 0.35 * sk) * f);    // the beam
+        this.glow(sx, 0.05, sz, 3.0 + sk, 0, 0, 0, 0, 4.6 + 1.5 * sk, c, 0, (0.55 + 0.5 * sk) * f); this.sprite(lx, ly, lz, 1.3 + 0.5 * sk, c, 1.7 * f);   // its pool on the road, the lamp's glare
         if (sk > 0.3) this.glow(h.lane * L, 0.06, cz - 2, 2.25, 0, 0, 0, 0, 7.5, c, 6, (fire ? 1.6 : 0.7 + 0.5 * h.warn) * sk);        // the lock: a target on the lane
-        if (fire) {                                                          // tracer fire walks down the lane
-          const gx = hx, gy = hy - 0.7, gz = hz - 2.6;
+        if (fire) {                                                          // tracer fire from both gun pods walks down the lane
+          const guns = [at('gunL'), at('gunR')];
           for (let i = 0; i < 5; i++) {
-            const ph = (h.strike * 1.5 + i / 5) % 1, ix = h.lane * L + (hash1(i * 7 + Math.floor(T * 30)) - 0.5) * 1.6, iz = cz - 15 + 22 * ph;
+            const ph = (h.strike * 1.5 + i / 5) % 1, ix = h.lane * L + (hash1(i * 7 + Math.floor(T * 30)) - 0.5) * 1.6, iz = cz - 15 + 22 * ph, [gx, gy, gz] = guns[i % 2];
             if (Math.floor(T * 30 + i) % 2) this.glow((gx + ix) / 2, gy / 2, (gz + iz) / 2, 0.14, 0, 0, (ix - gx) / 2, -gy / 2, (iz - gz) / 2, [1, 0.85, 0.45], 8, 2.6);
             this.sprite(ix, 0.3, iz, 1.3, [1, 0.6, 0.25], 1.8); this.glow(ix, 0.05, iz, 1.6, 0, 0, 0, 0, 1.6, [1, 0.4, 0.2], 0, 1.2);
           }
-          this.sprite(gx, gy, gz, 1.4, [1, 0.8, 0.4], Math.floor(T * 30) % 2 ? 2.4 : 0.6);
+          guns.forEach(([gx, gy, gz], i) => this.sprite(gx, gy, gz, 1.2, [1, 0.8, 0.4], (Math.floor(T * 30) + i) % 2 ? 2.4 : 0.5));
         }
       }
       // ── debris: smashed vehicles and the wrecked car shatter into shards of light ──

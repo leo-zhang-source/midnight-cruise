@@ -482,7 +482,9 @@
       hx: 0,
       sx: 0,
       sk: 0,
-      // helicopter x, searchlight spot x, how locked the light is (0..1)
+      ha: 0,
+      hb: 0,
+      // helicopter x, searchlight spot x, how locked the light is (0..1), how far it has arrived (0..1), its bank
       inv: 0,
       draft: 0,
       draftEv: -1e9,
@@ -929,8 +931,10 @@
       g.drT = -1;
       g.drNext = gt + 3;
     }
-    const lk = g.drT >= 0;
-    g.hx += ((lk ? g.drLane * L : Math.sin(gt * 0.37) * 6) - g.hx) * eK(lk ? 0.3 : 0.9);
+    const lk = g.drT >= 0, hT = lk ? g.drLane * L : Math.sin(gt * 0.37) * 6;
+    g.hb += (clamp2((hT - g.hx) * 0.045, -0.3, 0.3) - g.hb) * eK(0.2);
+    g.hx += (hT - g.hx) * eK(lk ? 0.3 : 0.9);
+    g.ha += ((g.star >= 3 ? 1 : 0) - g.ha) * eK(g.star >= 3 ? 0.8 : 0.5);
     g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
     g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
     g.score += inp.vel * DT2 * G.ptsDist * mult;

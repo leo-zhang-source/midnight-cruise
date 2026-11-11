@@ -32,7 +32,7 @@ export function freshGame(seed = 1986, free = 0) {
     pcl: 0, stG: 0, slow: 0, brkAcc: 0,                                              // tail-close until, stumble grace until, slowed until
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
     drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
-    hx: 0, sx: 0, sk: 0,                                                             // helicopter x, searchlight spot x, how locked the light is (0..1)
+    hx: 0, sx: 0, sk: 0, ha: 0, hb: 0,                                               // helicopter x, searchlight spot x, how locked the light is (0..1), how far it has arrived (0..1), its bank
     inv: 0, draft: 0, draftEv: -1e9, goEv: 0, over: 0,
   };
 }
@@ -357,8 +357,10 @@ export function stepGame(g, inp, out) {
     }
   } else { g.drT = -1; g.drNext = gt + 3; }
   // where the helicopter hangs and where its searchlight falls: wandering while it searches, on the lane once locked
-  const lk = g.drT >= 0;
-  g.hx += ((lk ? g.drLane * L : Math.sin(gt * 0.37) * 6) - g.hx) * eK(lk ? 0.3 : 0.9);
+  const lk = g.drT >= 0, hT = lk ? g.drLane * L : Math.sin(gt * 0.37) * 6;
+  g.hb += (clamp((hT - g.hx) * 0.045, -0.3, 0.3) - g.hb) * eK(0.2);          // it banks into its sideways moves
+  g.hx += (hT - g.hx) * eK(lk ? 0.3 : 0.9);
+  g.ha += ((g.star >= 3 ? 1 : 0) - g.ha) * eK(g.star >= 3 ? 0.8 : 0.5);      // it flies in at three stars and climbs away when the heat drops
   g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
   g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
 

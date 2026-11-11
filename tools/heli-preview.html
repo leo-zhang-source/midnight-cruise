@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>helicopter preview (development)</title>
+<style>html, body { margin: 0; background: #15121f; } canvas { display: block; }</style>
+<canvas id="c"></canvas>
+<script type="module">
+// Development aid: the police helicopter from js/heli.js seen from eight sides.
+// Open http://localhost:8086/tools/heli-preview.html?w=1600&h=900   (&dark = night backdrop, &sun = bright one, &pal=0..3, &t=seconds, &view=0,3)
+import * as THREE from '../vendor/three.module.min.js';
+import { Vehicles } from '../js/vehicles.js';
+import { Heli } from '../js/heli.js';
+import { PALETTES } from '../js/palette.js';
+const Q = new URLSearchParams(location.search), W = +Q.get('w') || 1600, H = +Q.get('h') || 900, pal = PALETTES[+Q.get('pal') || 0], T = +Q.get('t') || 0.3;
+const canvas = document.getElementById('c');
+const r = new THREE.WebGLRenderer({ canvas, antialias: true });
+r.outputColorSpace = THREE.LinearSRGBColorSpace; r.setPixelRatio(1); r.setSize(W, H, false); r.autoClear = false;
+canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+const scene = new THREE.Scene(), veh = new Vehicles(), heli = new Heli(veh.u); scene.add(heli.group);
+veh.begin(pal);
+heli.place(0, 0, 0, +Q.get('yaw') || 0, +Q.get('tx') || 0, +Q.get('tz') || 0, 1, 1, T, [1, 0.95, 0.85]);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 400);
+// azimuth (0 = from behind, π = nose-on), elevation, distance
+const views = [[Math.PI - 0.7, -0.22, 22], [Math.PI, -0.22, 20], [Math.PI + 0.75, -0.1, 22], [Math.PI / 2, 0.04, 24], [0.7, 0.3, 24], [0, 0.12, 22], [Math.PI - 0.5, 0.9, 24], [Math.PI, -1.2, 22]];
+if (Q.has('view')) { const v = Q.get('view').split(',').map((i) => views[+i]); views.length = 0; views.push(...v); }     // &view=0,3 = only these, larger
+const cols = Math.min(4, views.length), rows = Math.ceil(views.length / cols);
+r.setScissorTest(true); r.setClearColor(Q.has('dark') ? 0x070418 : Q.has('sun') ? 0xffd9a0 : 0x8f8aa6, 1);
+await (document.fonts && document.fonts.ready);
+await new Promise((ok) => setTimeout(ok, 150));
+views.forEach(([az, el, d], i) => {
+  const cw = W / cols, ch = H / rows, cx = (i % cols) * cw, cy = H - (Math.floor(i / cols) + 1) * ch;
+  r.setViewport(cx, cy, cw, ch); r.setScissor(cx, cy, cw, ch);
+  cam.aspect = cw / ch; cam.position.set(Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d + 2, Math.cos(az) * Math.cos(el) * d + 2.2); cam.lookAt(0, 2, 2.2); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+  r.clear(); r.render(scene, cam);
+});
+window.__ready = true;
+</script>

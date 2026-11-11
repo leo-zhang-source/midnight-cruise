@@ -19,6 +19,39 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 20: the helicopter, rebuilt
+
+Revision 19 left the helicopter as a handful of boxes, about 35 pixels wide at 720p under a 130-pixel rotor glow, seen from behind. It is now a modelled police helicopter that faces you: about 85 pixels wide nose-on and 130 to 170 side-on, under a 280-pixel rotor disc.
+
+- **The model** (`js/heli.js`). One lofted shell runs from the nose bubble through the cabin into the tail boom, the same method as the cars. The windscreen, chin panes, door and rear windows are panels of that surface. Added on top of it: an engine cowl with intake and exhaust, mast and rotor head, a swept fin with a T-tailplane, skids on two cross tubes, a searchlight drum under the nose, a camera ball on the chin, and a gun pod under a stub pylon on each side.
+- **Livery.** White over a navy belly, a blue stripe that sweeps up from the doors onto the boom, navy cowl and fins, and POLICE on both doors.
+- **Rotors.** Each rotor is a blurred disc with three (tail: two) soft blades and yellow tips. It darkens a bright sky behind it and lightens a dark one, so it shows both against the sun and against the night.
+- **Where it is and how it moves.**
+  - It hangs 22 m ahead of your car and about 6 m up, 1.5 times life size, nose towards you. Before, it was 34 m ahead and 12 m up.
+  - While the searchlight hunts, it sits three-quarter on, swinging slowly from one side to the other, and banks into its sideways drift.
+  - On a lock it squares up to your car and slides over your lane; the nose follows you if you change lane.
+  - At three stars it flies in from high on the right over about two seconds. When the heat drops it climbs away the same way. Before, it appeared and vanished in one frame.
+  - It lifts over every sign gantry and settles again.
+- **Lights.** The searchlight is now a visible cone from the lamp to its pool on the road, narrow and bright at the lamp. Red and green navigation lights sit on the pylon tips, a white double strobe on the tail and a red beacon under the belly. Tracer fire leaves the two gun pods alternately, with a muzzle flash on each.
+- **Rules.** Nothing about the attack changed: the same lock every 6 s, 1.2 s of warning, 0.45 s of fire, dodged by changing lane. The sim gained two values that only the picture reads (how far the helicopter has arrived, and its bank).
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 42/42 |
+| `tools/game-ui.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 39/39, 9/9, 8/8 |
+| `tools/interact.mjs` | 44 passed; its 2 worklet-signal checks were skipped because this machine's audio output was not running during the run (nothing in this revision touches sound) |
+| `tools/bot.mjs` fairness soak, no nitro | 16 seeds × 300 s: no stumble (4–9 grappler runs and 5–13 helicopter strikes dodged per run) |
+| Stills (`tools/scenes.mjs … heli`) | search, lock, fire, fly-in, gantry hop, at 1280×720, 1920×1080 and 420×860 portrait |
+
+**Limits**
+
+- The helicopter flies backwards ahead of you at your speed with its nose towards you. That is a game pose; a real one would not.
+- The lettering is about 12 pixels tall at 720p: it reads as POLICE at 1080p and as a marking below that.
+- The searchlight drum does not swivel; only the beam moves.
+- Your own car is still untouched.
+
 ## Revision 19: grappler, helicopter fire, readable cars
 
 Four points after playing Revision 18.

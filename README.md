@@ -68,7 +68,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 |---|---|---|
 | ★ | every run starts here | One cruiser follows you. |
 | ★★ | a sideswipe (+1 star), three vehicles smashed with nitro (+⅓ each), or 3.5 km driven | Roadblocks appear. The cruiser comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second and you lose speed. |
-| ★★★ | more of the same, or 8 km driven | A helicopter hangs ahead of you, sweeping the road with its searchlight. Every 6 s the light locks the lane you are in (the beam turns amber, then red, with a target on the lane), and 1.2 s later it fires down that lane. More roadblocks. |
+| ★★★ | more of the same, or 8 km driven | A police helicopter flies in and hangs ahead of you, side-on, sweeping the road with its searchlight. Every 6 s it turns to face you and the light locks the lane you are in (the beam turns amber, then red, with a target on the lane); 1.2 s later it fires down that lane from its two gun pods. More roadblocks. |
 
 Heat cools by one star every 12 s once 10 s pass without an incident, but never below the level your distance has earned.
 
@@ -146,9 +146,11 @@ node tools/bot.mjs               # fairness soak: a look-ahead bot drives severa
 
 ```bash
 node tools/scenes.mjs renders/scenes 1280x720   # stills of the moments worth checking: grappler run, searchlight lock, roadblock, rewind, menus …
+node tools/scenes.mjs renders/scenes 1280x720 1000 heli   # only the shots whose name starts with "heli"
+node tools/smoke.mjs             # after a build: the Pages build and both single files load a three-star moment without errors
 ```
 
-Open `http://localhost:8086/tools/vehicle-preview.html` to see the traffic and police bodies on a turntable.
+Open `http://localhost:8086/tools/vehicle-preview.html` to see the traffic and police bodies on a turntable, and `http://localhost:8086/tools/heli-preview.html` for the helicopter from eight sides.
 
 ```bash
 node tools/touch.mjs             # emulated-touch test at 390×844
@@ -194,6 +196,7 @@ js/timeline.js        event log + 240 Hz fixed-step simulation (speed, brake, la
 js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car and its grappler, the helicopter
 js/gameview.js        game layer and highway scenery: traffic, police, grappler, roadblock, helicopter, pickups, debris, city, gantries, billboards
 js/vehicles.js        instanced car / van / truck-cab bodies: one lofted shell each, with panels, lamps and liveries
+js/heli.js            the police helicopter: one lofted body (bubble, cabin, boom) with T-tail, skids, searchlight, gun pods and blurred rotor discs
 js/director.js        pure choreography: (T, events, viewport) → frame description
 js/world.js           sky/sun, grid, wireframe mountains, palms, light trails (GLSL)
 js/title.js           extruded chamfered logotype + chrome material, 1986 plate

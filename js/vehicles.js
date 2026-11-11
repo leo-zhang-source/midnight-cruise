@@ -123,6 +123,16 @@ function shell(st) {
   return g;
 }
 
+// what a glossy surface reflects: the sky above, the lit road below, the band of light on the horizon, the sun
+export const ENV_GLSL = /* glsl */`
+      vec3 env(vec3 R){
+        float y = R.y;
+        vec3 c = y > 0.0 ? mix(cSky * 1.1, cTop, smoothstep(0.05, 0.7, y)) : mix(cHor * 0.25, cGrid * 0.12, smoothstep(-0.02, -0.5, y));
+        c += cHor * exp(-abs(y) / 0.04) * 1.1;
+        c += cSun * exp(-pow((R.z + 0.98) / 0.08, 2.0)) * exp(-pow((y - 0.07) / 0.1, 2.0)) * 1.4;
+        return c;
+      }`;
+
 const MAX = 40;
 function makeStyle(style, uniforms) {
   const base = shell(STYLES[style]);
@@ -148,13 +158,7 @@ function makeStyle(style, uniforms) {
       precision highp float;
       uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog;
       varying vec3 vN, vW, vC, vL; varying float vPart; varying vec4 vS, vLi;
-      vec3 env(vec3 R){
-        float y = R.y;
-        vec3 c = y > 0.0 ? mix(cSky * 1.1, cTop, smoothstep(0.05, 0.7, y)) : mix(cHor * 0.25, cGrid * 0.12, smoothstep(-0.02, -0.5, y));
-        c += cHor * exp(-abs(y) / 0.04) * 1.1;
-        c += cSun * exp(-pow((R.z + 0.98) / 0.08, 2.0)) * exp(-pow((y - 0.07) / 0.1, 2.0)) * 1.4;
-        return c;
-      }
+      ${ENV_GLSL}
       void main(){
         vec3 N = normalize(vN), V = normalize(cameraPosition - vW), R = reflect(-V, N);
         float nv = max(dot(N, V), 0.0), fr = 0.04 + 0.96 * pow(1.0 - nv, 5.0), dist = length(vW - cameraPosition);

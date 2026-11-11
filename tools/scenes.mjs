@@ -1,13 +1,13 @@
 // Development aid: finds moments worth looking at (grappler run, searchlight lock, roadblock, rewind, home …) by
 // letting the bot drive, then captures them from the browser.
-//   node tools/scenes.mjs <outDir> [WxH] [seed]
+//   node tools/scenes.mjs <outDir> [WxH] [seed] [only]     only: capture just the shots whose name starts with this
 import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { play } from './bot.mjs';
 import { Timeline } from '../js/timeline.js';
 import { NV, VF, T_BLOCK } from '../js/game.js';
 
-const [out = 'renders/scenes', size = '1280x720', seedArg = '1000'] = process.argv.slice(2);
+const [out = 'renders/scenes', size = '1280x720', seedArg = '1000', only = ''] = process.argv.slice(2);
 const [w, h] = size.split('x').map(Number), seed = +seedArg;
 mkdirSync(out, { recursive: true });
 
@@ -21,7 +21,7 @@ const item = first('item'); if (item) shots.push(['canister', clean, item.t - 0.
 const rw = first('ramwarn'); if (rw) shots.push(['grappler', clean, rw.t + 0.8], ['grappler_miss', clean, rw.t + 1.3]);
 shots.push(['traffic_a', clean, 12], ['traffic_b', clean, 21.5], ['traffic_c', clean, 27]);
 const lk = first('lock'); if (lk) shots.push(['heli_search', clean, lk.t - 1.5], ['heli_lock', clean, lk.t + 0.8], ['heli_fire', clean, lk.t + 1.4]);
-const s3 = gev.find((e) => e.k === 'star' && e.n === 3); if (s3) shots.push(['heli', clean, s3.t + 3]);
+const s3 = gev.find((e) => e.k === 'star' && e.n === 3); if (s3) shots.push(['heli_in_a', clean, s3.t + 0.5], ['heli_in_b', clean, s3.t + 1.0], ['heli_in_c', clean, s3.t + 1.7], ['heli', clean, s3.t + 3]);
 // a roadblock in view
 for (let T = 20; T < 200; T += 0.5) {
   const st = r.tl.stateAt(T); let hit = 0;
@@ -35,6 +35,10 @@ for (let T = 20; T < 200; T += 0.1) {
   if (hit) { shots.push(['roadblock_near', clean, T]); break; }
 }
 const mod = (a, n) => ((a % n) + n) % n;
+if (s3) for (let T = s3.t + 4, k = 0; T < 200 && k < 3; T += 0.02) {             // the helicopter lifting over a sign gantry
+  const d = Math.min(mod(1500 - r.tl.stateAt(T).pos, 4800), mod(3900 - r.tl.stateAt(T).pos, 4800));
+  if (d < [130, 62, 20][k] && d > 5) shots.push(['heli_gantry_' + 'abc'[k++], clean, T]);
+}
 for (let T = 6, g = 0, bb = 0; T < 200 && !(g && bb); T += 0.05) {
   const pos = r.tl.stateAt(T).pos;
   if (!g && Math.abs(mod(1500 - pos, 4800) - 75) < 4) { shots.push(['gantry', clean, T]); g = 1; }
@@ -66,7 +70,7 @@ p.on('console', (m) => { if (m.type() === 'error') logs.push(m.text()); });
 p.on('pageerror', (e) => logs.push('[pageerror] ' + e.message));
 await p.goto(`http://localhost:8086/?capture=1&w=${w}&h=${h}&t=0.5&tier=0`);
 await p.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
-for (const [name, ev, T] of shots) {
+for (const [name, ev, T] of shots.filter((s) => s[0].startsWith(only))) {
   await p.evaluate(([ev, T]) => { MC.load(ev); MC.seek(T); }, [ev, T]);
   await p.waitForTimeout(120);
   await p.screenshot({ path: `${out}/${name}.png` });
