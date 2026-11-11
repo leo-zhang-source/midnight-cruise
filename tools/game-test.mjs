@@ -5,7 +5,7 @@
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
 import { GAME } from '../js/cue.js';
-import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, CAR_HL, freshGame, stepGame, laneV, laneRate } from '../js/game.js';
+import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, CAR_HL, freshGame, stepGame, laneV, laneRate, gameBase } from '../js/game.js';
 import { play } from './bot.mjs';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
 const C = 1.9;   // cruise start of the test timelines (start 1.0, skip 1.5, 0.4 s fast-forward)
@@ -155,7 +155,7 @@ let crashT;
   ok('canisters are picked up on the road and can be fired', items.length >= 2 && ns.length >= 1 && ns.length <= items.length, `${items.length} picked up, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
   const n0 = ns[0], st = t2.stateAt(n0.I + 1.0), basev = t2.stateAt(n0.p - 0.1).vel;
   ok('nitro impact lands on the half-beat grid, 0.2–0.45 s after the press', n0.I - n0.p >= 0.2 - 1e-9 && n0.I - n0.p <= 0.45 + 1e-9 && Math.abs(((n0.I - C) / 0.25) - Math.round((n0.I - C) / 0.25)) < 1e-6, `wind-up ${(n0.I - n0.p).toFixed(3)} s`);
-  ok('nitro boosts the speed to about 1.85×', st.vel > basev * 1.65 && st.vel < basev * 2.0, `${basev.toFixed(0)} → ${st.vel.toFixed(0)} u/s`);
+  ok('nitro boosts the speed to about 1.85× the cruising speed', st.vel > gameBase(st.g) * 1.65 && st.vel < gameBase(st.g) * 2.0, `${basev.toFixed(0)} → ${st.vel.toFixed(0)} u/s (cruising speed ${gameBase(st.g).toFixed(0)} by then)`);
   // stock: up to three, used one at a time
   const t3 = fresh(); t3.add('lane', C + 5, { dir: 1 }); t3.stateAt(C + 6); t3._st.g.nstock = 2;
   t3.add('turbo', C + 6.1); t3.add('turbo', C + 6.4);

@@ -41,6 +41,11 @@ if (s3) for (let T = s3.t + 4, k = 0; T < 200 && k < 3; T += 0.02) {            
   const d = Math.min(mod(1500 - r.tl.stateAt(T).pos, 4800), mod(3900 - r.tl.stateAt(T).pos, 4800));
   if (d < [130, 62, 20][k] && d > 5) shots.push(['heli_gantry_' + 'abc'[k++], clean, T]);
 }
+for (let T = 6, br = 0, sg = 0; T < 200 && !(br && sg); T += 0.05) {             // an overpass and a roadside sign coming up
+  const pos = r.tl.stateAt(T).pos;
+  if (!br && Math.abs(mod(300 - pos, 4800) - 120) < 4) { shots.push(['bridge', clean, T], ['bridge_near', clean, T + 0.9]); br = 1; }
+  if (!sg && Math.abs(mod(1100 - pos, 4800) - 75) < 4) { shots.push(['roadsign', clean, T]); sg = 1; }
+}
 for (let T = 6, g = 0, bb = 0; T < 200 && !(g && bb); T += 0.05) {
   const pos = r.tl.stateAt(T).pos;
   if (!g && Math.abs(mod(1500 - pos, 4800) - 75) < 4) { shots.push(['gantry', clean, T]); g = 1; }

@@ -400,13 +400,13 @@ export function phaseFrom(segs, T) {
 // replay of the intro.
 export const CANONICAL = [
   { type: 'start', t: 1 }, { type: 'brk', t: 17, on: true }, { type: 'brk', t: 18.2, on: false }, { type: 'lane', t: 19.2, dir: -1 },
-  { type: 'lane', t: 22.85, dir: 1 }, { type: 'lane', t: 23.15, dir: 1 }, { type: 'lane', t: 27.65, dir: -1 }, { type: 'lane', t: 28.75, dir: 1 },
-  { type: 'lane', t: 30.2, dir: -1 }, { type: 'lane', t: 31.05, dir: 1 }, { type: 'turbo', t: 33.15 }, { type: 'env', t: 34, preset: 1 },
-  { type: 'lane', t: 40.6, dir: -1 }, { type: 'lane', t: 42.15, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 46.05, dir: -1 },
-  { type: 'lane', t: 46.85, dir: 1 }, { type: 'lane', t: 51.1, dir: -1 }, { type: 'lane', t: 51.45, dir: -1 }, { type: 'env', t: 54, preset: 3 },
-  { type: 'lane', t: 55.05, dir: 1 }, { type: 'lane', t: 58.2, dir: 1 }, { type: 'lane', t: 63.55, dir: -1 }, { type: 'env', t: 64, preset: 0 },
-  { type: 'lane', t: 65.15, dir: -1 }, { type: 'lane', t: 66.8, dir: 1 }, { type: 'lane', t: 68.75, dir: -1 }, { type: 'music', t: 70, on: false },
-  { type: 'lane', t: 70.1, dir: 1 }, { type: 'lane', t: 71, dir: 1 }, { type: 'lane', t: 71.9, dir: -1 }, { type: 'music', t: 73, on: true },
-  { type: 'lane', t: 73.85, dir: -1 }, { type: 'lane', t: 74.65, dir: 1 }, { type: 'lane', t: 76.45, dir: 1 }, { type: 'turbo', t: 78.55 },
-  { type: 'home', t: 80.0 }, { type: 'replay', t: 83.0 },
+  { type: 'lane', t: 23.3, dir: 1 }, { type: 'lane', t: 24.75, dir: -1 }, { type: 'lane', t: 25.65, dir: 1 }, { type: 'lane', t: 30.15, dir: -1 },
+  { type: 'lane', t: 31, dir: 1 }, { type: 'lane', t: 32.05, dir: -1 }, { type: 'turbo', t: 33.25 }, { type: 'env', t: 34, preset: 1 },
+  { type: 'lane', t: 36.25, dir: 1 }, { type: 'lane', t: 38.9, dir: 1 }, { type: 'lane', t: 42.45, dir: -1 }, { type: 'env', t: 44, preset: 2 },
+  { type: 'lane', t: 44.15, dir: 1 }, { type: 'lane', t: 49.8, dir: -1 }, { type: 'lane', t: 51.65, dir: -1 }, { type: 'lane', t: 52.8, dir: 1 },
+  { type: 'lane', t: 53.5, dir: -1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 57.45, dir: 1 }, { type: 'lane', t: 58.15, dir: -1 },
+  { type: 'lane', t: 59.15, dir: 1 }, { type: 'turbo', t: 60.45 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 66.6, dir: -1 },
+  { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.05, dir: 1 }, { type: 'lane', t: 72.75, dir: -1 }, { type: 'music', t: 73, on: true },
+  { type: 'lane', t: 74.75, dir: 1 }, { type: 'lane', t: 75.1, dir: 1 }, { type: 'lane', t: 75.9, dir: -1 }, { type: 'lane', t: 77.1, dir: -1 },
+  { type: 'turbo', t: 79.45 }, { type: 'home', t: 80.0 }, { type: 'replay', t: 83.0 },
 ];

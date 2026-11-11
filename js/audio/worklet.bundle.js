@@ -57,7 +57,7 @@
     // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
     gears: [54, 61, 69, 78, 87, 96],
     // cruising speed per gear
-    gearAt: [0, 1e3, 2500, 4500, 7e3, 1e4],
+    gearAt: [0, 800, 2e3, 3600, 5600, 8e3],
     // run distance at which each gear engages
     creep: [1e3, 20],
     // past the last gear: +1 u/s per 1000 units, up to +20
@@ -70,14 +70,14 @@
     nitroGrace: 0.7,
     nitroMax: 3,
     nitroFirst: 480,
-    nitroEvery: [720, 1240],
+    nitroEvery: [900, 1500],
     nitroFree: 7,
     // (distances measured against the traffic: the first after about 17 s)
     ahead: 340,
     firstRow: 175,
     despawn: 30,
     // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-    rowGap: [1.3, 0.8],
+    rowGap: [1.1, 0.72],
     // seconds between rows at the gear's closing speed (gear 1 → 6)
     nearT: 0.32,
     draftT: 0.9,
@@ -99,8 +99,8 @@
     // closes in and stays on your tail until you fire a nitro canister, which shakes it off and gives the life back. A hit while
     // it is on your tail ends the run. hitInv: seconds nothing can touch you after ploughing through a vehicle on the first life.
     // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
-    star2At: 2500,
-    star3At: 6e3,
+    star2At: 1500,
+    star3At: 4e3,
     // distance floors: the longer you run, the more they send
     heatSwipe: 1,
     heatSmash: 0.34,
@@ -108,15 +108,15 @@
     heatDecay: 12,
     stumbleGrace: 1.2,
     hitInv: 1,
-    hitRest: 3,
+    hitRest: 2.5,
     polClose: 6.5,
     polFar: 19,
     chaseZ: 8.5,
     chaseX: 2.4,
-    chaseRam: 0.7,
+    chaseRam: 0.6,
     // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
-    ramFirst: 5,
-    ramEvery: [5, 7.5],
+    ramFirst: 4,
+    ramEvery: [3.5, 5.5],
     ramWarn: 1.1,
     ramV: 26,
     ramBack: 34,
@@ -125,28 +125,29 @@
     ramClear: 2.5,
     ramOwn: 1.8,
     clearAfter: 1.3,
-    holdOff: 3.5,
+    holdOff: 3,
     // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-    blockP: [0, 0, 0.24, 0.34],
+    blockP: [0, 0, 0.3, 0.4],
     // share of rows that are police units ahead of you, by star
     // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
     // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
     // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
     // stagger: nobody drives exactly abreast: vehicles of one row sit this far ahead of or behind the row's line (police: echelon).
-    // shiftP: share of rolling roadblocks, by star, in which one cruiser steers across into the open lane as you close in (timed like a taxi)
+    // shiftP: share of rolling roadblocks (of those with a cruiser in the middle lane), by star, in which that cruiser steers across into
+    // the open side lane as you close in, timed like a taxi: the middle lane becomes the way through
     stagger: [3.5, 6.5],
     echelon: [3, 5],
-    shiftP: [0, 0, 0.5, 0.7],
+    shiftP: [0, 0, 0.7, 0.9],
     blockAt: 1.3,
     blockSlow: 9,
     blockDecel: 14,
-    weaveP: [0, 0, 0.35, 0.45],
+    weaveP: [0, 0, 0.4, 0.5],
     weaveHold: 0.45,
     weaveMove: 1.4,
     weaveLock: 1.25,
     weaveSnap: 8,
     weaveWarn: 3,
-    drEvery: 5,
+    drEvery: 3.5,
     drWarn: 1.2,
     drStrike: 0.45,
     drClear: 2.1,
@@ -678,7 +679,7 @@
       put(p);
     } else if (pat === 2) {
       f = adj(p);
-      if (shift) {
+      if (shift && p === 0) {
         put(p, f - p);
         put(third(p, f));
         f = p;
@@ -690,11 +691,10 @@
       put(p === 0 ? side() : rnd(g) < 0.5 ? 0 : -p);
     } else if (pat === 4) {
       const a = p === 0 ? -1 : 0, b = p === 0 ? 1 : -p;
-      if (shift) {
-        const m = p === 0 ? side() : 0;
-        put(m, p - m);
-        put(m === a ? b : a);
-        f = m;
+      if (shift && p !== 0) {
+        put(0, p);
+        put(-p);
+        f = 0;
       } else {
         put(a);
         put(b);

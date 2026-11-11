@@ -148,13 +148,13 @@ function genRow(g) {
     f = adj(p); put(p);
   } else if (pat === 2) {                // two side by side, one lane left
     f = adj(p);
-    if (shift) { put(p, f - p); put(third(p, f)); f = p; }   // … until the nearer cruiser crosses into it and leaves its own lane free
+    if (shift && p === 0) { put(p, f - p); put(third(p, f)); f = p; }   // … until the middle cruiser crosses into it and leaves the middle lane free (one move from anywhere)
     else { put(p); put(third(p, f)); }
   } else if (pat === 3) {                // a vehicle in another lane
     put(p === 0 ? side() : (rnd(g) < 0.5 ? 0 : -p));
   } else if (pat === 4) {                // both other lanes blocked
     const a = p === 0 ? -1 : 0, b = p === 0 ? 1 : -p;
-    if (shift) { const m = p === 0 ? side() : 0; put(m, p - m); put(m === a ? b : a); f = m; }   // the cruiser next to the open lane crosses into it
+    if (shift && p !== 0) { put(0, p); put(-p); f = 0; }   // the middle cruiser crosses into the open side lane: the middle is the way through
     else { put(a); put(b); }
   } else if (pat === 5) {                // a taxi in the middle lane that cuts to one side as you close in
     const d = side();

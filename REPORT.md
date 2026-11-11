@@ -19,6 +19,75 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 23: harder again, a distant helicopter, a furnished highway
+
+Four requests after Revision 22: harder still; the helicopter farther off and at a real height; no text when police cruisers block the road; more highway furniture.
+
+### Harder
+
+I pushed every number as far as it would go while the bot still takes no hit in 40 five-minute runs.
+
+| What | Revision 22 | Now |
+|---|---|---|
+| Seconds between rows, gear 1 → 6 | 1.3 → 0.8 | 1.1 → 0.72 |
+| Gear changes at (km) | 1, 2.5, 4.5, 7, 10 | 0.8, 2, 3.6, 5.6, 8 |
+| Two stars / three stars by distance | 2.5 km / 6 km | 1.5 km / 4 km |
+| Grappler runs | first after 5 s, then every 5–7.5 s | 4 s, then every 3.5–5.5 s (40 % sooner on the last life, was 30 %) |
+| Searchlight locks | every 5 s | every 3.5 s |
+| Share of rows that are police, at ★★ / ★★★ | 24 % / 34 % | 30 % / 40 % |
+| Of those, weaving cruisers | 35 % / 45 % | 40 % / 50 % |
+| Rolling roadblocks where a cruiser crosses over | 50 % / 70 % | 70 % / 90 % of those with a cruiser in the middle |
+| Police hold off around a crossing or weaving vehicle | 3.5 s | 3 s |
+| Respite after a hit | 3 s | 2.5 s |
+| Nitro canisters (your way to get a life back), in top gear | about every 14–24 s | about every 17–29 s |
+
+Attacks actually carried out per five minutes: 0–6 grappler runs (was 2–7) and 4–12 helicopter strikes (was 4–10). The grappler figure did not rise: it only runs when you have a way out, and with rows this close that is less often. The pressure comes from the road and the helicopter.
+
+**One rule changed to make room for this.** A crossing cruiser used to be whichever one stood next to the open lane, so the lane that opened could be a side lane, two lanes from a car on the far side with a truck in between. That was the one case where the bot was hit. Now it is always the cruiser in the middle lane that crosses, into the open side lane: the middle becomes the way through, one move from anywhere.
+
+**Where it stops.** Rows at 1.05 → 0.66 s cost the bot a hit in 3 runs of 24. Stars at 1.5 km / 4 km and 30 % / 40 % police were each a hit in 1 of 24 until the rule above went in.
+
+### The helicopter
+
+- It now holds station about 130 units ahead and 38 up. Before it hung 22 ahead and 6 up, lifting over each gantry; it no longer needs to.
+- That is as high as it can go and stay in the picture below the score. A real one would fly several times higher still.
+- It is drawn at twice life size so it stays readable at that distance: a small aircraft above the horizon, with a long searchlight beam down to the road.
+- Its lights and the muzzle flashes are larger to match. The lock, the lane target and the tracer fire work as before.
+
+### No call-outs for police ahead
+
+ROLLING ROADBLOCK AHEAD and CRUISER WEAVING · WATCH ITS LANE are gone. The cruisers still announce themselves in the scene: light bars, a warning sign over each, chevrons for one that is steering across, and a siren chirp. The call-outs for the grappler and the searchlight lock are still there, since those come from where you are not looking; say so if you want them gone too.
+
+### Highway furniture
+
+- **Street lamps** on both sides every 80 units, staggered left and right, each with a pool of sodium light on the road.
+- **Reflector posts** on both rails every 30 units, amber on the left and white on the right.
+- **An overpass** every 2,400 units, half-way between the sign gantries: deck, parapets, piers, lamps under the deck.
+- **Roadside signs** on two posts: NEO CITY / CORE DISTRICT 9 KM, REST AREA / FUEL · DINER 2 KM, SPEED CHECKED BY AIRCRAFT.
+- **An emergency phone** in orange on the left every 640 units.
+
+All of it stands still, so it streams past at your full speed while the traffic does not. That contrast is one more thing that makes the traffic read as driving.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 54/54 |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 40/40, 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak, no nitro | 40 seeds × 300 s: not one hit (0–6 grappler runs and 4–12 helicopter strikes dodged per run) |
+| The same with nitro | 16 seeds: 1 run takes a hit |
+| `tools/perf.mjs`, 1920×1080 | traffic 7.3 ms median, 9.1 ms 95th percentile per frame (6.1 / 9.0 before the furniture) |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+| Stills (`tools/scenes.mjs`) | overpass far and near, roadside sign, gantry, helicopter searching, locked, firing and flying in |
+
+**Limits**
+
+- Not played by me. The bot is far better than a person, so "the bot is never hit" says the road is always passable, not that it is comfortable.
+- The run now reaches three stars after about 65 s and top gear after about 110 s (before: about 90 s and 140 s). If that is too much too soon, the distance thresholds are the gentlest knob to turn back.
+- At its new distance the helicopter is about 75 pixels across at 720p. That is what far away looks like; it was 280 in Revision 20.
+- The furniture is drawn from the same boxes and glows as the gantries. No new models.
+- Canisters being rarer makes losing a life cost more. That is deliberate, and it is also the knob to turn if the last life feels hopeless.
+
 ## Revision 22: two lives, a harder road, and nobody abreast
 
 Two messages after Revision 21: the traffic still read as close to static, with every row perfectly abreast and the police standing still while they intercept; and the game was too easy, to be changed to two lives with a permanent chase after the first is lost, then made harder.

@@ -76,7 +76,6 @@ const POP = {
   shake: () => ['SHOOK THEM OFF · TWO LIVES', 'good'],
   tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'], lock: () => ['SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
-  block: () => ['ROLLING ROADBLOCK AHEAD', 'bad'], weave: () => ['CRUISER WEAVING · WATCH ITS LANE', 'bad'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [`CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
   draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: () => ['SHOVED THE POLICE BACK', 'hot'],
 };
