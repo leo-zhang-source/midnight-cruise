@@ -555,6 +555,17 @@ export class Synth {
       case 'chime': v = new Blip(s, o, 1320, 1318.5, 0.25, 0.06, -0.2); this.voices.push(new Blip(s, o, 1980, 1975.5, 0.3, 0.05, 0.2, 0.09)); break;
       case 'select': v = new Click(s, o, 0.6, 1); this.voices.push(new Blip(s, o, 880, 520, 0.06, 0.06, 0, 0.05)); break;
       case 'rewind': v = new Squeal(s, o, n.d ?? 0.6, false); break;
+      // game
+      case 'cell': v = new Blip(s, o, 1560, 2350, 0.035, 0.05, 0.15); break;
+      case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
+      case 'smash': v = new Click(s, o, 1.0, 1); this.voices.push(new Blip(s, o, 1500, 240, 0.09, 0.1), new Blip(s, o, 2600, 900, 0.05, 0.05, 0.3, 0.03)); break;
+      case 'swipe': v = new Click(s, o, 1.1, 1); this.voices.push(new Blip(s, o, 260, 85, 0.1, 0.16)); break;
+      case 'crashfx': v = new Impact(s, o, 0.9); this.voices.push(new Click(s, o, 1.2, 1), new Blip(s, o, 900, 60, 0.35, 0.14), new Squeal(s, o, 0.5, false)); break;
+      case 'bust': v = new Blip(s, o, 620, 610, 0.16, 0.09); this.voices.push(new Blip(s, o, 470, 465, 0.16, 0.09, 0, 0.18), new Blip(s, o, 310, 300, 0.4, 0.1, 0, 0.36)); break;
+      case 'gear': v = new Blip(s, o, 660, 664, 0.08, 0.07, -0.2); this.voices.push(new Blip(s, o, 990, 996, 0.14, 0.07, 0.2, 0.09)); break;
+      case 'siren': v = new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4); this.voices.push(new Blip(s, o, 1040, 780, 0.16, 0.05, 0.4, 0.26), new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4, 0.52), new Blip(s, o, 1040, 780, 0.2, 0.05, 0.4, 0.78)); break;
+      case 'lock': v = new Blip(s, o, 1900, 1890, 0.05, 0.05); this.voices.push(new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.14), new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.28)); break;
+      case 'zap': v = new Blip(s, o, 2600, 180, 0.12, 0.1); this.voices.push(new Click(s, o, 0.8)); break;
       case 'ffwd': v = new Squeal(s, o, n.d ?? 0.4, true); break;
       default: return;
     }
@@ -593,14 +604,14 @@ export class Synth {
       if (sg.skip !== null) this._once('ff' + si, sg.skip, f0, f1, (o) => { this.trigger({ i: 'ffwd', d: 0.4 }, o); });
       if (sg.skip !== null) this._once('ffc' + si, sg.C, f0, f1, (o) => this.trigger({ i: 'crash', v: 0.8 }, o));
     }
-    // Turbo: anticipation at press, stinger at the quantised impact.
-    for (const tb of d.turbos) {
+    // Nitro: a short riser from the press, the stinger at the quantised impact (bursts are accepted by the simulation).
+    for (const tb of tl.nitros(this.offset + f1 / SR)) {
       this._once('ta' + tb.p, tb.p, f0, f1, (o) => { const dd = tb.I - tb.p; this.trigger({ i: 'riser', d: dd, v: 0.9 }, o); this.trigger({ i: 'revcrash', d: dd, v: 0.9 }, o); });
-      this._once('ti' + tb.p, tb.I, f0, f1, (o) => {
-        const bar = Math.floor((tb.I - tb.seg.C + 1e-6) / BAR);
+      if (tb.until > tb.I) this._once('ti' + tb.p, tb.I, f0, f1, (o) => {
+        const pi = tl.phaseAt(tb.I);
+        const bar = pi.phase === 'cruise' ? Math.floor((tb.I - pi.seg.C + 1e-6) / BAR) : 0;
         turboNotes(cruiseChord(bar), (dt, note) => this.trigger(note, o));
       });
-      if (tb.p + TURBO.cooldown < tb.seg.until) this._once('tr' + tb.p, tb.p + TURBO.cooldown, f0, f1, (o) => this.trigger({ i: 'chime' }, o));
     }
     // UI / interaction sound effects
     for (const e of tl.events) {
@@ -639,6 +650,7 @@ export class Synth {
     const tb = this.tl.turboAt(T);
     if (tb && T < tb.I) lp = 20000 * Math.pow(350 / 20000, Math.pow(Math.min(1, tb.a / tb.antic), 1.4));
     if (ph.phase === 'rewind') lp = 900;
+    if (ph.phase === 'cruise' && (st.over || st.paused || T < st.hold)) lp = Math.min(lp, T < st.hold ? 900 : 1100);
     if (ph.phase === 'ff') lp = 2200;
     this._lpT = lp;
     // trims

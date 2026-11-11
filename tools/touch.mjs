@@ -4,7 +4,7 @@ const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--u
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
 const p = await ctx.newPage();
 const ok = (n, c, i = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
-await p.goto('http://localhost:8086/'); await p.waitForFunction(() => window.__ready === true);
+await p.goto('http://localhost:8086/?free=1'); await p.waitForFunction(() => window.__ready === true);   // free mode: controls only
 ok('touch hint copy', (await p.textContent('#start-note')).includes('change lane'));
 ok('deck starts minimised on phone', (await p.getAttribute('#deck', 'data-min')) === 'true');
 await p.tap('#start'); await p.waitForTimeout(300);

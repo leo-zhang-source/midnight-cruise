@@ -1,6 +1,6 @@
 // DOM layer: accessible controls, input → timeline events, and per-frame UI state.
 // All UI motion (pop-in, drag, settle) is evaluated from the timeline, not CSS transitions.
-import { PRESETS, IGN, drumPulse } from './cue.js';
+import { PRESETS, IGN, GAME, drumPulse } from './cue.js';
 import { clamp, lerp, smooth, spring, ring, sat } from './util.js';
 
 const $ = (id) => document.getElementById(id);
@@ -16,7 +16,12 @@ export class UI {
       deck: $('deck'), deckBar: $('deck-bar'), deckMin: $('deck-min'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
+      ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gHeat: $('g-heat'), gTapes: $('g-tapes'), gear: $('gear'),
+      pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), retry: $('retry'), revive: $('revive'), live: $('g-live'),
+      ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovDist: $('ov-dist'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovNear: $('ov-near'), ovTapes: $('ov-tapes'),
     };
+    this.best = 0;
+    try { this.best = +localStorage.getItem('mc86.best') || 0; } catch (_) { /* storage unavailable: best score lasts for this visit */ }
     this.el.lcdMeter.innerHTML = '<i></i>'.repeat(8);
     this.meterBars = [...this.el.lcdMeter.children];
     this.el.spdBar.innerHTML = '<i></i>'.repeat(14);
@@ -53,6 +58,10 @@ export class UI {
     E.drive.addEventListener('keydown', (e) => { if ((e.key === 'Enter') && !e.repeat) { this.driveHeld = true; this.refreshThrottle(); } });
     E.drive.addEventListener('keyup', (e) => { if (e.key === 'Enter') { this.driveHeld = false; this.refreshThrottle(); } });
     E.turbo.addEventListener('click', () => this.turbo());
+    E.retry.addEventListener('click', () => this.retry());
+    E.pause.addEventListener('click', () => this.pause(true));
+    E.resume.addEventListener('click', () => this.pause(false));
+    E.revive.addEventListener('click', () => this.revive());
     E.play.addEventListener('click', () => { const on = this.app.tl.musicAt(this.app.now()).on; this.ev('music', { on: !on }); this.sfx('clunk'); });
     E.mute.addEventListener('click', () => { const m = !this.app.audio.muted; this.app.audio.setMuted(m); this.ev('mute', { on: m }); this.sfx('click'); E.mute.setAttribute('aria-pressed', String(m)); E.mute.setAttribute('aria-label', m ? 'Unmute' : 'Mute'); });
     E.auto.addEventListener('click', () => { const on = !this.app.tl.autoOn(this.app.now()); this.ev('auto', { on }); this.sfx('click'); });
@@ -78,22 +87,23 @@ export class UI {
     const interactive = (t) => t && t !== document.body && t !== E.drive && t.matches && t.matches('button, input, a, [tabindex]');
     addEventListener('keydown', (e) => {
       const k = e.key;
-      if (k === ' ' || e.code === 'Space') { if (interactive(document.activeElement)) return; e.preventDefault(); if (!e.repeat) { if (this.phase() === 'idle') { this.app.start(); return; } this.space = true; this.refreshThrottle(); } return; }
+      if (k === ' ' || e.code === 'Space') { if (interactive(document.activeElement)) return; e.preventDefault(); if (!e.repeat) { if (this.phase() === 'idle') { this.app.start(); return; } if (this.isPaused()) { this.pause(false); return; } if (this.overState()) { this.retry(); return; } this.space = true; this.refreshThrottle(); } return; }
       if (e.repeat) return;
       if (k === 'ArrowLeft' || k === 'a' || k === 'A') { e.preventDefault(); this.lane(-1); }
       else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); this.lane(1); }
       else if (k === 't' || k === 'T') this.turbo();
-      else if (k === 'Escape' || k === 's' || k === 'S') { if (this.phase() === 'ign') this.ev('skip'); }
-      else if (k === 'r' || k === 'R') { if (this.phase() === 'cruise') { this.ev('replay'); this.sfx('clunk'); } }
+      else if (k === 'p' || k === 'P') this.pause(!this.isPaused());
+      else if (k === 'Escape' || k === 's' || k === 'S') { if (this.phase() === 'ign') this.ev('skip'); else if (k === 'Escape') this.pause(!this.isPaused()); }
+      else if (k === 'r' || k === 'R') { if (this.overState()) this.revive(); else if (this.phase() === 'cruise') { this.ev('replay'); this.sfx('clunk'); } }
       else if (k === 'm' || k === 'M') E.mute.click();
-      else if (k === 'Enter' && document.activeElement === document.body && this.phase() === 'idle') this.app.start();
+      else if (k === 'Enter' && !interactive(document.activeElement)) { if (this.phase() === 'idle') this.app.start(); else if (this.isPaused()) this.pause(false); else if (this.overState()) this.retry(); }
       else if (/^[1-4]$/.test(k) && this.phase() !== 'idle') E.presets[+k - 1].click();
     });
     addEventListener('keyup', (e) => {
       const k = e.key;
       if (k === ' ' || e.code === 'Space') { this.space = false; this.refreshThrottle(); }
     });
-    const release = () => { this.space = false; this.driveHeld = false; this.refreshThrottle(); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
+    const release = () => { this.space = false; this.driveHeld = false; this.refreshThrottle(); this.pause(true, true); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
     this.setMin(true);   // the deck starts minimised; its title-bar key expands it
@@ -109,8 +119,45 @@ export class UI {
 
   // one lane left (−1) or right (+1); only while cruising
   lane(dir) {
-    if (this.phase() !== 'cruise') return;
+    if (this.phase() !== 'cruise' || this.overState()) return;
     this.ev('lane', { dir });
+  }
+  // the run is over (crashed or busted): returns the simulation state once the panel accepts input
+  overState() {
+    const tl = this.app.tl, st = tl.stateAt(tl.frontier());
+    return st.over && this.app.now() - st.overT >= GAME.overLock ? st : null;
+  }
+  retry() { if (this.overState()) this.ev('retry'); }
+  isPaused() { const tl = this.app.tl; return !!tl.stateAt(tl.frontier()).paused; }
+  // Pause or resume the run. auto: the window lost focus or the tab was hidden — only a live run with traffic pauses.
+  pause(on, auto = false) {
+    if (this.phase() !== 'cruise') return;
+    const tl = this.app.tl, st = tl.stateAt(tl.frontier());
+    if (!st.run || st.over || !!st.paused === !!on || (auto && st.g.free)) return;
+    this.ev('pause', { on: !!on }); this.sfx('clunk');
+  }
+  revive() { const st = this.overState(); if (st && st.tapes > 0) this.ev('revive'); }
+  // Sounds for what the simulation just derived (close calls, crashes …). Only the picture's timeline announces:
+  // it never runs ahead of the visitor's input, so a sound is never played for something that is then avoided.
+  announce(T) {
+    if (this.annT === undefined || T < this.annT || T - this.annT > 0.5) { this.annT = T; return; }
+    const evs = this.app.tl.gameEvents(this.annT, T); this.annT = T;
+    let cell = false;
+    for (const e of evs) {
+      const k = e.k;
+      if (k === 'cell') { if (!cell) { cell = true; this.sfx('cell'); } }
+      else if (k === 'near') this.sfx('near');
+      else if (k === 'smash') this.sfx('smash');
+      else if (k === 'swipe') this.sfx('swipe');
+      else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = e.kind === 2 ? 'Busted. Press Enter to retry.' : 'Crashed. Press Enter to retry.'; }
+      else if (k === 'gear') this.sfx('gear');
+      else if (k === 'heat') { if (e.up) this.sfx('siren'); }
+      else if (k === 'scan') this.sfx('zap');
+      else if (k === 'lock') this.sfx('lock');
+      else if (k === 'tape' || k === 'full') this.sfx('chime');
+      else if (k === 'revive') this.sfx('rewind');
+      else if (k === 'run' && e.retry) this.sfx('ffwd');
+    }
   }
 
   turbo() {
@@ -205,12 +252,13 @@ export class UI {
     set('drvp', U.drive ? 'true' : 'false', (v) => E.drive.setAttribute('aria-pressed', v));
     const rd = active ? U.ready : 0;
     set('trb', rd.toFixed(3), (v) => { E.turboRing.style.strokeDashoffset = CIRC * (1 - +v); });
-    set('trbR', rd >= 1 ? 'true' : 'false', (v) => { E.turbo.dataset.ready = v; E.turbo.setAttribute('aria-disabled', v === 'true' ? 'false' : 'true'); E.turboState.textContent = v === 'true' ? 'READY' : active ? 'CHARGING' : 'STANDBY'; });
+    const boosting = active && s.ui.g && s.ui.g.on && this.app.tl.turboAt(T) ? 1 : 0;
+    set('trbR', (rd >= 1 ? 'true' : 'false') + boosting, (v) => { const ready = v.startsWith('true'); E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = ready ? 'READY · T' : boosting ? 'BOOST' : active ? 'CHARGING' : 'STANDBY'; });
     set('trbF', this.fireT !== undefined && T - this.fireT < 0.18 ? 'true' : 'false', (v) => { E.turbo.dataset.fire = v; });
     // speedometer (MPH from the simulated road speed) and the control hints
     const mph = Math.round(Math.abs(s.road.vel) * 3.6);
     set('spd', mph, (v) => { E.spd.textContent = String(Math.min(999, v)).padStart(3, '0'); });
-    const segs = Math.round(Math.min(1, Math.abs(s.road.vel) / 95) * 14);
+    const segs = Math.round(Math.min(1, Math.abs(s.road.vel) / 170) * 14);
     set('spdSeg', segs, (n) => this.spdSegs.forEach((g, i) => { g.className = i < n ? (i >= 10 ? 'on hot' : 'on') : ''; }));
     const ha = U.hint;
     set('hint', ha.toFixed(2), () => { E.hints.style.visibility = ha > 0.01 ? 'visible' : 'hidden'; E.hints.style.opacity = ha; E.hints.style.transform = `translateX(-50%) translateY(${(1 - ha) * 10}px)`; });
@@ -261,5 +309,57 @@ export class UI {
       set('cnt', cnt, (v) => { E.lcdCount.textContent = String(v).padStart(3, '0'); });
     }
     document.body.classList.toggle('steer', s.phase === 'cruise');
+    this.updateGame(s, T);
+  }
+
+  // game HUD, pop-up callouts, police lights and the run-over panel — all derived from the frame state
+  updateGame(s, T) {
+    const E = this.el, C = this.cache, Gm = s.ui.g;
+    const set = (k, v, fn) => { if (C[k] !== v) { C[k] = v; fn(v); } };
+    const on = Gm && Gm.on && !Gm.free ? 1 : 0;
+    set('gOn', on, (v) => { E.ghud.style.visibility = v ? 'visible' : 'hidden'; });
+    set('gear', Gm && Gm.on ? Gm.gear : 0, (g) => { E.gear.textContent = g ? 'G' + g : ''; });
+    if (on) {
+      set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
+      set('gMult', Gm.mult.toFixed(1), (v) => { E.gMult.textContent = '×' + v; });
+      set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
+      set('gHeat', Gm.lvl, (v) => { E.gHeat.dataset.n = v; });
+      set('gTapes', Gm.tapes, (v) => { E.gTapes.dataset.n = v; });
+    }
+    // callouts: the three most recent, newest on top; they rise and fade with their age
+    const pops = on ? Gm.pops.slice(-3).reverse() : [];
+    for (let i = 0; i < 3; i++) {
+      const el = E.pops[i], p = pops[i], key = 'pop' + i;
+      if (!p) { set(key, '', () => { el.style.visibility = 'hidden'; }); continue; }
+      const a = Math.min(1, p.age / 0.08) * (1 - smooth((p.age - 1.1) / 0.5));
+      const sc = s.reduced ? 1 : 1 + 0.35 * Math.exp(-p.age / 0.07);
+      set(key, p.id + '|' + a.toFixed(2) + '|' + i + '|' + sc.toFixed(2), () => {
+        if (el.textContent !== p.text) el.textContent = p.text;
+        el.dataset.tone = p.tone; el.style.visibility = a > 0.01 ? 'visible' : 'hidden'; el.style.opacity = a * (1 - i * 0.28);
+        el.style.transform = `translate(-50%, ${(i * 1.6).toFixed(2)}em) scale(${sc.toFixed(3)})`;   // newest on top, older ones below it
+      });
+    }
+    // police lights: alternate red and blue at the bottom corners; steady when motion is reduced
+    const lvl = on && !Gm.over ? Gm.lvl : on && Gm.over === 2 ? 3 : 0;
+    const ph = s.reduced ? 0.5 : (T * (1.6 + 0.5 * lvl)) % 1;
+    const pa = lvl ? (0.3 + 0.22 * lvl) : 0, l = s.reduced ? pa * 0.5 : pa * (ph < 0.5 ? 1 : 0.12), r = s.reduced ? pa * 0.5 : pa * (ph < 0.5 ? 0.12 : 1);
+    set('pol', lvl ? l.toFixed(2) + r.toFixed(2) : '', (v) => { E.police.style.visibility = v ? 'visible' : 'hidden'; if (v) { E.police.children[0].style.opacity = l; E.police.children[1].style.opacity = r; } });
+    // run over
+    const show = on && Gm.over && Gm.overU >= GAME.overLock ? Gm.run * 10 + Gm.over : 0;
+    set('over', show, (v) => {
+      E.over.hidden = !v;
+      if (!v) return;
+      const S = Gm.stats, best = Math.max(this.best, Gm.score), isNew = Gm.score > this.best && Gm.score > 0;
+      if (isNew) { this.best = Gm.score; try { localStorage.setItem('mc86.best', String(this.best)); } catch (_) { /* not stored */ } }
+      E.overTitle.textContent = Gm.over === 2 ? 'BUSTED · SIGNAL LOST' : 'CRASHED';
+      E.ovScore.textContent = Gm.score.toLocaleString('en-US'); E.ovBest.textContent = best.toLocaleString('en-US'); E.ovBestL.textContent = isNew ? 'NEW BEST' : 'BEST';
+      E.ovDist.textContent = (S.dist / 1000).toFixed(2) + ' KM'; E.ovSpeed.textContent = Math.round(S.vmax * 3.6) + ' MPH';
+      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near;
+      try { E.retry.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }
+    });
+    const pz = on && Gm.paused && !Gm.over ? 1 : 0;
+    set('paused', pz, (v) => { E.paused.hidden = !v; if (v) { try { E.resume.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
+    set('pauseBtn', Gm && Gm.on && !Gm.over && !Gm.paused ? 1 : 0, (v) => E.pause.classList.toggle('on', !!v));
+    if (show) set('ovTapes', Gm.tapes, (n) => { E.ovTapes.textContent = n === 1 ? '1 TAPE' : n + ' TAPES'; E.revive.disabled = n < 1; });
   }
 }

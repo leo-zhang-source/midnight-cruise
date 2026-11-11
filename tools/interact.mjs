@@ -1,4 +1,6 @@
 // End-to-end interaction test (GPU headless Chrome): input → timeline → picture/sound state.
+// Runs in free mode (?free=1: no traffic), so the controls can be exercised without a crash ending the run.
+// The game itself is covered by tools/game-test.mjs (simulation) and tools/game-ui.mjs (browser).
 import { chromium } from 'playwright-core';
 const W = +(process.argv[2] || 1920), H = +(process.argv[3] || 1080);
 const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
@@ -8,7 +10,7 @@ p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text().slice(0, 200)); });
 const ok = (name, cond, info = '') => console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${info ? '  — ' + info : ''}`);
 const st = () => p.evaluate(() => { const T = MC.tl.frontier(); const s = MC.state(); return { T: s.T, phase: s.phase, it: s.it, ct: s.ct, thr: s.thr, steer: s.steer, thrOn: MC.tl.stateAt(MC.tl.frontier()).thrOn, preset: s.ui.preset, music: s.ui.music, audio: window.__audio?.state }; });
-await p.goto('http://localhost:8086/');
+await p.goto('http://localhost:8086/?free=1');
 await p.waitForFunction(() => window.__ready === true);
 const ff = await p.evaluate(() => window.__firstFrameMs);
 ok('first WebGL frame', ff < 1500, `${ff.toFixed(0)} ms after module start`);
@@ -72,13 +74,16 @@ s = await st(); ok('click on the right half → back to the centre lane', (await
 // turbo
 await p.click('#turbo');
 await p.waitForTimeout(100);
-let tb = await p.evaluate(() => { const T = MC.state().T; const t = MC.tl.turboAt(T); return t && { antic: t.antic, onBeat: (() => { const k = (t.I - MC.tl.phaseAt(T).seg.C) / 0.5; return Math.abs(k - Math.round(k)) < 1e-6; })() }; });
-ok('TURBO triggers, impact quantised to beat', tb && tb.onBeat && tb.antic >= 0.75 && tb.antic <= 1.25, JSON.stringify(tb));
+let tb = await p.evaluate(() => { const T = MC.state().T; const t = MC.tl.turboAt(T); return t && { antic: t.antic, onGrid: (() => { const k = (t.I - MC.tl.phaseAt(T).seg.C) / 0.25; return Math.abs(k - Math.round(k)) < 1e-6; })() }; });
+ok('NITRO fires, impact quantised to the half-beat', tb && tb.onGrid && tb.antic >= 0.2 - 1e-9 && tb.antic <= 0.45 + 1e-9, JSON.stringify(tb));
 await p.click('#turbo', { force: true }); await p.waitForTimeout(50);
-const nT = await p.evaluate(() => MC.tl._derive().turbos.length);
-ok('no overlapping turbo', nT === 1, `turbos=${nT}`);
+const nT = await p.evaluate(() => MC.tl.nitros(MC.state().T).length);
+ok('no overlapping nitro', nT === 1, `bursts=${nT}`);
 const rdy = await p.evaluate(() => document.getElementById('turbo').dataset.ready);
-ok('turbo shows charging', rdy === 'false');
+ok('nitro shows it is not ready while it recharges', rdy === 'false');
+const boost = await p.evaluate(async () => { const v0 = MC.state().road.vel; await new Promise((r) => setTimeout(r, 900)); return { v0, v1: MC.state().road.vel }; });
+ok('nitro boosts the speed', boost.v1 > boost.v0 * 1.5, `${boost.v0.toFixed(0)} → ${boost.v1.toFixed(0)} u/s`);
+ok('free mode hides the game HUD and never ends the run', await p.evaluate(() => getComputedStyle(document.getElementById('ghud')).visibility === 'hidden' && !MC.state().ui.g.over));
 // deck starts minimised, its key expands it
 ok('deck starts minimised', (await p.getAttribute('#deck', 'data-min')) === 'true');
 await p.click('#deck-min'); await p.waitForTimeout(400);

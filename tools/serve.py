@@ -17,6 +17,7 @@ class DualStack(socketserver.ThreadingTCPServer):
     address_family = socket.AF_INET6
     allow_reuse_address = True
     daemon_threads = True
+    request_queue_size = 128   # a page load opens many connections at once; the default backlog of 5 drops some
     def server_bind(self):
         try: self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         except Exception: pass

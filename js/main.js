@@ -67,7 +67,10 @@ app.addEvent = (type, data = {}) => {
 };
 app.start = () => {
   if (tl.phaseAt(now()).phase !== 'idle') return;
-  app.addEvent('start');
+  // each visit gets its own traffic (the seed travels with the start event, so replays stay exact); ?seed= pins it,
+  // ?free=1 is the plain cruise with no traffic
+  const seed = Q.has('seed') ? +Q.get('seed') | 0 : (Math.random() * 0x7fffffff) | 0;
+  app.addEvent('start', { seed, free: Q.get('free') === '1' ? 1 : 0 });
   audio.start(perfScene, () => tl.serialize());
 };
 
@@ -140,6 +143,7 @@ function frame(p) {
   syncClock(p);
   if (!frozen) ui.pump();
   const T = now();
+  if (!frozen) ui.announce(T);
   let s;
   if (Q.has('perf')) {
     const a = performance.now(); s = render(T);

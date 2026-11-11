@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#05020f">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2305020f%22/%3E%3Ccircle cx=%2216%22 cy=%2217%22 r=%229%22 fill=%22%23ff8a3c%22/%3E%3Cpath d=%22M6 19h20M6 22h20M6 25h20%22 stroke=%22%2305020f%22 stroke-width=%221.6%22/%3E%3C/svg%3E">
   <title>Midnight Cruise — 1986</title>
-  <meta name="description" content="An interactive synthwave drive: a ten-second ignition sequence, then an endless midnight cruise you can steer, accelerate and push into turbo.">
+  <meta name="description" content="A synthwave lane racer: a ten-second ignition sequence, then an endless three-lane chase through neon traffic with nitro, close calls and a wanted level.">
   <link rel="preload" href="fonts/ChakraPetch-SemiBold.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="fonts/VT323-Regular.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="vendor/three.module.min.js" as="script" crossorigin>
@@ -19,7 +19,7 @@
   <canvas id="gl" aria-hidden="true"></canvas>
 
   <h1 class="sr-only">Midnight Cruise — 1986</h1>
-  <p class="sr-only" id="about">An interactive synthwave title sequence. Start the drive, then hold Drive or Space to accelerate, press the left and right arrow keys (or tap the left or right side of the screen) to change lane, and press Turbo for a burst of speed. A cassette deck controls the music and the environment.</p>
+  <p class="sr-only" id="about">A synthwave lane racer. Start the drive, then weave through traffic on a three-lane road: press the left and right arrow keys (or tap the left or right side of the screen) to change lane, hold Drive or Space to go faster, and press Nitro when it is charged to smash through traffic. Hitting a vehicle head-on ends the run. A cassette deck controls the music and the colours.</p>
 
   <!-- VCR on-screen display (crisp, above the tape image) -->
   <div id="osd" aria-hidden="true">
@@ -38,20 +38,56 @@
 
   <nav id="corner" aria-label="Sequence">
     <button id="skip" class="ghost" type="button">SKIP INTRO <svg viewBox="0 0 16 10" aria-hidden="true"><path d="M1 1 L7 5 L1 9 Z M8 1 L14 5 L8 9 Z"/></svg></button>
+    <button id="pause" class="ghost" type="button" aria-label="Pause"><svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.6" height="8"/><rect x="5.9" y="1" width="2.6" height="8"/></svg></button>
     <button id="replay" class="ghost" type="button"><svg viewBox="0 0 16 10" aria-hidden="true"><path d="M15 1 L9 5 L15 9 Z M8 1 L2 5 L8 9 Z"/></svg> REPLAY INTRO</button>
   </nav>
 
   <div id="hints" aria-hidden="true">
     <span class="h-key"><kbd>SPACE</kbd><kbd class="t-only">DRIVE</kbd> HOLD TO ACCELERATE</span>
     <span class="h-key"><kbd><svg viewBox="0 0 10 10"><path d="M7 1 L2 5 L7 9 Z"/></svg></kbd><kbd><svg viewBox="0 0 10 10"><path d="M3 1 L8 5 L3 9 Z"/></svg></kbd><span class="k-only">CHANGE LANE</span><span class="t-only">TAP LEFT / RIGHT</span></span>
-    <span class="h-key"><kbd>T</kbd> TURBO</span>
+    <span class="h-key"><kbd>T</kbd> NITRO</span>
   </div>
 
+  <!-- game HUD: score and multiplier, cells, wanted level, spare tapes -->
+  <div id="ghud" aria-hidden="true">
+    <div class="gh-main"><span class="gh-score" id="g-score">0</span><span class="gh-mult" id="g-mult">×1.0</span></div>
+    <div class="gh-sub">
+      <span class="gh-cells"><i></i><b id="g-cells">0</b></span>
+      <span class="gh-heat" id="g-heat" data-n="0"><i></i><i></i><i></i></span>
+      <span class="gh-tapes" id="g-tapes" data-n="0"><i></i><i></i><i></i></span>
+    </div>
+  </div>
+  <div id="gpops" aria-hidden="true"><p></p><p></p><p></p></div>
+  <div id="police" aria-hidden="true"><i class="pl"></i><i class="pr"></i></div>
+  <section id="over" role="dialog" aria-labelledby="over-title" hidden>
+    <p class="ov-tag"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11 7 H1 Z M1 9 H11 V11 H1 Z"/></svg> TAPE EJECTED</p>
+    <h2 id="over-title">CRASHED</h2>
+    <dl class="ov-stats">
+      <div class="big"><dt>SCORE</dt><dd id="ov-score">0</dd></div>
+      <div class="big"><dt id="ov-best-l">BEST</dt><dd id="ov-best">0</dd></div>
+      <div><dt>DISTANCE</dt><dd id="ov-dist">0</dd></div>
+      <div><dt>TOP SPEED</dt><dd id="ov-speed">0</dd></div>
+      <div><dt>BEST COMBO</dt><dd id="ov-combo">0</dd></div>
+      <div><dt>CLOSE CALLS</dt><dd id="ov-near">0</dd></div>
+    </dl>
+    <div class="ov-btns">
+      <button id="retry" class="start" type="button"><span class="start-label">RETRY</span></button>
+      <button id="revive" class="ghost on" type="button"><svg viewBox="0 0 16 10" aria-hidden="true"><path d="M15 1 L9 5 L15 9 Z M8 1 L2 5 L8 9 Z"/></svg> REWIND 3&nbsp;S · <span id="ov-tapes">1 TAPE</span></button>
+    </div>
+    <p class="ov-keys"><kbd>ENTER</kbd> RETRY <span class="ov-rk"><kbd>R</kbd> REWIND</span></p>
+  </section>
+  <section id="paused" role="dialog" aria-labelledby="paused-title" hidden>
+    <h2 id="paused-title">PAUSED</h2>
+    <button id="resume" class="start" type="button"><span class="start-icon" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg></span><span class="start-label">RESUME</span></button>
+    <p class="ov-keys"><kbd>P</kbd> or <kbd>ENTER</kbd> RESUME</p>
+  </section>
+  <p class="sr-only" id="g-live" aria-live="polite"></p>
+
   <div id="drivebar" role="group" aria-label="Driving controls">
-    <div id="speedo" aria-live="off"><div class="spd-row"><span id="spd">000</span><small>MPH</small></div><div class="spd-bar" id="spd-bar"></div></div>
+    <div id="speedo" aria-live="off"><div class="spd-row"><span id="spd">000</span><small>MPH</small><small class="gear" id="gear"></small></div><div class="spd-bar" id="spd-bar"></div></div>
     <button id="turbo" type="button" aria-describedby="turbo-state">
       <svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="45"/><circle class="ring-fg" id="turbo-ring" cx="50" cy="50" r="45"/></svg>
-      <span class="b-label">TURBO</span><span class="b-key" id="turbo-state">READY</span>
+      <span class="b-label">NITRO</span><span class="b-key" id="turbo-state">READY</span>
     </button>
     <button id="drive" type="button" aria-pressed="false">
       <svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="45"/><circle class="ring-fg" id="drive-ring" cx="50" cy="50" r="45"/></svg>

@@ -1,6 +1,8 @@
 // The director: turns (scene time T, event timeline, viewport) into a complete frame
 // description. Pure function — no wall clock, no hidden state.
-import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, neonPower, drumPulse } from './cue.js';
+import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
+import { DT } from './timeline.js';
+import { NV, VF, NC, CF, T_TAXI, T_ONC, CAR_HL, gameMult } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 
@@ -61,11 +63,92 @@ export function visualTime(T, ph, tb, reduced) {
     if (it >= IGN.hitStop[0] && it < IGN.hitStop[1]) return s + IGN.hitStop[0];
     if (it >= IGN.hitStop[1] && it < 6.2) return s + 6.0 + (it - IGN.hitStop[1]) * (0.2 / (6.2 - IGN.hitStop[1]));
   }
-  if (tb) {
-    if (tb.a >= 0 && tb.a < 4 / 15) return tb.p - (Math.floor(tb.a * 15) % 2) / 15;
-    if (tb.u >= 0 && tb.u < 0.27) return tb.I + Math.floor(tb.u * 15) / 15;
+  return T;   // while driving the picture tracks the simulation exactly: no tape hesitation on nitro
+}
+
+// What the game layer draws and what the HUD shows, from the simulation state at T.
+const POP = {
+  near: (e) => [`CLOSE CALL +${e.pts}`, 'good'], smash: () => ['SMASH', 'hot'], gear: (e) => [`GEAR ${e.n}`, 'info'],
+  heat: (e) => (e.up ? [`WANTED LEVEL ${e.n}`, 'bad'] : e.n === 0 ? ['COAST CLEAR', 'good'] : null),
+  scan: () => ['SPOTTED BY THE DRONE', 'bad'], swipe: () => ['SIDESWIPE', 'bad'], tape: () => ['+1 SPARE TAPE', 'good'],
+  full: () => ['NITRO READY', 'good'], draft: () => ['SLIPSTREAM', 'info'], nitro: () => ['NITRO', 'hot'],
+  lock: () => ['DRONE LOCK · CHANGE LANE', 'bad'], revive: () => ['REWOUND 3 S', 'info'], run: () => ['GO', 'info'],
+};
+function gameFrame(tl, T, sim, car, post, ui, reduced) {
+  const g = sim.g, G = GAME, L = ROAD.lane;
+  const stepping = !sim.over && T >= sim.hold && !sim.paused;
+  const back = stepping ? (1 - sim.gf) * DT : 0;          // the state is from the step after T: step positions back
+  const far = (dz) => smooth(lin(dz, G.ahead - 2, G.ahead - 50));
+  const out = { on: 1, veh: [], cells: [], bursts: [], drone: null, warn: [0, 0, 0], police: g.lvl };
+  const veh = g.veh;
+  for (let i = 0; i < NV; i++) {
+    const o = i * VF, type = veh[o]; if (!type) continue;
+    const v = veh[o + 3], lane = veh[o + 1], dz = veh[o + 2] - g.gd - back * (v - sim.vel);
+    out.veh.push({ type, x: lane * L, dz, fade: far(dz), sig: type === T_TAXI && veh[o + 6] !== 0 && veh[o + 7] !== 0 ? veh[o + 6] : 0, id: veh[o + 8] });
+    if (type === T_ONC && dz > 0) {
+      const ttc = (dz - veh[o + 4] - CAR_HL) / Math.max(1, sim.vel - v), k = Math.round(lane) + 1;
+      if (ttc < 2.4) out.warn[k] = Math.max(out.warn[k], 1 - ttc / 2.4);
+    }
   }
-  return T;
+  const cel = g.cel;
+  for (let i = 0; i < NC; i++) {
+    const o = i * CF, n = cel[o]; if (!n) continue;
+    const z0 = cel[o + 2] - g.gd - back * (G.vTraffic - sim.vel), x = cel[o + 1] * L;
+    for (let k = 0; k < n; k++) {
+      if (cel[o + 4] & (1 << k)) continue;
+      const dz = z0 + k * cel[o + 3];
+      if (dz > -8 && dz < G.ahead) out.cells.push({ x, dz, fade: far(dz) });
+    }
+  }
+  if (g.drT >= 0 && stepping) { const u = g.gt - g.drT; out.drone = { lane: g.drLane, u, strike: u >= G.drWarn }; }
+  const pops = [];
+  for (const e of tl.gameEvents(T - 1.6, T)) {
+    const age = T - e.t;
+    if (e.k === 'smash' && age < 0.8) out.bursts.push({ x: e.lane * L, dz: e.dz - age * (sim.vel - G.vTraffic), age, type: e.type, seed: e.t * 91.7 });
+    else if (e.k === 'crash' && age < 1.2) out.bursts.push({ car: 1, x: sim.x, dz: 0, age, seed: e.t * 53.3 });
+    if (e.k === 'swipe' || e.k === 'scan') {                 // jolt
+      if (!reduced && age < 0.5) post.shake = [ring(age, 60, 0.2) * 0.012, ring(age, 47, 0.22) * 0.008];
+      post.rgb = Math.max(post.rgb, 1 + 3 * Math.exp(-age / 0.15));
+      post.flash = Math.max(post.flash, (reduced ? 0.03 : 0.1) * Math.exp(-age / 0.05));
+    }
+    const p = POP[e.k] && POP[e.k](e);
+    if (p) pops.push({ id: e.k + e.t.toFixed(3), text: p[0], tone: p[1], age });
+  }
+  // invulnerable (after a sideswipe, a nitro burst or a rewind): the car blinks
+  if (stepping && g.inv > g.gt && !sim.nOn) { if (reduced) car.glow *= 0.5; else car.visible = Math.floor(T * 14) % 3 !== 0; }
+  car.streak += g.draft * 4; car.glow += g.draft * 0.7;      // slipstream
+  if (sim.over) {
+    const u = T - sim.overT;
+    if (sim.over === 1) {                                     // crashed: the car shatters, the tape glitches
+      car.visible = false;
+      post.flash = Math.max(post.flash, (reduced ? 0.05 : 0.22) * Math.exp(-u / 0.06));
+      if (!reduced && u < 0.6) post.shake = [ring(u, 44, 0.2) * 0.02, ring(u, 37, 0.22) * 0.026];
+      post.tracking = Math.max(post.tracking, 0.8 * Math.exp(-u / 0.4)); post.trackY = 0.3 + u * 0.4;
+      post.rgb = Math.max(post.rgb, 1 + 5 * Math.exp(-u / 0.3)); post.noise = Math.max(post.noise, 0.3 * Math.exp(-u / 0.5));
+    } else {                                                  // busted: the car's lights die
+      const k = smooth(u / 1.4), fl = hash1(Math.floor(T * 24)) > 0.4 ? 1 : 0.2;
+      car.lights = 1 - k; car.glow = (1 - k) * fl; car.tail = 0.85 * (1 - k) * fl; car.exhaust = 0; car.flame = 0;
+      post.tracking = Math.max(post.tracking, 0.25 * k); post.noise = Math.max(post.noise, 0.12 * k);
+    }
+    post.vignette += 0.22 * smooth(u / 1.0);
+  }
+  if (T < sim.hold) {                                         // rewinding the tape
+    const u = sim.hold - T;
+    post.rewind = smooth(u / 0.15); post.tracking = Math.max(post.tracking, 0.6); post.trackY = 1 - (1 - u / G.reviveHold) * 2;
+    ui.osd = 'REW';
+  }
+  if (sim.retry && T - sim.runT < 0.4) { post.ffwd = 1 - smooth(lin(T - sim.runT, 0.2, 0.4)); ui.osd = 'FF'; }
+  if (sim.paused) {                                           // VCR pause: a noise bar creeps up the frozen picture
+    ui.osd = 'PAUSE';
+    if (!reduced) { post.tracking = Math.max(post.tracking, 0.3); post.trackY = (T * 0.07) % 1; }
+    post.noise = Math.max(post.noise, 0.08);
+  }
+  ui.g = {
+    on: 1, free: g.free, run: sim.run, score: Math.floor(g.score), mult: gameMult(g), combo: g.combo, cells: g.cells, gear: g.gear + 1, lvl: g.lvl,
+    nitro: g.nitro, tapes: sim.tapes, over: sim.over, overU: sim.over ? T - sim.overT : 0, paused: sim.paused, draft: g.draft, pops,
+    stats: { dist: g.gd, vmax: g.vmax, best: g.best, near: g.near, smash: g.smash },
+  };
+  return out;
 }
 
 export function frameState(tl, T, w, h, opt = {}) {
@@ -76,7 +159,8 @@ export function frameState(tl, T, w, h, opt = {}) {
   const tv = visualTime(T, ph0, tb, reduced);
   const ph = tl.phaseAt(tv);
   const sim = tl.stateAt(tv);
-  const pal = blendPalette(tl.envWeights(T));
+  const envW = tl.envWeights(T);
+  const pal = blendPalette(envW);
   const mus = tl.musicAt(T);
   const s = {
     t: tv, T, phase: ph.phase, it: ph.it ?? null, ct: ph.ct ?? null, reduced, pal, layout: L,
@@ -96,7 +180,8 @@ export function frameState(tl, T, w, h, opt = {}) {
     glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, ffwd: 0, rewind: 0, warp: 0,
   };
   const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, cassette: 1, cassetteT: 99, controls: 1, start: 0, skip: 0, replay: 1, ready: 1, drive: sim.thrOn && ph.phase === 'cruise' ? 1 : 0, thr: sim.thr, preset: tl.envTarget(T), music: mus.on };
-  let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0;
+  let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0, game = null, trafficI = 1;
+  let scenery = ph.phase === 'ign' || ph.phase === 'ff' ? 0.7 * smooth(lin(ph.it ?? 0, 2, 5)) : ph.phase === 'rewind' ? 0.5 : 0;
 
   // idle micro-motion (also underlies cruise)
   camX += Math.sin(tv * 0.13) * 0.18; yaw += Math.sin(tv * 0.09 + 1) * 0.004;
@@ -233,8 +318,8 @@ export function frameState(tl, T, w, h, opt = {}) {
     ui.skip = 0; ui.replay = 1; ui.start = 0;
     ui.ready = tl.turboReady(T);
     const firstThr = tl.events.find((e) => e.type === 'thr' && e.on && e.t >= ph.seg.C);
-    const hintEnd = Math.min(9, firstThr ? firstThr.t - ph.seg.C + 0.6 : 9);
-    ui.hint = smooth(lin(ct, 0.3, 0.8)) * (1 - smooth(lin(ct, hintEnd - 0.5, hintEnd)));
+    const hintEnd = Math.min(4.6, firstThr ? firstThr.t - ph.seg.C + 0.6 : 4.6);
+    ui.hint = sim.run > 1 || sim.over ? 0 : smooth(lin(ct, 0.3, 0.8)) * (1 - smooth(lin(ct, hintEnd - 0.5, hintEnd)));   // first run only
     if (ph.seg.skip !== null && ct < 0.8) ui.osd = 'FF';
     // lanes: the car tracks the lane spring; the drift is body yaw around a pivot near the front axle (the tail
     // swings out, then a small counter-steer), plus roll with the lateral speed. The camera follows on its own spring.
@@ -338,6 +423,8 @@ export function frameState(tl, T, w, h, opt = {}) {
         car.pitch -= 0.02 * ee * Math.exp(-u / 0.4);
       }
     }
+    game = gameFrame(tl, T, sim, car, post, ui, reduced);
+    scenery = 1; trafficI = 1 - smooth(ct / 1.0);
   }
 
   // drum-locked pulse (grid brightness) while music plays
@@ -345,7 +432,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     const dp = ph.phase === 'ign' ? drumPulse('ign', ph.it) : drumPulse('cruise', ph.ct);
     pulse = Math.max(pulse, Math.exp(-dp.kick / 0.11) * 0.5, Math.exp(-dp.snare / 0.16) * 0.3);
   }
-  if (!mus.on && ph.phase === 'cruise') ui.osd = mus.since < 2.5 ? 'PAUSE' : ui.osd;
+  if (!mus.on && ph.phase === 'cruise') ui.osd = mus.since < 2.5 ? 'MUSIC OFF' : ui.osd;
   // environment change OSD
   const last = tl.lastEnvChange(T);
   if (last && T - last.t < 2.2) ui.osd = `${last.auto ? 'AUTO ' : ''}CH ${last.preset + 1}  ${PRESETS[last.preset]}`;
@@ -355,7 +442,7 @@ export function frameState(tl, T, w, h, opt = {}) {
   const vfov = L.vfov * fovK;
   s.cam = { x: camX, y: camY, pitch, yaw, roll, fov: clamp(vfov, 20, 100), shift: L.shift + post.shake[1], shiftX: post.shake[0] };
   s.sun = { el: sunEl, r: L.sunR, pow: sunPow, band, flare, squash: 0 };
-  s.trafficI = 1; s.stars = stars; s.gridBright = gridBright; s.mountBright = mountBright; s.trailI = trailI; s.pulse = pulse;
+  s.trafficI = trafficI; s.game = game || { on: 0 }; s.envW = envW; s.scenery = scenery; s.stars = stars; s.gridBright = gridBright; s.mountBright = mountBright; s.trailI = trailI; s.pulse = pulse;
   const vel = sim.vel * (reduced ? 0.6 : 1);
   const pos = sim.pos * (reduced ? 0.6 : 1);
   s.road = {

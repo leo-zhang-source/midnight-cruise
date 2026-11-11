@@ -19,6 +19,42 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 17: the game (first playable version)
+
+The free cruise became a lane racer: weave through traffic, build a combo, charge nitro, keep the wanted level down. README.md describes the rules; this section records how it was built and checked.
+
+- **Architecture.** The game runs inside the existing deterministic timeline, in `js/game.js`, at 240 Hz. The picture, the audio thread and Node all run the same code from the same event log.
+  - New events: `retry`, `revive`, and a seed on `start`. Nitro bursts, sideswipe bounces, the wanted level and every game event are derived by the simulation.
+  - **Rewind-revive** restores the game from the simulation's own one-second checkpoints, about 3 s before the crash, while scene time keeps moving forward.
+  - **Pause** is a timeline event too: the game clock stops, the car coasts to a halt and scene time carries on, so picture and sound never lose sync. A hidden tab or a window that loses focus pauses the run.
+  - Sounds for game events are triggered by the picture's timeline only. It never runs ahead of the player's input, so a crash that is dodged at the last moment never makes a sound.
+- **Traffic generator.** Rows are generated 280 units ahead from a seeded generator.
+  - All same-direction traffic moves at 9 u/s, so formations never close up.
+  - Every row leaves a lane open within one lane of the previous opening.
+  - Oncoming cars only use an outer lane, and the middle lane is kept clear until they have passed.
+  - Row spacing shrinks from 1.5 s to 0.9 s of closing time between gear 1 and gear 6.
+- **Speeds.** Base speed 36 → 64 u/s over six gears (130 → 230 MPH on the speedometer), DRIVE ×1.5, nitro ×2.6. The old turbo became the nitro: wind-up 0.2–0.45 s to the next half-beat, 2.2 s of full boost, 1.4 s of recovery.
+- **Sci-fi neon layer** (`js/gameview.js`), drawn into the world scene so it passes through the same VHS finish:
+  - maglev trucks with neon edges, holographic taxis, oncoming cars with headlight glare and a warning sign;
+  - the police hard-light barrier (hexagonal lattice), the drone searchlight, debris that shatters into shards of light;
+  - holographic billboards along the road, and a procedural megastructure skyline in BLUE HOUR and LAGOON.
+- **Checks.**
+
+  | Check | Result |
+  |---|---|
+  | `tools/game-test.mjs` (simulation) | 31/31: determinism under any query order and late events, audio-thread parity, crash, retry, rewind-revive, sideswipe, busted, nitro, gears, tapes, free mode, replay, pause |
+  | `tools/game-ui.mjs` (browser, desktop and phone) | 23/23: HUD, EJECT panel, rewind, retry, pause (key, button, hidden tab), sideswipe → police lights, panel and HUD fit a 390×844 screen |
+  | `tools/bot.mjs` fairness soak | 16 seeds × 300 s without DRIVE: all clean, 18,300 units each. With DRIVE held, 3 of 8 runs crash in gear 6 after 150 s or more |
+  | `tools/interact.mjs`, `tools/touch.mjs` (free mode) | 40/40 and 8/8: the controls behave as before |
+  | `tools/perf.mjs` | with traffic, barriers and nitro on screen: about 8 ms per frame at 1920×1080 and 11 ms at 3724×2095 (M3 Max) |
+
+- **Not built yet** (from the design): boost rings, glitch zones, wanted levels 4–5 (EMP strips, interceptors), power-ups (shield, magnet, score doubler, hover), a dedicated look for the AFTERGLOW and LAGOON regions, missions and unlockable cars.
+- **Limits of this version.**
+  - Balance is tuned by a bot and by reading frames; nobody has played it for long yet.
+  - Game sounds are short synthesized blips and thumps. There is no engine-pitch model for the gears and no looping siren.
+  - Trucks, taxis and oncoming cars are built from boxes.
+  - The best score is kept in this browser only.
+
 ## Revision 16: three lanes with drift (lane-runner controls)
 
 - **Road.** The road is now three lanes, each 4 units wide, so each holds one car (a car is about 2 wide).

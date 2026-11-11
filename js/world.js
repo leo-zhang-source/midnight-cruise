@@ -3,6 +3,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { mulberry32 } from './util.js';
 import { Car } from './car.js';
 import { ROAD } from './cue.js';
+import { GameView } from './gameview.js';
 
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
@@ -458,8 +459,8 @@ export class World {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(56, 16 / 9, 0.1, 20000);
     this.camera.rotation.order = 'YXZ';
-    this.sky = makeSky(); this.grid = makeGrid(); this.mount = makeMountains(seed); this.palms = makePalms(seed); this.trails = makeTrails(); this.traffic = makeTraffic(); this.car = new Car();
-    this.scene.add(this.sky, this.mount, this.grid, this.trails, this.traffic, this.palms, this.car.group);
+    this.sky = makeSky(); this.grid = makeGrid(); this.mount = makeMountains(seed); this.palms = makePalms(seed); this.trails = makeTrails(); this.traffic = makeTraffic(); this.car = new Car(); this.gv = new GameView();
+    this.scene.add(this.sky, this.mount, this.grid, this.trails, this.traffic, this.palms, this.gv.group, this.car.group);
     this._m = new THREE.Matrix4();
   }
   // s: frame state from the director · w, h: output size (aspect) · rw, rh: size of the render target the sky is drawn into
@@ -504,5 +505,6 @@ export class World {
     });
     a.needsUpdate = true;
     this.car.update(s);
+    this.gv.update(s);
   }
 }

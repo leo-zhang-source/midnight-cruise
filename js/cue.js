@@ -44,10 +44,37 @@ export const IGN = {
   hold: [8.8, 10.0],
 };
 
-export const TURBO = { minAntic: 0.75, sustain: 1.8, recover: 2.7, cooldown: 7.0 };
+// Nitro (the TURBO button): a short wind-up to the next half-beat, a sustained boost, then recovery.
+// `cooldown` is the full length of one burst; a new one needs a full charge (see GAME).
+export const TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
-export const AUTO_ENV = { time: 40, dist: 1500 };
+export const AUTO_ENV = { time: 40, dist: 1900 };
+// ── The game: a three-lane racer through traffic (all values in road units and seconds) ──
+// Same-direction traffic shares ONE speed, so formations never close up and a row that was passable when it was
+// generated stays passable. The player is always faster; DRIVE and nitro trade reaction time for score.
+export const GAME = {
+  vTraffic: 9, vOncoming: -22,
+  gears: [36, 41, 46, 52, 58, 64],               // base speed per gear (×3.6 = MPH on the speedometer)
+  gearAt: [0, 700, 1700, 3000, 4600, 6500],      // run distance at which each gear engages
+  creep: [700, 14],                              // past the last gear: +1 u/s per 700 units, up to +14
+  driveMul: 0.5,                                 // DRIVE held: +50 % speed (and distance points ×2)
+  nitroBoost: 1.6, nitroTail: 0.55, nitroGrace: 0.7,   // nitro: speed ×2.6, smashes traffic; invulnerable a little longer
+  nitroStart: 0.35, nitroIdle: 0.012, nitroNear: 0.2, nitroDraft: 0.32, nitroCell: 0.012, nitroFree: 1 / 7,
+  ahead: 280, firstRow: 150, despawn: 24,        // spawn distance ahead of the car, first row of a run, cull distance behind
+  rowGap: [1.5, 0.9],                            // seconds between rows at the gear's base closing speed (gear 1 → 6)
+  nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
+  taxiAt: 2.2, taxiBlink: 0.7, taxiMove: 0.6,    // a taxi signals 2.2 s before you reach it, then changes lane
+  oncEvery: [520, 900], oncFrom: 1,              // oncoming cars: spacing (road units) and first gear index
+  swipeInv: 0.5, swipeKick: 7, reviveInv: 2.0,
+  heatSmash: 0.5, heatHold: 8, heatDecay: 7,     // wanted level: +1 per sideswipe, +0.5 per smash; cools after 8 s
+  drEvery: 6.5, drWarn: 1.3, drStrike: 0.5,      // police drone: locks your lane, strikes 1.3 s later
+  wallP: 0.3,                                    // wanted level 3: share of rows replaced by a police barrier
+  ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200,
+  comboNear: 3, comboCap: 40, comboStep: 0.1, heatBonus: 0.25,
+  tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash
+  overLock: 0.7, rewindSec: 3, reviveHold: 0.8, rewindV: -70,
+};
 // Road layout (world units, x across): three lanes of `lane` width (a car is ~2 wide), centred on −lane, 0, +lane.
 // The grid is offset so its lines fall on the lane edges (±lane/2) and on the cyan rails (±1.5·lane); no lane markings.
 // Traffic runs outside the rails, so it never meets the player's car.

@@ -3,14 +3,22 @@
 // Everything visible or audible is a pure function of (scene time T, events).
 // The same class runs on the main thread, inside the AudioWorklet and in Node.
 // ─────────────────────────────────────────────────────────────────────────────
-import { IGNITION, SKIP_FF, REWIND, BEAT, TURBO, ENV_XFADE, THROTTLE, AUTO_ENV, ROAD, LANE_FEEL } from './cue.js';
+import { IGNITION, SKIP_FF, REWIND, TURBO, ENV_XFADE, THROTTLE, AUTO_ENV, ROAD, LANE_FEEL, GAME, SEED } from './cue.js';
 import { smooth, easeInOutCubic, lerp } from './util.js';
+import { freshGame, copyGame, stepGame, gameBase } from './game.js';
 
 export const SIM_HZ = 240;
 export const DT = 1 / SIM_HZ;
 
-const freshState = () => ({ pos: 0, vel: 5.5, thrOn: 0, thrA: 0, thr: 0, lane: 0, laneS: 0, x: 0, xv: 0, yaw: 0, yawV: 0, camX: 0, camXv: 0, steer: 0, steerV: 0, cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0 });
-const copy = (s) => ({ ...s });
+const freshState = () => ({
+  pos: 0, vel: 5.5, thrOn: 0, thrA: 0, thr: 0, lane: 0, laneS: 0, x: 0, xv: 0, yaw: 0, yawV: 0, camX: 0, camXv: 0, steer: 0, steerV: 0,
+  cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0,
+  // the game: run counter, the cruise segment it belongs to, game-over kind (1 crashed, 2 busted) and time,
+  // revive rewind in progress until `hold`, spare tapes, revives used this run, nitro smashing flag, game state
+  run: 0, segC: -1, runT: 0, retry: 0, over: 0, overT: 0, hold: 0, paused: 0, tapes: GAME.tapesStart, rev: 0, nOn: 0, g: freshGame(SEED, 1),
+});
+const copy = (s) => { const c = { ...s }; c.g = copyGame(s.g); return c; };
+const runSeed = (seed, run) => (Math.imul((seed | 0) ^ 0x9E3779B9, 0x85EBCA6B) + Math.imul(run, 0xC2B2AE35)) | 0;
 
 export function ignitionSpeed(it) {
   if (it < 0.5) return 2;
@@ -24,7 +32,7 @@ export class Timeline {
   constructor() {
     this.events = [];
     this.seq = 0;
-    this._autoSw = [];
+    this._autoSw = []; this._gev = []; this._nitros = []; this._out = [];
     this._invalidate(-Infinity);
   }
 
@@ -53,20 +61,29 @@ export class Timeline {
     }
     const c = this._ck[this._ck.length - 1];
     this._T = c.T; this._st = copy(c.st); this._prev = copy(c.st); this._ei = c.ei; this._n = 0;
-    this._autoSw = (this._autoSw || []).filter((a) => a.t < c.T);
+    this._prune(c.T);
+  }
+  // drop everything the simulation derived at or after time T (it will be derived again)
+  _prune(T) {
+    this._autoSw = (this._autoSw || []).filter((a) => a.t < T);
+    this._gev = (this._gev || []).filter((a) => a.t < T);
+    this._nitros = (this._nitros || []).filter((a) => a.s < T);
+    for (const n of this._nitros) if (n.until >= T) n.until = Infinity;
   }
 
   // ── derived structure (segments, turbos, env changes) ─────────────────────
   _derive() {
     if (this._derived) return this._derived;
-    const segs = [], turbos = [], envs = [], music = [], wins = [], autos = [];
-    const phaseIn = (T) => phaseFrom(segs, T);
-    let lastTurbo = -Infinity;
+    const segs = [], envs = [], music = [], wins = [], autos = [], opts = { seed: SEED, free: 0 };
     for (const e of this.events) {
       const cur = segs[segs.length - 1];
       switch (e.type) {
         case 'start':
-          if (!segs.length) segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
+          if (!segs.length) {
+            segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
+            if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
+            opts.free = e.free ? 1 : 0;
+          }
           break;
         case 'replay':
           if (cur && e.t >= cur.C) {
@@ -78,57 +95,53 @@ export class Timeline {
         case 'skip':
           if (cur && e.t >= cur.s && e.t < cur.end && cur.skip === null) { cur.skip = e.t; cur.end = e.t; cur.C = e.t + SKIP_FF; }
           break;
-        case 'turbo': {
-          const ph = phaseIn(e.t);
-          if (ph.phase === 'cruise' && e.t >= lastTurbo + TURBO.cooldown) {
-            const C = ph.seg.C;
-            const I = C + Math.ceil((e.t + TURBO.minAntic - C) / BEAT - 1e-9) * BEAT;
-            turbos.push({ p: e.t, I, seg: ph.seg });
-            lastTurbo = e.t;
-          }
-          break;
-        }
         case 'env': if (segs.length) envs.push(e); break;
         case 'music': music.push(e); break;
         case 'win': wins.push(e); break;
         case 'auto': autos.push(e); break;
       }
     }
-    this._derived = { segs, turbos, envs, music, wins, autos };
+    this._derived = { segs, envs, music, wins, autos, opts };
     return this._derived;
   }
 
   phaseAt(T) { return phaseFrom(this._derive().segs, T); }
 
-  // Turbo envelope (null when inactive). a: since press, u: since impact.
+  // Nitro bursts are accepted by the simulation (they need a full charge), so every query first makes sure
+  // the simulation has reached T. Envelope: a = time since the press, u = time since the impact.
   turboAt(T) {
-    const { turbos } = this._derive();
-    for (let i = turbos.length - 1; i >= 0; i--) {
-      const tb = turbos[i];
+    if (this._T < T) this.stateAt(T);
+    const ns = this._nitros;
+    for (let i = ns.length - 1; i >= 0; i--) {
+      const tb = ns[i];
       if (tb.p > T) continue;
-      if (T - tb.p >= TURBO.cooldown || T >= tb.seg.until) return null;
+      if (T - tb.p >= TURBO.cooldown || T >= tb.until) return null;
       return { p: tb.p, I: tb.I, a: T - tb.p, u: T - tb.I, antic: tb.I - tb.p };
     }
     return null;
   }
-  lastTurbo(T) {
-    const { turbos } = this._derive();
-    for (let i = turbos.length - 1; i >= 0; i--) if (turbos[i].p <= T) return turbos[i];
-    return null;
-  }
+  nitros(T) { if (this._T < T) this.stateAt(T); return this._nitros; }
+  // charge of the nitro (0..1); 1 = ready to fire
   turboReady(T) {
-    const ph = this.phaseAt(T);
-    if (ph.phase !== 'cruise') return 0;
-    const lt = this.lastTurbo(T);
-    return lt ? Math.min(1, (T - lt.p) / TURBO.cooldown) : 1;
+    if (this.phaseAt(T).phase !== 'cruise') return 0;
+    const st = this.stateAt(T);
+    if (!st.run || st.over || st.paused || T < st.hold || this.turboAt(T)) return 0;
+    return st.g.nitro;
   }
   turboMul(T) {
     const tb = this.turboAt(T);
     if (!tb) return 1;
-    if (T < tb.I) return 1 - 0.18 * smooth(tb.a / tb.antic);
-    const u = T - tb.I;
-    if (u < TURBO.sustain) return 1 + 2.7 * (1 - Math.exp(-u / 0.1));
-    return 1 + 2.7 * (1 - easeInOutCubic((u - TURBO.sustain) / TURBO.recover));
+    if (T < tb.I) return 1 - 0.12 * smooth(tb.a / tb.antic);
+    const u = T - tb.I, B = GAME.nitroBoost;
+    if (u < TURBO.sustain) return 1 + B * (1 - Math.exp(-u / 0.1));
+    return 1 + B * (1 - easeInOutCubic((u - TURBO.sustain) / TURBO.recover));
+  }
+  // Game events the simulation derived in (T0, T1]: { t, k, … } (see stepGame), plus run / nitro / over / revive.
+  gameEvents(T0, T1) {
+    if (this._T < T1) this.stateAt(T1);
+    const ev = this._gev, out = [];
+    for (let i = ev.length - 1; i >= 0 && ev[i].t > T0; i--) if (ev[i].t <= T1) out.push(ev[i]);
+    return out.reverse();
   }
 
   // All environment changes up to T: the visitor's choices plus automatic switches derived by the simulation.
@@ -178,42 +191,125 @@ export class Timeline {
       default: return 24;
     }
   }
+  _newRun(st, T, seg, retry) {
+    const o = this._derive().opts;
+    st.run++; st.segC = seg.C; st.runT = T; st.retry = retry ? 1 : 0;
+    st.over = 0; st.overT = 0; st.rev = 0; st.hold = 0; st.paused = 0; st.nOn = 0; st.lane = 0;
+    st.g = freshGame(runSeed(o.seed, st.run), o.free);
+    this._endNitro(T);
+    this._gev.push({ t: T, k: 'run', n: st.run, retry: st.retry });
+  }
+  _endNitro(T) {
+    const n = this._nitros[this._nitros.length - 1];
+    if (n && n.until > T && T - n.p < TURBO.cooldown) n.until = T;
+  }
+  // Rewind the tape: restore the game as it was about three seconds before the crash (from the
+  // simulation's own one-second checkpoints) and resume after a short rewind transition.
+  _revive(st, T) {
+    // latest checkpoint of this run (and this revive lineage) at least rewindSec before the crash;
+    // failing that, the earliest one of the lineage
+    let src = null, first = null;
+    for (let i = this._ck.length - 1; i >= 0; i--) {
+      const c = this._ck[i];
+      if (c.st.run !== st.run || c.st.rev !== st.rev) break;
+      if (c.st.over || c.T < c.st.hold) continue;
+      first = c.st;
+      if (!src && c.T <= st.overT - GAME.rewindSec) src = c.st;
+    }
+    src = src || first;
+    if (src) {
+      st.g = copyGame(src.g);
+      st.lane = src.lane; st.laneS = src.laneS; st.x = src.x; st.camX = src.camX;
+    } else {
+      const o = this._derive().opts, keep = st.g;
+      st.g = freshGame(runSeed(o.seed, st.run), o.free);
+      st.g.score = 0; st.g.cells = keep.cells;
+      st.lane = 0;
+    }
+    st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;
+    st.g.over = 0; st.g.inv = st.g.gt + GAME.reviveInv; st.g.combo = 0;
+    st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
+    this._endNitro(T);
+    this._gev.push({ t: T, k: 'revive' });
+  }
   _step() {
     const T = this._T, st = this._st, ev = this.events;
+    const ph = this.phaseAt(T);
+    const cruise = ph.phase === 'cruise';
+    if (cruise && st.segC !== ph.seg.C) this._newRun(st, T, ph.seg, false);
+    if (!cruise) { st.over = 0; st.hold = 0; st.paused = 0; st.lane = 0; }
     while (this._ei < ev.length && ev[this._ei].t <= T) {
       const e = ev[this._ei++];
+      const ok = cruise && !st.over && T >= st.hold && !st.paused;
       if (e.type === 'thr') st.thrOn = e.on ? 1 : 0;
       else if (e.type === 'env') { st.cur = e.preset; st.autoT0 = T; st.autoPos0 = st.pos; }
       else if (e.type === 'auto') { st.autoOn = e.on ? 1 : 0; st.autoT0 = T; st.autoPos0 = st.pos; }
-      else if (e.type === 'lane') { if (this.phaseAt(e.t).phase === 'cruise') st.lane = Math.max(-1, Math.min(1, st.lane + (e.dir > 0 ? 1 : -1))); }
+      else if (e.type === 'lane') { if (ok) st.lane = Math.max(-1, Math.min(1, st.lane + (e.dir > 0 ? 1 : -1))); }
+      else if (e.type === 'turbo') {
+        if (ok && st.g.nitro >= 1 && !this.turboAt(T)) {
+          const C = ph.seg.C, q = TURBO.grid;
+          const I = C + Math.ceil((e.t + TURBO.minAntic - C) / q - 1e-9) * q;
+          this._nitros.push({ p: e.t, I, s: T, until: Infinity });
+          st.g.nitro = 0; st.g.nf = 0;
+          this._gev.push({ t: T, k: 'nitro', p: e.t, I });
+        }
+      } else if (e.type === 'pause') {
+        // VCR pause: the game clock stops and the car coasts to a halt; scene time (and the music) carry on
+        const on = e.on ? 1 : 0;
+        if (cruise && st.run > 0 && !st.over && T >= st.hold && on !== st.paused) { st.paused = on; if (on) this._endNitro(T); this._gev.push({ t: T, k: 'pause', on }); }
+      } else if (e.type === 'retry') { if (cruise && st.over && T - st.overT >= GAME.overLock) this._newRun(st, T, ph.seg, true); }
+      else if (e.type === 'revive') { if (cruise && st.over && st.tapes > 0 && T - st.overT >= GAME.overLock) this._revive(st, T); }
     }
-    const ph = this.phaseAt(T);
-    const cruise = ph.phase === 'cruise';
-    // automatic environment change: after AUTO_ENV.time seconds or AUTO_ENV.dist road units of cruising
-    if (!cruise || !st.autoOn) { st.autoT0 = T; st.autoPos0 = st.pos; }
+    const live = cruise && st.run > 0 && !st.over && T >= st.hold && !st.paused;
+    // automatic environment change: after AUTO_ENV.time seconds or AUTO_ENV.dist road units of driving
+    if (!live || !st.autoOn) { st.autoT0 = T; st.autoPos0 = st.pos; }
     else if (T - st.autoT0 >= AUTO_ENV.time || st.pos - st.autoPos0 >= AUTO_ENV.dist) {
       st.cur = (st.cur + 1) % 4;
       this._autoSw.push({ type: 'env', t: T, preset: st.cur, auto: true });
       st.autoT0 = T; st.autoPos0 = st.pos;
     }
-    const thrT = cruise && st.thrOn ? 1 : 0;
+    const thrT = live && st.thrOn ? 1 : 0;
     const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
     st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
     st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
     // three-lane driving: lateral spring on a lightly smoothed lane target; drift yaw and camera follow as springs
-    if (!cruise) st.lane = 0;
-    const F = LANE_FEEL, L = ROAD.lane;
-    st.laneS += (st.lane * L - st.laneS) * (1 - Math.exp(-DT / F.tauIn));
-    const ax = F.w * F.w * (st.laneS - st.x) - 2 * F.w * st.xv;
-    st.xv += ax * DT; st.x += st.xv * DT;
-    const yT = Math.max(-F.yawMax, Math.min(F.yawMax, -st.xv * F.yawK));
-    const ay = F.yawW * F.yawW * (yT - st.yaw) - 2 * F.yawZ * F.yawW * st.yawV;
-    st.yawV += ay * DT; st.yaw += st.yawV * DT;
-    const ac = F.camW * F.camW * (st.x * F.camK - st.camX) - 2 * F.camW * st.camXv;
-    st.camXv += ac * DT; st.camX += st.camXv * DT;
-    st.steer = st.x / L; st.steerV = st.xv / L;
-    const vt = this.baseSpeed(ph) * (1 + 1.35 * st.thr) * this.turboMul(T);
-    const tauV = ph.phase === 'cruise' ? 0.2 : 0.09;
+    if (!st.over) {
+      const F = LANE_FEEL, L = ROAD.lane;
+      st.laneS += (st.lane * L - st.laneS) * (1 - Math.exp(-DT / F.tauIn));
+      const ax = F.w * F.w * (st.laneS - st.x) - 2 * F.w * st.xv;
+      st.xv += ax * DT; st.x += st.xv * DT;
+      const yT = Math.max(-F.yawMax, Math.min(F.yawMax, -st.xv * F.yawK));
+      const ay = F.yawW * F.yawW * (yT - st.yaw) - 2 * F.yawZ * F.yawW * st.yawV;
+      st.yawV += ay * DT; st.yaw += st.yawV * DT;
+      const ac = F.camW * F.camW * (st.x * F.camK - st.camX) - 2 * F.camW * st.camXv;
+      st.camXv += ac * DT; st.camX += st.camXv * DT;
+      st.steer = st.x / L; st.steerV = st.xv / L;
+    }
+    // the game: traffic, collisions, score. Nitro smashes through traffic while its boost is strong.
+    const tb = cruise ? this.turboAt(T) : null;
+    const nOn = !!tb && tb.u < TURBO.sustain + TURBO.recover * GAME.nitroTail;
+    if (live) {
+      const g = st.g;
+      if (st.nOn && !nOn) g.inv = Math.max(g.inv, g.gt + GAME.nitroGrace);
+      st.nOn = nOn ? 1 : 0;
+      const out = this._out; out.length = 0;
+      stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, thr: st.thr, nitro: nOn }, out);
+      for (const o of out) {
+        o.t = T; this._gev.push(o);
+        if (o.k === 'swipe') { st.lane = o.back; st.xv = o.dir * GAME.swipeKick; }
+        else if (o.k === 'tape') st.tapes = Math.min(GAME.maxTapes, st.tapes + 1);
+      }
+      if (g.over) { st.over = g.over; st.overT = T; this._endNitro(T); this._gev.push({ t: T, k: 'over', kind: g.over }); }
+    }
+    let vt, tauV;
+    if (!cruise) { vt = this.baseSpeed(ph) * (1 + 1.35 * st.thr); tauV = 0.09; }
+    else if (T < st.hold) { vt = GAME.rewindV; tauV = 0.06; }
+    else if (st.over) { vt = 0; tauV = st.over === 2 ? 0.7 : 0.3; }
+    else if (st.paused) { vt = 0; tauV = 0.1; }
+    else {
+      const tm = this.turboMul(T), dm = 1 + GAME.driveMul * st.thr;
+      vt = gameBase(st.g) * (tm >= 1 ? Math.max(dm, tm) : dm * tm); tauV = 0.2;
+    }
     st.vel += (vt - st.vel) * (1 - Math.exp(-DT / tauV));
     st.pos += st.vel * DT;
     this._T = T + DT;
@@ -228,11 +324,11 @@ export class Timeline {
       const c = this._ck[i];
       this._ck.length = i + 1;
       this._T = c.T; this._st = copy(c.st); this._prev = copy(c.st); this._ei = c.ei; this._n = Math.round(c.T * SIM_HZ);
-      this._autoSw = this._autoSw.filter((a) => a.t < c.T);
+      this._prune(c.T);
     }
     let guard = 0;
     while (this._T < T) {
-      this._prev = copy(this._st);
+      if (this._T + DT >= T) this._prev = copy(this._st);   // only the last step before T is needed for interpolation
       this._step();
       if (++guard > SIM_HZ * 7200) break;
     }
@@ -244,6 +340,8 @@ export class Timeline {
       steer: lerp(a.steer, b.steer, f), steerV: lerp(a.steerV, b.steerV, f), thrOn: b.thrOn, lane: b.lane,
       x: lerp(a.x, b.x, f), xv: lerp(a.xv, b.xv, f), yaw: lerp(a.yaw, b.yaw, f), yawV: lerp(a.yawV, b.yawV, f), camX: lerp(a.camX, b.camX, f),
       cur: b.cur, autoOn: b.autoOn, autoT0: b.autoT0, autoPos0: b.autoPos0,
+      // the game: `g` is the live game state (read only), `gf` how far T is between the last two steps
+      run: b.run, runT: b.runT, retry: b.retry, over: b.over, overT: b.overT, hold: b.hold, paused: b.paused, tapes: b.tapes, rev: b.rev, nOn: b.nOn, g: b.g, gf: f,
     };
   }
 }
@@ -259,14 +357,17 @@ export function phaseFrom(segs, T) {
   return { phase: 'cruise', ct: T - seg.C, seg };
 }
 
-// Canonical interaction script used for inspection renders, replays and the audio reference.
+// Canonical interaction script used for inspection renders, replays and the audio reference: the full intro, then
+// a clean drive recorded from tools/bot.mjs (`node tools/bot.mjs --script 68.95 --late`, default seed) with DRIVE
+// held twice, nitro bursts, the four presets, a music pause and a replay of the intro.
 export const CANONICAL = [
-  { type: 'start', t: 1.0 },
-  { type: 'lane', t: 13.0, dir: -1 }, { type: 'lane', t: 14.5, dir: 1 }, { type: 'lane', t: 14.75, dir: 1 }, { type: 'lane', t: 16.0, dir: -1 },
-  { type: 'thr', t: 17.0, on: true }, { type: 'thr', t: 20.5, on: false },
-  { type: 'turbo', t: 24.3 },
-  { type: 'env', t: 34.0, preset: 1 }, { type: 'env', t: 44.0, preset: 2 }, { type: 'env', t: 54.0, preset: 3 }, { type: 'env', t: 64.0, preset: 0 },
-  { type: 'thr', t: 40.0, on: true }, { type: 'turbo', t: 41.2 }, { type: 'thr', t: 45.0, on: false },
-  { type: 'music', t: 70.0, on: false }, { type: 'music', t: 73.0, on: true },
+  { type: 'start', t: 1 }, { type: 'lane', t: 15.95, dir: 1 }, { type: 'thr', t: 17, on: true }, { type: 'thr', t: 20.5, on: false },
+  { type: 'lane', t: 22.8, dir: -1 }, { type: 'turbo', t: 25.65 }, { type: 'lane', t: 30.5, dir: -1 }, { type: 'turbo', t: 33.65 },
+  { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 37.85, dir: 1 }, { type: 'lane', t: 39.45, dir: -1 }, { type: 'thr', t: 40, on: true },
+  { type: 'turbo', t: 40.65 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 44.1, dir: 1 }, { type: 'thr', t: 45, on: false },
+  { type: 'lane', t: 45.05, dir: -1 }, { type: 'lane', t: 46.4, dir: 1 }, { type: 'turbo', t: 46.7 }, { type: 'env', t: 54, preset: 3 },
+  { type: 'lane', t: 57.4, dir: 1 }, { type: 'turbo', t: 58.15 }, { type: 'lane', t: 63.8, dir: -1 }, { type: 'env', t: 64, preset: 0 },
+  { type: 'lane', t: 65.05, dir: 1 }, { type: 'turbo', t: 69.05 }, { type: 'music', t: 70, on: false }, { type: 'music', t: 73, on: true },
+  { type: 'lane', t: 73.05, dir: -1 }, { type: 'lane', t: 74.45, dir: -1 }, { type: 'turbo', t: 75.35 }, { type: 'lane', t: 79.55, dir: 1 },
   { type: 'replay', t: 80.0 },
 ];
