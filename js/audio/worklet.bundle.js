@@ -84,8 +84,9 @@
     swipeInv: 0.5,
     swipeKick: 9,
     reviveInv: 2,
-    // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and ramming, 3 = helicopter and drone strikes.
-    // A stumble (sideswipe, rammed, drone hit) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+    // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
+    // A stumble (sideswipe, hooked, hit from the air) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+    // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
     star2At: 3500,
     star3At: 8e3,
     // distance floors: the longer you run, the more they send
@@ -419,6 +420,9 @@
   var P_WARN = 1;
   var P_CHARGE = 2;
   var P_BACK = 3;
+  var P_HOOK = 4;
+  var HOOK_Z = POL_HL + CAR_HL + 1.25;
+  var HOOK_W = 1.7;
   var LAT = 1;
   var LON = 2;
   var THREAT = 4;
@@ -474,6 +478,11 @@
       drS: 0,
       drAcc: 0,
       drNext: 0,
+      // helicopter: lock time (−1 = searching), locked lane, …
+      hx: 0,
+      sx: 0,
+      sk: 0,
+      // helicopter x, searchlight spot x, how locked the light is (0..1)
       inv: 0,
       draft: 0,
       draftEv: -1e9,
@@ -826,8 +835,14 @@
       }
     } else {
       const u = gt - g.polT;
-      g.polX += (g.polLane * L - g.polX) * eK(0.1);
-      if (g.polM === P_WARN) {
+      g.polX += ((g.polM === P_HOOK ? px : g.polLane * L) - g.polX) * eK(g.polM === P_HOOK ? 0.07 : 0.1);
+      if (g.polM === P_HOOK) {
+        g.polZ += (-HOOK_Z - g.polZ) * eK(0.05);
+        if (u >= G.ramSlow) {
+          g.polM = P_BACK;
+          g.polT = gt;
+        }
+      } else if (g.polM === P_WARN) {
         g.polZ += (-(G.polClose + 2) - g.polZ) * eK(0.25);
         if (u >= G.ramWarn) {
           g.polM = P_CHARGE;
@@ -836,7 +851,13 @@
         }
       } else if (g.polM === P_CHARGE) {
         g.polZ += G.ramV * DT2;
-        if (g.polZ >= 1.5) {
+        if (g.polZ >= -HOOK_Z && g.polZ < -(POL_HL + CAR_HL) && Math.abs(px - g.polX) < HOOK_W && !inp.nitro && gt >= g.inv) {
+          g.inv = gt + G.swipeInv;
+          g.slow = gt + G.ramSlow;
+          g.polM = P_HOOK;
+          g.polT = gt;
+          stumble(g, out, "hook");
+        } else if (g.polZ >= 1.5) {
           g.polM = P_BACK;
           g.polT = gt;
         }
@@ -848,7 +869,7 @@
         }
       }
       const lat = Math.abs(px - g.polX) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.polZ) < POL_HL + CAR_HL - 0.2;
-      if (lat && lon && g.polM !== P_WARN) {
+      if (lat && lon && g.polM !== P_WARN && g.polM !== P_HOOK) {
         if (inp.nitro) {
           g.polM = P_BACK;
           g.polT = gt;
@@ -896,7 +917,7 @@
             g.drHit = 1;
             g.slow = gt + G.ramSlow;
             g.inv = gt + G.swipeInv;
-            stumble(g, out, "emp");
+            stumble(g, out, "heli");
           }
         }
         if (u >= G.drWarn + G.drStrike) {
@@ -908,6 +929,10 @@
       g.drT = -1;
       g.drNext = gt + 3;
     }
+    const lk = g.drT >= 0;
+    g.hx += ((lk ? g.drLane * L : Math.sin(gt * 0.37) * 6) - g.hx) * eK(lk ? 0.3 : 0.9);
+    g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
+    g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
     g.score += inp.vel * DT2 * G.ptsDist * mult;
   }
 
@@ -1252,6 +1277,7 @@
       g.slow = 0;
       g.brkAcc = 0;
       g.polM = P_TAIL;
+      g.polZ = Math.min(g.polZ, -GAME.polFar + 2);
       g.drT = -1;
       g.drNext = g.gt + 4;
       g.ramNext = Math.max(g.ramNext, g.gt + 5);
@@ -2432,6 +2458,10 @@
       this.sirG = 0;
       this.sirP = 0;
       this.sirW = 0;
+      this.heliG = 0;
+      this.heliP = 0;
+      this.heliF = new SVF();
+      this.heliR = new RNG(91);
       this.eng = [new Saw(0), new Saw(0.5)];
       this.engLp = new SVF();
       this.windL = new SVF();
@@ -2637,6 +2667,16 @@
           v = new Blip(s, o, 2600, 180, 0.12, 0.1);
           this.voices.push(new Click(s, o, 0.8));
           break;
+        case "burst":
+          v = new Blip(s, o, 520, 150, 0.04, 0.13);
+          for (let k = 1; k < 6; k++) this.voices.push(new Blip(s, o, 520 - k * 14, 150, 0.04, 0.12, k % 2 ? 0.25 : -0.25, k * 0.075));
+          break;
+        // the helicopter opens fire
+        case "hook":
+          v = new Click(s, o, 1.2, 1);
+          this.voices.push(new Blip(s, o, 1250, 420, 0.07, 0.1), new Blip(s, o, 210, 70, 0.3, 0.13, 0, 0.05));
+          break;
+        // the grappler net bites
         case "ffwd":
           v = new Squeal(s, o, n.d ?? 0.4, true);
           break;
@@ -2775,6 +2815,22 @@
             const a = this.sirP * TAU, y = (Math.sin(a) + 0.35 * Math.sin(2 * a) + 0.12 * Math.sin(3 * a)) * this.sirG;
             B.sfxL[i] += y * 0.8;
             B.sfxR[i] += y;
+          }
+        }
+      }
+      {
+        const st = this._st, g = st.g, on = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.star >= 3;
+        const tgt = on ? 0.05 + 0.03 * g.sk : 0;
+        if (tgt > 0 || this.heliG > 1e-5) {
+          const kA = 1 - exp(-1 / (0.6 * SR));
+          this.heliF.set(190, 0.8);
+          for (let i = 0; i < N; i++) {
+            this.heliG += (tgt - this.heliG) * kA;
+            this.heliP += 11.5 / SR;
+            if (this.heliP >= 1) this.heliP -= 1;
+            const env = Math.pow(0.5 + 0.5 * Math.cos(this.heliP * TAU), 4), y = this.heliF.lp(this.heliR.next()) * (0.25 + env) * this.heliG;
+            B.sfxL[i] += y;
+            B.sfxR[i] += y * 0.85;
           }
         }
       }

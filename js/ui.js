@@ -193,9 +193,9 @@ export class UI {
       else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = (e.kind === 2 ? 'Busted.' : 'Crashed.') + ' Press R to rewind the tape, or H for the home screen.'; }
       else if (k === 'gear') this.sfx('gear');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
-      else if (k === 'stumble' || k === 'tail' || k === 'run') this.sfx('siren');
+      else if (k === 'stumble' || k === 'tail' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
       else if (k === 'ramwarn' || k === 'lock') this.sfx('lock');
-      else if (k === 'strike') this.sfx('zap');
+      else if (k === 'strike') this.sfx('burst');
       else if (k === 'shove') this.sfx('smash');
       else if (k === 'go') this.sfx('whoosh');
       else if (k === 'item') { this.sfx('chime'); this.sfx('gear'); }

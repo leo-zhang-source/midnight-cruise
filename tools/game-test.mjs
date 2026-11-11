@@ -1,10 +1,10 @@
 // Unit tests for the game simulation (no browser).   node tools/game-test.mjs
 // Determinism, crash, home / start / restart, rewind (state and reverse playback), sideswipe and busted,
-// brake, nitro canisters, police stars, ramming, drone strikes, pause, free mode, audio-thread parity.
+// brake, nitro canisters, police stars, the grappler, helicopter fire, pause, free mode, audio-thread parity.
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
 import { GAME } from '../js/cue.js';
-import { NV, VF, policeClose } from '../js/game.js';
+import { NV, VF, policeClose, P_HOOK, HOOK_Z } from '../js/game.js';
 import { play } from './bot.mjs';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
 const C = 1.9;   // cruise start of the test timelines (start 1.0, skip 1.5, 0.4 s fast-forward)
@@ -106,7 +106,7 @@ let crashT;
   ok('a second stumble while the police are on the tail = busted', b.over === 2 && bev.includes('bust:swipe'), `events ${bev.join(',')}`);
 }
 
-// ── stars, ramming, drone strikes ──
+// ── stars, the grappler, helicopter fire ──
 {
   const r = play(31337, 200);
   const tl = new Timeline(); tl.load(r.ev);
@@ -115,13 +115,15 @@ let crashT;
   const s2 = star(2), s3 = star(3);
   ok('stars rise with distance: 2 at 3500, 3 at 8000', s2 && s3 && Math.abs(at(s2) - GAME.star2At) < 5 && Math.abs(at(s3) - GAME.star3At) < 5, `2★ at ${at(s2).toFixed(0)}, 3★ at ${at(s3).toFixed(0)}`);
   const firstRam = ev.find((e) => e.k === 'ramwarn'), firstLock = ev.find((e) => e.k === 'lock'), firstBlock = (() => { for (let T = s2.t; T < C + 200; T += 0.25) { const g = tl.stateAt(T).g; for (let i = 0; i < NV; i++) if (g.veh[i * VF] === 5) return T; } return null; })();
-  ok('2 stars: roadblocks and ramming; 3 stars: drone locks', firstRam && firstRam.t > s2.t && firstBlock !== null && firstLock && firstLock.t > s3.t && !ev.some((e) => e.k === 'lock' && e.t < s3.t), `first roadblock ${(firstBlock - C).toFixed(0)} s, first ram ${(firstRam.t - C).toFixed(0)} s, first lock ${(firstLock.t - C).toFixed(0)} s`);
-  ok('a bot that reads the warnings is never hit', r.stats.stumbles === 0 && !r.stats.over, `${ev.filter((e) => e.k === 'ram').length} rams, ${ev.filter((e) => e.k === 'strike').length} strikes`);
-  // ignore the ram warning: rammed from behind → stumble, slowed for a second
+  ok('2 stars: roadblocks and grappler runs; 3 stars: searchlight locks', firstRam && firstRam.t > s2.t && firstBlock !== null && firstLock && firstLock.t > s3.t && !ev.some((e) => e.k === 'lock' && e.t < s3.t), `first roadblock ${(firstBlock - C).toFixed(0)} s, first grappler run ${(firstRam.t - C).toFixed(0)} s, first lock ${(firstLock.t - C).toFixed(0)} s`);
+  ok('a bot that reads the warnings is never hit', r.stats.stumbles === 0 && !r.stats.over, `${ev.filter((e) => e.k === 'ram').length} grappler runs, ${ev.filter((e) => e.k === 'strike').length} strikes`);
+  // ignore the warning: the net takes the rear wheel → stumble, slowed for a second while the cruiser hangs on, then it lets go
   const t2 = new Timeline(); t2.load(r.ev.filter((e) => e.t < firstRam.t));
   const hitT = firstRam.t + GAME.ramWarn + 0.45, v0 = t2.stateAt(firstRam.t).vel, st = t2.stateAt(hitT + 0.3), e2 = kinds(t2, firstRam.t, hitT + 0.3);
-  ok('ignoring the ram warning: rammed = a stumble, slowed', e2.includes('ram') && e2.includes('stumble:ram') && policeClose(st.g) && st.vel < v0 * 0.93 && !st.over, `${v0.toFixed(0)} → ${st.vel.toFixed(0)} u/s, events ${e2.filter((k) => k !== 'cell').join(',')}`);
-  // ignore a drone lock: struck → stumble (take a lock where staying in lane does not also mean hitting traffic)
+  const hk = t2.stateAt(firstRam.t + GAME.ramWarn + 0.5).g, rel = t2.stateAt(firstRam.t + GAME.ramWarn + 0.45 + GAME.ramSlow + 1.2).g;
+  ok('ignoring the grappler warning: hooked = a stumble, slowed', e2.includes('ram') && e2.includes('stumble:hook') && policeClose(st.g) && st.vel < v0 * 0.93 && !st.over, `${v0.toFixed(0)} → ${st.vel.toFixed(0)} u/s, events ${e2.filter((k) => k !== 'cell').join(',')}`);
+  ok('hooked: the cruiser hangs on our rear wheel, then lets go and drops back', hk.polM === P_HOOK && Math.abs(hk.polZ + HOOK_Z) < 0.4 && rel.polM !== P_HOOK && rel.polZ < -HOOK_Z - 1, `polZ ${hk.polZ.toFixed(2)} while hooked, ${rel.polZ.toFixed(1)} after`);
+  // ignore a searchlight lock: fired on → stumble (take a lock where staying in lane does not also mean hitting traffic)
   let e3 = [], lock = null;
   for (const l of ev.filter((e) => e.k === 'lock')) {
     const t3 = new Timeline(); t3.load(r.ev.filter((e) => e.t < l.t));
@@ -129,7 +131,7 @@ let crashT;
     if (!e3.includes('crash')) { lock = l; break; }
   }
   const sT = lock.t + GAME.drWarn + GAME.drStrike + 0.1;
-  ok('ignoring the drone lock: struck = a stumble', e3.includes('strike') && e3.includes('stumble:emp'), e3.filter((k) => k !== 'cell').join(','));
+  ok('ignoring the searchlight lock: fired on = a stumble', e3.includes('strike') && e3.includes('stumble:heli'), e3.filter((k) => k !== 'cell').join(','));
   ok('the bust rule applies to police hits too', (() => { const t4 = new Timeline(); t4.load(r.ev.filter((e) => e.t < lock.t)); t4.stateAt(lock.t + 0.2); t4._st.g.pcl = t4._st.g.gt + 5; return t4.stateAt(sT).over === 2; })());
 }
 

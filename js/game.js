@@ -14,8 +14,10 @@ export const HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.5];
 export const HALF_W = [0, 1.05, 1.15, 1.4, 1.05, 2.4];
 export const CAR_HL = 2.2, CAR_HW = 0.95;
 export const POL_HL = 2.4, POL_HW = 1.05;                  // the pursuit car
-// pursuit car modes: on the tail, lining up for a ram, charging, dropping back
-export const P_TAIL = 0, P_WARN = 1, P_CHARGE = 2, P_BACK = 3;
+// pursuit car modes: on the tail, lining up with the grappler out, lunging, dropping back, hooked onto our rear wheel
+export const P_TAIL = 0, P_WARN = 1, P_CHARGE = 2, P_BACK = 3, P_HOOK = 4;
+// the grappler (a net on a fork ahead of the cruiser's bumper) reaches our rear wheel at this distance, within this offset
+export const HOOK_Z = POL_HL + CAR_HL + 1.25, HOOK_W = 1.7;
 const LAT = 1, LON = 2, THREAT = 4, NEAR = 8, PASSED = 16;
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
@@ -29,7 +31,8 @@ export function freshGame(seed = 1986, free = 0) {
     heat: 1, heatGt: -1e9, star: 1,
     pcl: 0, stG: 0, slow: 0, brkAcc: 0,                                              // tail-close until, stumble grace until, slowed until
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
-    drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0,
+    drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
+    hx: 0, sx: 0, sk: 0,                                                             // helicopter x, searchlight spot x, how locked the light is (0..1)
     inv: 0, draft: 0, draftEv: -1e9, goEv: 0, over: 0,
   };
 }
@@ -283,7 +286,7 @@ export function stepGame(g, inp, out) {
   if (inp.brk) g.brkAcc += DT; else g.brkAcc = Math.max(0, g.brkAcc - 2 * DT);
   if (g.brkAcc > G.brakeLinger && gt >= g.pcl - 1) { if (gt >= g.pcl) out.push({ k: 'tail' }); g.pcl = gt + 1.6; }
 
-  // ── police: the pursuit car (always there; at two stars it rams) ──
+  // ── police: the pursuit car (always there; from two stars it comes up with the grappler) ──
   const eK = (tau) => 1 - Math.exp(-DT / tau);
   if (g.polM === P_TAIL) {
     const close = policeClose(g);
@@ -298,20 +301,26 @@ export function stepGame(g, inp, out) {
     }
   } else {
     const u = gt - g.polT;
-    g.polX += (g.polLane * L - g.polX) * eK(0.1);
-    if (g.polM === P_WARN) {
+    g.polX += ((g.polM === P_HOOK ? px : g.polLane * L) - g.polX) * eK(g.polM === P_HOOK ? 0.07 : 0.1);
+    if (g.polM === P_HOOK) {                               // the net has our wheel: it hangs on and brakes, then the strap lets go
+      g.polZ += (-HOOK_Z - g.polZ) * eK(0.05);
+      if (u >= G.ramSlow) { g.polM = P_BACK; g.polT = gt; }
+    } else if (g.polM === P_WARN) {
       g.polZ += (-(G.polClose + 2) - g.polZ) * eK(0.25);
       if (u >= G.ramWarn) { g.polM = P_CHARGE; g.polT = gt; out.push({ k: 'ram', lane: g.polLane }); }
     } else if (g.polM === P_CHARGE) {
       g.polZ += G.ramV * DT;
-      if (g.polZ >= 1.5) { g.polM = P_BACK; g.polT = gt; }
+      if (g.polZ >= -HOOK_Z && g.polZ < -(POL_HL + CAR_HL) && Math.abs(px - g.polX) < HOOK_W && !inp.nitro && gt >= g.inv) {
+        g.inv = gt + G.swipeInv; g.slow = gt + G.ramSlow; g.polM = P_HOOK; g.polT = gt;      // still in its lane: hooked
+        stumble(g, out, 'hook');
+      } else if (g.polZ >= 1.5) { g.polM = P_BACK; g.polT = gt; }
     } else {
       g.polZ -= G.ramBack * DT * Math.min(1, u / 0.25);
       if (g.polZ <= -G.polFar) { g.polM = P_TAIL; g.ramNext = gt + G.ramEvery[0] + rnd(g) * (G.ramEvery[1] - G.ramEvery[0]); }
     }
     // contact with the pursuit car
     const lat = Math.abs(px - g.polX) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.polZ) < POL_HL + CAR_HL - 0.2;
-    if (lat && lon && g.polM !== P_WARN) {
+    if (lat && lon && g.polM !== P_WARN && g.polM !== P_HOOK) {
       if (inp.nitro) { g.polM = P_BACK; g.polT = gt; addHeat(g, 0.5); out.push({ k: 'shove' }); }
       else if (gt >= g.inv) {
         g.inv = gt + G.swipeInv;
@@ -328,7 +337,7 @@ export function stepGame(g, inp, out) {
     g.polF = lat ? LAT : 0;
   }
 
-  // ── police: drone strikes from three stars ──
+  // ── police: the helicopter, from three stars. Its searchlight locks the lane we are in, then it fires down the beam ──
   if (g.star >= 3) {
     if (g.drT < 0) {
       if (gt >= g.drNext && g.polM === P_TAIL && !taxiPending(g)) {
@@ -342,11 +351,16 @@ export function stepGame(g, inp, out) {
       if (u >= G.drWarn && !g.drS) { g.drS = 1; out.push({ k: 'strike', lane: g.drLane }); }
       if (u >= G.drWarn && u < G.drWarn + G.drStrike && Math.abs(px - g.drLane * L) < 2.0 && !inp.nitro && gt >= g.inv) {
         g.drAcc += DT;
-        if (g.drAcc >= 0.1 && !g.drHit) { g.drHit = 1; g.slow = gt + G.ramSlow; g.inv = gt + G.swipeInv; stumble(g, out, 'emp'); }
+        if (g.drAcc >= 0.1 && !g.drHit) { g.drHit = 1; g.slow = gt + G.ramSlow; g.inv = gt + G.swipeInv; stumble(g, out, 'heli'); }
       }
       if (u >= G.drWarn + G.drStrike) { g.drT = -1; g.drNext = gt + G.drEvery; }
     }
   } else { g.drT = -1; g.drNext = gt + 3; }
+  // where the helicopter hangs and where its searchlight falls: wandering while it searches, on the lane once locked
+  const lk = g.drT >= 0;
+  g.hx += ((lk ? g.drLane * L : Math.sin(gt * 0.37) * 6) - g.hx) * eK(lk ? 0.3 : 0.9);
+  g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
+  g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
 
   g.score += inp.vel * DT * G.ptsDist * mult;
 }

@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TAXI, P_TAIL, P_WARN, gameMult, policeClose } from './game.js';
+import { NV, VF, NC, CF, NI, IF, T_TAXI, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 
@@ -72,9 +72,9 @@ const POP = {
   run: () => ['POLICE! PULL OVER', 'bad'], go: () => ['FLOOR IT', 'good'],
   near: (e) => [`CLOSE CALL +${e.pts}`, 'good'], smash: () => ['SMASH', 'hot'], gear: (e) => [`GEAR ${e.n}`, 'info'],
   star: (e) => (e.up ? [`WANTED LEVEL ${e.n}`, 'bad'] : [`HEAT DOWN · LEVEL ${e.n}`, 'good']),
-  stumble: (e) => [(e.by === 'ram' ? 'RAMMED' : e.by === 'emp' ? 'DRONE HIT' : 'SIDESWIPE') + ' · POLICE ON YOUR TAIL', 'bad'],
+  stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : 'SIDESWIPE') + ' · POLICE ON YOUR TAIL', 'bad'],
   tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
-  ramwarn: () => ['RAM INCOMING · CHANGE LANE', 'bad'], lock: () => ['DRONE LOCK · CHANGE LANE', 'bad'],
+  ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'], lock: () => ['SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [`CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
   draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: () => ['SHOVED THE POLICE BACK', 'hot'],
 };
@@ -83,7 +83,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const stepping = !sim.over && T >= sim.hold && !sim.paused;
   const back = stepping ? (1 - sim.gf) * DT : 0;          // the state is from the step after T: step positions back
   const far = (dz) => smooth(lin(dz, G.ahead - 2, G.ahead - 60));
-  const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, drone: null, heli: 0 };
+  const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, grap: null, heli: null };
   if (g.free) { ui.g = { on: 1, free: 1, run: sim.run, gear: g.gear + 1, nstock: sim.g.nstock, tapes: 0, over: 0, overU: 0, paused: sim.paused, rew: 0, pops: [], star: 0, close: 0, pol: 0 }; return out; }
   const veh = g.veh;
   for (let i = 0; i < NV; i++) {
@@ -102,12 +102,14 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     }
   }
   for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ x: g.itm[o + 1] * L, dz, fade: far(dz) }); } }
-  // the police: pursuit car (dz < 0 = behind us), ram warning, drone lock, helicopter at three stars
+  // the police: pursuit car (dz < 0 = behind us) and its grappler, the lane warning, the helicopter at three stars
   const close = policeClose(g);
   out.pol = { x: g.polX, dz: g.polZ, mode: g.polM, close: close ? 1 : 0, star: g.star };
   if (g.polM === P_WARN) out.ram = { lane: g.polLane, k: sat((g.gt - g.polT) / G.ramWarn) };
-  if (g.drT >= 0) { const u = g.gt - g.drT; out.drone = { lane: g.drLane, u, strike: u >= G.drWarn }; }
-  out.heli = g.star >= 3 ? 1 : 0;
+  { const u = g.gt - g.polT, m = g.polM;                 // the fork folds out during the warning and back in as the cruiser drops away
+    const k = m === P_WARN ? smooth(u / 0.4) : m === P_CHARGE || m === P_HOOK ? 1 : m === P_BACK ? 1 - smooth(u / 0.35) : 0;
+    if (k > 0) out.grap = { k, hook: m === P_HOOK ? 1 : 0 }; }
+  if (g.star >= 3 || g.sk > 0.02) { const u = g.drT >= 0 ? g.gt - g.drT : -1; out.heli = { x: g.hx, sx: g.sx, sk: g.sk, lane: g.drLane, warn: u < 0 ? 0 : sat(u / G.drWarn), strike: u >= G.drWarn ? sat((u - G.drWarn) / G.drStrike) : -1 }; }
   const pops = [];
   for (const e of tl.gameEvents(T - 1.9, T)) {
     const age = T - e.t;
@@ -359,6 +361,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     camY += 1.1 * polK; pitch -= 0.07 * polK; fovK *= 1 + 0.03 * polK;
     car.pitch = brk * 0.03 - 0.035 * launch;                 // the nose dips on the brake, the tail squats at the launch
     car.flame = 0.3 * (1 - brk) + 1.3 * launch; car.flameHot = 0.6 * launch; car.exhaust = 0.3 + 0.45 * (1 - brk) + 0.3 * launch; car.tail = 0.85 + 1.3 * brk;
+    if (gv.polM === P_HOOK && !reduced) { const u = gv.gt - gv.polT; car.yaw += 0.1 * Math.sin(u * 15) * Math.exp(-u * 1.6); }   // hooked by the rear wheel: the tail snakes
     car.streak = Math.max(0, Math.abs(sv.vel) - 60) * 0.05;
     if (!reduced) car.bob = vnoise(tv * 13, 9) * 0.006 * (1 + spd);
     title.rotY = -sv.steer * 0.12;

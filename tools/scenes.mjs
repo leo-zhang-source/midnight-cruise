@@ -1,4 +1,4 @@
-// Development aid: finds moments worth looking at (ram warning, drone lock, roadblock, busted, rewind, home …) by
+// Development aid: finds moments worth looking at (grappler run, searchlight lock, roadblock, rewind, home …) by
 // letting the bot drive, then captures them from the browser.
 //   node tools/scenes.mjs <outDir> [WxH] [seed]
 import { chromium } from 'playwright-core';
@@ -18,8 +18,9 @@ const clean = r.ev;
 const upTo = (t) => clean.filter((e) => e.t <= t);
 shots.push(['intro_0_5', clean, 1.9 + 0.5], ['intro_1_2', clean, 1.9 + 1.2], ['intro_2_0', clean, 1.9 + 2.0], ['intro_2_6', clean, 1.9 + 2.6]);
 const item = first('item'); if (item) shots.push(['canister', clean, item.t - 0.7]);
-const rw = first('ramwarn'); if (rw) shots.push(['ramwarn', clean, rw.t + 0.7], ['ram_pass', clean, rw.t + 1.5]);
-const lk = first('lock'); if (lk) shots.push(['drone_lock', clean, lk.t + 0.8], ['drone_strike', clean, lk.t + 1.35]);
+const rw = first('ramwarn'); if (rw) shots.push(['grappler', clean, rw.t + 0.8], ['grappler_miss', clean, rw.t + 1.3]);
+shots.push(['traffic_a', clean, 12], ['traffic_b', clean, 21.5], ['traffic_c', clean, 27]);
+const lk = first('lock'); if (lk) shots.push(['heli_search', clean, lk.t - 1.5], ['heli_lock', clean, lk.t + 0.8], ['heli_fire', clean, lk.t + 1.4]);
 const s3 = gev.find((e) => e.k === 'star' && e.n === 3); if (s3) shots.push(['heli', clean, s3.t + 3]);
 // a roadblock in view
 for (let T = 20; T < 200; T += 0.5) {
@@ -44,7 +45,7 @@ if (rw) {
   const ev = upTo(rw.t + 0.05), tl = new Timeline(); tl.load(ev);
   let over = 0, st0 = null;
   for (let T = rw.t; T < rw.t + 40; T += 0.05) { const st = tl.stateAt(T); if (!st0 && tl.gameEvents(rw.t, T).some((e) => e.k === 'stumble')) st0 = T; if (st.over) { over = T; break; } }
-  if (st0) shots.push(['on_tail', ev, st0 + 1.2]);
+  if (st0) shots.push(['hooked', ev, st0 + 0.35], ['on_tail', ev, st0 + 2.6]);
   if (over) {
     shots.push(['over', ev, over + 1.2]);
     const ev2 = [...ev, { type: 'revive', t: over + 1.5 }];

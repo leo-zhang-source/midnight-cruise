@@ -68,8 +68,9 @@ export const GAME = {
   taxiAt: 2.2, taxiBlink: 0.7, taxiMove: 0.6,    // a taxi signals 2.2 s before you reach it, then changes lane
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
   swipeInv: 0.5, swipeKick: 9, reviveInv: 2.0,
-  // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and ramming, 3 = helicopter and drone strikes.
-  // A stumble (sideswipe, rammed, drone hit) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+  // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
+  // A stumble (sideswipe, hooked, hit from the air) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+  // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
   star2At: 3500, star3At: 8000,                  // distance floors: the longer you run, the more they send
   heatSwipe: 1, heatSmash: 0.34, heatHold: 10, heatDecay: 12,
   closeT: 6, stumbleGrace: 0.9, polClose: 6.5, polFar: 19,

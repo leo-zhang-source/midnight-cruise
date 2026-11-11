@@ -26,9 +26,11 @@ function makeSolids() {
   const mat = new THREE.ShaderMaterial({
     uniforms: { uT: { value: 0 }, uFog: { value: new THREE.Vector3() }, uGround: { value: new THREE.Vector3() }, uSky: { value: new THREE.Vector3() } },
     vertexShader: /* glsl */`
-      attribute vec3 aP, aS, aC; attribute vec4 aM;   // aM: kind (0 neon-edged body, 1 emissive, 3 plain structure), fade, seed, ribs
+      attribute vec3 aP, aS, aC; attribute vec4 aM;   // aM: kind (0 neon-edged body, 1 emissive, 3 plain structure), fade, heading, ribs
       varying vec3 vL, vS, vC, vN, vW; varying vec4 vM;
-      void main(){ vL = position; vS = aS; vC = aC; vM = aM; vN = normal; vec3 p = aP + position * aS; vW = p;
+      void main(){ vL = position; vS = aS; vC = aC; vM = aM; vN = normal;
+        vec3 q = position * aS; float c = cos(aM.z), s = sin(aM.z);
+        vec3 p = aP + vec3(c * q.x + s * q.z, q.y, c * q.z - s * q.x); vW = p;
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: /* glsl */`
       precision highp float;
@@ -36,8 +38,6 @@ function makeSolids() {
       varying vec3 vL, vS, vC, vN, vW; varying vec4 vM;
       ${HASH}
       void main(){
-        // dissolve (far fade-in, debris fade-out): a tape-noise dither instead of alpha
-        if (vM.y < 0.995 && h21(floor(gl_FragCoord.xy) + floor(uT * 30.0) * 7.0) > vM.y) discard;
         vec3 an = abs(vN); vec2 q, hs;
         if (an.x > 0.5) { q = vL.zy * vS.zy; hs = vS.zy * 0.5; }
         else if (an.y > 0.5) { q = vL.xz * vS.xz; hs = vS.xz * 0.5; }
@@ -56,6 +56,8 @@ function makeSolids() {
           col = fill + vC * (e * 1.5 + ribs);
         } else if (vM.x < 1.5) col = vC;                                                                   // emissive
         else col = uGround * 1.6 + uSky * (0.16 * step(0.5, vN.y) + 0.07 * an.x) + vC * 0.05;              // plain dark structure
+        // fade: far things come out of the haze, lights and debris dim (no dither: nothing flickers)
+        if (vM.x > 0.5 && vM.x < 1.5) col *= vM.y; else col = mix(uFog, col, vM.y);
         col = mix(col, uFog, (1.0 - exp(-dist / 900.0)) * 0.6);
         gl_FragColor = vec4(col, 1.0);
       }`,
@@ -242,9 +244,8 @@ function makePanel(w, h, tex) {
       uniform sampler2D map; uniform float uK, uFade, uT; uniform vec3 uFog; varying vec2 vUv; varying vec3 vW;
       ${HASH}
       void main(){
-        if (uFade < 0.995 && h21(floor(gl_FragCoord.xy) + floor(uT * 30.0) * 7.0) > uFade) discard;
         vec4 c = texture2D(map, vUv); if (c.a < 0.05) discard;
-        vec3 col = c.rgb * uK * (0.93 + 0.07 * sin(vUv.y * 420.0));                     // faint lamp rows
+        vec3 col = mix(uFog, c.rgb * uK * (0.93 + 0.07 * sin(vUv.y * 420.0)), uFade);   // faint lamp rows; far away it comes out of the haze
         gl_FragColor = vec4(mix(col, uFog, (1.0 - exp(-length(vW - cameraPosition) / 900.0)) * 0.6), 1.0);
       }`,
   });
@@ -252,9 +253,10 @@ function makePanel(w, h, tex) {
   return m;
 }
 
-const RED = [3.3, 0.22, 0.34], AMBER = [2.6, 1.3, 0.1], CELL = [0.72, 1.0, 0.2], NITRO = [0.35, 0.85, 1.0];
+const RED = [2.2, 0.14, 0.22], TAIL = [1.5, 0.1, 0.16], AMBER = [2.2, 1.1, 0.1], CELL = [0.72, 1.0, 0.2], NITRO = [0.35, 0.85, 1.0], LAMP = [1.0, 0.95, 0.8];
 const POLICE = [0.52, 0.56, 0.7], TAXI = [0.8, 0.56, 0.03], DARK = [0.2, 0.2, 0.3];
-const PAINT = [[0.5, 0.05, 0.09], [0.05, 0.28, 0.4], [0.36, 0.36, 0.42], [0.46, 0.2, 0.03], [0.2, 0.07, 0.42], [0.08, 0.3, 0.12], [0.05, 0.05, 0.08], [0.42, 0.08, 0.3]];
+const PAINT = [[0.85, 0.1, 0.16], [0.08, 0.5, 0.82], [0.82, 0.84, 0.9], [0.92, 0.42, 0.06], [0.5, 0.24, 0.92], [0.14, 0.7, 0.36], [0.9, 0.2, 0.62], [0.1, 0.72, 0.72]];
+const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2];
 const BB_SPAN = 4800, BB = [{ z0: 700, side: 1 }, { z0: 2300, side: -1 }, { z0: 3900, side: 1 }];      // a billboard every 1600 units
 const GA_SPAN = 4800, GA = [1500, 3900];                                                              // a sign gantry every 2400
 const mod = (a, n) => ((a % n) + n) % n;
@@ -269,11 +271,11 @@ export class GameView {
     const gt = gantryTexture();
     this.signs = GA.map(() => { const m = makePanel(15.4, 2.4, gt); this.group.add(m); return m; });
   }
-  box(x, y, z, sx, sy, sz, c, kind = 0, fade = 1, k = 1, ribs = 0) {
+  box(x, y, z, sx, sy, sz, c, kind = 0, fade = 1, k = 1, ribs = 0, yaw = 0) {
     const i = this.nb; if (i >= MAXB) return; this.nb++;
     const A = this.solids.userData.A;
     A.aP.array.set([x, y, z], i * 3); A.aS.array.set([sx, sy, sz], i * 3); A.aC.array.set([c[0] * k, c[1] * k, c[2] * k], i * 3);
-    A.aM.array.set([kind, fade, i * 0.37, ribs], i * 4);
+    A.aM.array.set([kind, fade, yaw, ribs], i * 4);
   }
   // quad centred at (x, y, z) with half-extent vectors U and V
   glow(x, y, z, ux, uy, uz, vx, vy, vz, c, type, inten, seed = 0, par = 0) {
@@ -287,15 +289,15 @@ export class GameView {
   cruiser(x, z, yaw, fade, T, phase = 0) {
     const on = Math.floor(T * 5 + phase) % 2 === 0;
     this.veh.add('car', x, 0, z, yaw, 1.06, POLICE, fade, 2, 0.7, on ? 1 : 0.06, on ? 0.06 : 1);
-    this.sprite(x - 0.35, 1.62, z, 1.7, [1, 0.1, 0.2], (on ? 1.5 : 0.1) * fade); this.sprite(x + 0.35, 1.62, z, 1.7, [0.15, 0.4, 1], (on ? 0.1 : 1.5) * fade);
-    this.glow(x, 0.04, z, 3.2, 0, 0, 0, 0, 4.2, on ? [1, 0.1, 0.2] : [0.15, 0.4, 1], 2, 0.5 * fade);
+    this.sprite(x - 0.35, 1.62, z, 1.25, [1, 0.1, 0.2], (on ? 1.1 : 0.08) * fade); this.sprite(x + 0.35, 1.62, z, 1.25, [0.15, 0.4, 1], (on ? 0.08 : 1.1) * fade);
+    this.glow(x, 0.04, z, 3.2, 0, 0, 0, 0, 4.2, on ? [1, 0.1, 0.2] : [0.15, 0.4, 1], 2, 0.4 * fade);
   }
 
   update(s) {
     this.nb = 0; this.ng = 0;
     const P = s.pal, T = s.T, G = s.game, L = ROAD.lane, R = ROAD.rail;
     const edge = P.gridAlt, edge2 = P.post2;
-    this.veh.begin(P, T);
+    this.veh.begin(P);
     const pos = s.road.pos, sc = s.scenery ?? 1;
 
     // ── scenery: the city ahead ──
@@ -339,27 +341,30 @@ export class GameView {
       const cz = s.car.z;
       // ── traffic ──
       for (const v of G.veh) {
-        const x = v.x, z = cz - v.dz, f = v.fade, id = v.id | 0;
+        const x = v.x, z = cz - v.dz, f = v.fade, id = v.id | 0, far = 0.8 + v.dz * 0.0045;   // lamp glows grow a little with distance, so a far car stays a steady dot
         if (v.type === T_CAR || v.type === T_TAXI) {
-          const taxi = v.type === T_TAXI;
-          this.veh.add('car', x, 0, z, 0, 1.06, taxi ? TAXI : PAINT[id % PAINT.length], f, taxi ? 1 : 0, 1, 1, 1);
-          this.sprite(x, 0.76, z + 2.6, 1.3 + v.dz * 0.012, RED, 0.5 * f);
+          const taxi = v.type === T_TAXI, col = taxi ? TAXI : PAINT[id % PAINT.length];
+          this.veh.add('car', x, 0, z, 0, 1.06, col, f, taxi ? 1 : 0, 1, 1, 1);
+          this.sprite(x, 0.82, z + 2.56, far, TAIL, 0.3 * f);
+          this.glow(x, 0.03, z, 1.35, 0, 0, 0, 0, 2.9, col, 2, 0.3 * f); this.glow(x, 0.03, z - 4.6, 1.2, 0, 0, 0, 0, 2.2, LAMP, 2, 0.16 * f);   // paint glow on the road, headlamp pool ahead
           if (taxi && v.sig) {
-            if (Math.floor(T * 5) % 2 === 0) { this.box(x + v.sig * 0.98, 0.82, z + 2.52, 0.2, 0.16, 0.06, AMBER, 1, f, 1.6); this.sprite(x + v.sig * 0.98, 0.82, z + 2.6, 1.0 + v.dz * 0.01, AMBER, 1.3 * f); }
-            this.glow(x + v.sig * 2.6, 2.4, z, v.sig * 1.6, 0, 0, 0, 0.6, 0, AMBER, 7, 1.4 * f);
+            if (Math.floor(T * 3.2) % 2 === 0) { this.box(x + v.sig * 0.98, 0.84, z + 2.52, 0.2, 0.14, 0.06, AMBER, 1, f, 1.2); this.sprite(x + v.sig * 0.98, 0.84, z + 2.6, far, AMBER, 0.6 * f); }
+            this.glow(x + v.sig * 2.6, 2.4, z, v.sig * 1.6, 0, 0, 0, 0.6, 0, AMBER, 7, 1.2 * f);
           }
         } else if (v.type === T_VAN) {
-          this.veh.add('van', x, 0, z, 0, 1.06, PAINT[(id * 3 + 2) % PAINT.length], f);
-          for (const sx of [-1, 1]) this.sprite(x + sx, 1.35, z + 2.9, 1.0 + v.dz * 0.01, RED, 0.4 * f);
+          const col = PAINT[(id * 3 + 2) % PAINT.length];
+          this.veh.add('van', x, 0, z, 0, 1.06, col, f);
+          for (const sx of [-1, 1]) this.sprite(x + sx * 1.02, 1.36, z + 2.86, far * 0.8, TAIL, 0.26 * f);
+          this.glow(x, 0.03, z, 1.45, 0, 0, 0, 0, 3.2, col, 2, 0.3 * f); this.glow(x, 0.03, z - 5, 1.3, 0, 0, 0, 0, 2.2, LAMP, 2, 0.16 * f);
         } else if (v.type === T_TRUCK) {
           const c = id % 2 ? edge : edge2, zt = z + 1.7;                              // a 9-long trailer behind a 3.2 cab
           this.veh.add('cab', x, 0, z - 4.6, 0, 1.0, PAINT[(id * 5 + 1) % PAINT.length], f);
           this.box(x, 2.3, zt, 2.8, 3.5, 9.0, c, 0, f, 1, 1);
           this.box(x, 0.5, zt + 4.45, 2.6, 0.14, 0.12, [0.5, 0.5, 0.6], 3, f);                    // under-run bar
-          for (const sx of [-1.15, 1.15]) { this.box(x + sx, 1.5, zt + 4.52, 0.18, 0.9, 0.05, RED, 1, f); this.box(x + sx * 0.96, 0.5, zt + 3.0, 0.45, 1.0, 2.6, DARK, 3, f); }
-          for (const sx of [-1.0, 0, 1.0]) this.box(x + sx, 4.0, zt + 4.52, 0.2, 0.08, 0.05, AMBER, 1, f);
-          this.box(x, 0.62, zt + 4.52, 2.2, 0.07, 0.04, RED, 1, f, 0.5);
-          this.sprite(x, 1.5, zt + 4.7, 2.2 + v.dz * 0.014, RED, 0.45 * f);
+          for (const sx of [-1.15, 1.15]) { this.box(x + sx, 1.5, zt + 4.52, 0.18, 0.9, 0.05, RED, 1, f, 0.8); this.box(x + sx * 0.96, 0.5, zt + 3.0, 0.45, 1.0, 2.6, DARK, 3, f); }
+          for (const sx of [-1.0, 0, 1.0]) this.box(x + sx, 4.0, zt + 4.52, 0.2, 0.08, 0.05, AMBER, 1, f, 0.7);
+          this.sprite(x, 1.5, zt + 4.7, far * 1.5, TAIL, 0.3 * f);
+          this.glow(x, 0.03, z, 1.7, 0, 0, 0, 0, 6.6, c, 2, 0.22 * f);
         } else if (v.type === T_BLOCK) {                                                // roadblock: a cruiser across the lane behind a hard-light barrier
           const ph = Math.floor(T * 4 + x) % 2 === 0, c = ph ? [1.0, 0.12, 0.2] : [0.2, 0.4, 1.0];
           this.cruiser(x, z - 0.4, x >= 0 ? 0.95 : -0.95, f, T, x);
@@ -386,31 +391,52 @@ export class GameView {
           pz = cz - (pol.dz + (7.5 - pol.dz) * k); px = pol.x + (s.car.x - pol.x) * k + side * 3.4 * Math.sin(Math.PI * k) * (1 - 0.4 * k); yaw = side * -1.2 * k * k;
         }
         if (pz < 4) this.cruiser(px, pz, yaw, 1, T);
-        if (G.ram) {                                                         // ramming run: chevrons race up the lane from behind, a warning sign on our tail
+        const gr = G.grap;
+        if (gr && gr.k > 0.01 && pz < 6) {                                   // the grappler: a yellow fork folds out ahead of the bumper, a net across its mouth
+          const k = gr.k, zn = pz - 2.56, tip = zn - 1.75 * k, w0 = 0.34, w1 = 0.34 + 0.64 * k;
+          for (const sx of [-1, 1]) {
+            const ax = px + sx * w0, bx = px + sx * w1, len = Math.hypot(bx - ax, tip - zn);
+            this.box((ax + bx) / 2, 0.37 - 0.04 * k, (zn + tip) / 2, 0.1, 0.1, len, GRAP, 1, 1, 0.6, 0, Math.atan2(bx - ax, tip - zn));
+          }
+          this.box(px, 0.4, zn + 0.05, 0.9, 0.16, 0.14, GRAP, 1, 1, 0.45);                      // the mount on the push bar
+          this.box(px, 0.33, tip, w1 * 2 + 0.1, 0.07, 0.07, GRAP, 1, 1, 0.75);                  // the strap across the mouth …
+          this.glow(px, 0.31, tip + 0.03, w1, 0, 0, 0, 0.24, 0, NET, 1, 1.2 * k, 0.4);          // … and the net hanging from it
+          if (gr.hook) {                                                      // it has our rear wheel: webbing round the tyre, sparks
+            const wx = s.car.x - 0.8, wz = cz + 1.55, fl = 0.5 + 0.5 * hash1(Math.floor(T * 40));
+            this.glow(wx, 0.36, wz, 0.5, 0, 0, 0, 0.4, 0, NET, 1, 2.0, 0.7); this.sprite(wx, 0.2, wz + 0.3, 0.9, [1, 0.8, 0.35], 1.6 * fl);
+            this.box((px + wx) / 2, 0.34, (tip + wz) / 2, 0.05, 0.05, Math.hypot(wx - px, wz - tip), NET, 1, 1, 0.9, 0, Math.atan2(wx - px, wz - tip));
+          }
+        }
+        if (G.ram) {                                                         // the warning: chevrons race up the lane from behind, a sign ahead of us
           const x = G.ram.lane * L, k = G.ram.k, c = [1.0, 0.14, 0.16], blink = Math.floor(T * 8) % 2 ? 1 : 0.45;
           this.glow(x, 0.05, cz + 1, 0, 0, -8, 1.9, 0, 0, c, 7, 1.3 + 1.5 * k);
-          this.glow(x, 2.3, cz - 5, 1.0, 0, 0, 0, 1.0, 0, c, 5, 2.8 * blink);
-          if (pz < 4) for (const sx of [-0.7, 0.7]) this.sprite(px + sx, 0.72, pz - 2.62, 1.2, [1, 0.95, 0.85], 0.8 + 0.8 * k);                    // its headlights on full beam
+          this.glow(x, 2.3, cz - 5, 1.0, 0, 0, 0, 1.0, 0, c, 5, 2.4 * blink);
+          if (pz < 4) for (const sx of [-0.7, 0.7]) this.sprite(px + sx, 0.72, pz - 2.62, 1.0, LAMP, 0.5 + 0.5 * k);                    // its headlights on full beam
         }
       }
-      if (G.drone) {                                                         // drone: a target on the lane, then the strike
-        const d = G.drone, x = d.lane * L, c = d.strike ? [1.0, 0.1, 0.12] : [1.0, 0.72, 0.15], k = d.strike ? 1.6 : 0.6 + 0.3 * Math.sin(T * 14);
-        this.glow(x, 0.05, cz - 4, 2.2, 0, 0, 0, 0, 9, c, 6, k);
-        this.box(x, 10.5, cz - 6, 1.4, 0.3, 1.4, c, 0); this.box(x, 10.3, cz - 6, 0.5, 0.12, 0.5, c, 1, 1, 3);
-        const fl = Math.floor(T * 6) % 2;
-        this.sprite(x - 0.8, 10.6, cz - 6, 0.6, [1, 0.1, 0.15], fl ? 2 : 0.2); this.sprite(x + 0.8, 10.6, cz - 6, 0.6, [0.15, 0.3, 1], fl ? 0.2 : 2);
-        if (d.strike) { this.glow(x, 5.2, cz - 2, 1.6, 0, 0, 0, 5.2, 0, [1, 0.25, 0.25], 8, 3.2); this.sprite(x, 0.2, cz - 2, 6, [1, 0.3, 0.3], 2.2); }
-        else this.glow(x, 5.2, cz - 5, 0.35, 0, 0, 0, 5.2, 0, c, 8, 0.5);
-      }
-      if (G.heli) {                                                          // helicopter pacing us up ahead, searchlight on the road
-        const hx = Math.sin(T * 0.37) * 7 + Math.sin(T * 0.9) * 1.5, hy = 15 + Math.sin(T * 0.6) * 0.8, hz = cz - 46, H = [0.3, 0.32, 0.45];
-        this.box(hx, hy, hz, 2.3, 1.7, 4.6, H, 3); this.box(hx, hy + 0.2, hz + 4.4, 0.5, 0.5, 4.4, H, 3); this.box(hx, hy + 1.0, hz + 6.4, 0.2, 1.6, 0.8, H, 3);
-        for (const sx of [-1, 1]) this.box(hx + sx * 1.0, hy - 1.25, hz, 0.14, 0.14, 3.6, H, 3);
-        this.glow(hx, hy + 1.1, hz, 5.2, 0, 0, 0, 0, 5.2, [0.8, 0.85, 1.0], 3, 0.5);
-        this.sprite(hx - 1.2, hy, hz + 2, 0.7, [1, 0.1, 0.15], Math.floor(T * 3) % 2 ? 2.4 : 0.3); this.sprite(hx + 1.2, hy, hz + 2, 0.7, [0.2, 1, 0.3], 1.6); this.sprite(hx, hy + 1.2, hz + 6.4, 0.6, [1, 1, 1], Math.floor(T * 2.3) % 2 ? 2.2 : 0);
-        const lx = Math.sin(T * 0.8) * L * 1.2, lz = cz - 30;
-        this.glow((hx + lx) / 2, hy / 2, (hz + lz) / 2, 1.4, 0, 0, (lx - hx) / 2, -hy / 2, (lz - hz) / 2, [0.9, 0.95, 1.0], 8, 0.32);
-        this.sprite(lx, 0.06, lz, 5.5, [0.9, 0.95, 1.0], 0.5);
+      const h = G.heli;
+      if (h) {                                                               // the helicopter, ahead and above; its searchlight sweeps, locks our lane, then it fires down the beam
+        const hx = h.x, hy = 12.6 + Math.sin(T * 0.6) * 0.5, hz = cz - 34, B = [0.2, 0.22, 0.36], E = [0.3, 0.55, 1.0];
+        this.box(hx, hy, hz, 2.0, 1.7, 3.6, E, 0); this.box(hx, hy - 0.15, hz - 2.3, 1.5, 1.2, 1.3, B, 3); this.box(hx, hy + 0.1, hz - 2.2, 1.3, 0.5, 1.2, [0.2, 0.5, 0.7], 1, 1, 0.35);   // cabin, nose, canopy
+        this.box(hx, hy + 0.25, hz + 3.6, 0.45, 0.45, 3.8, B, 3); this.box(hx, hy + 0.95, hz + 5.6, 0.14, 1.5, 0.7, B, 3); this.box(hx, hy + 1.05, hz, 0.2, 0.4, 0.2, B, 3);              // boom, fin, mast
+        for (const sx of [-1, 1]) { this.box(hx + sx * 0.95, hy - 1.32, hz - 0.2, 0.12, 0.12, 3.4, B, 3); for (const dz of [-1.1, 0.9]) this.box(hx + sx * 0.88, hy - 1.05, hz + dz, 0.08, 0.5, 0.08, B, 3); }
+        this.glow(hx, hy + 1.3, hz, 4.8, 0, 0, 0, 0, 4.8, [0.8, 0.85, 1.0], 3, 0.55); this.glow(hx + 0.12, hy + 1.0, hz + 5.7, 0, 0, 0.75, 0, 0.75, 0, [0.8, 0.85, 1.0], 3, 0.4);
+        this.sprite(hx - 1.05, hy, hz + 1.5, 0.6, [1, 0.1, 0.15], Math.floor(T * 3) % 2 ? 1.8 : 0.3); this.sprite(hx + 1.05, hy, hz + 1.5, 0.6, [0.2, 1, 0.3], 1.2); this.sprite(hx, hy + 1.7, hz + 5.6, 0.5, [1, 1, 1], Math.floor(T * 2.3) % 2 ? 1.6 : 0);
+        const sk = h.sk, fire = h.strike >= 0, hot = sk > 0.5 && (fire || Math.floor(T * (4 + 8 * h.warn)) % 2 === 0);
+        const c = fire ? [1.0, 0.16, 0.14] : sk > 0.5 ? (hot ? [1.0, 0.3, 0.12] : [1.0, 0.75, 0.2]) : [0.9, 0.95, 1.0];
+        const lx = hx, ly = hy - 1.0, lz = hz - 1.4, sx = h.sx, sz = cz - (15 - 14 * sk), wd = 1.3 + 0.9 * sk;
+        this.glow((lx + sx) / 2, ly / 2, (lz + sz) / 2, wd, 0, 0, (sx - lx) / 2, -ly / 2, (sz - lz) / 2, c, 8, 0.3 + 0.35 * sk);     // the beam
+        this.glow(sx, 0.05, sz, 3.0 + sk, 0, 0, 0, 0, 4.6 + 1.5 * sk, c, 0, 0.55 + 0.5 * sk); this.sprite(lx, ly, lz, 1.1, c, 1.6);   // its pool on the road, the lamp
+        if (sk > 0.3) this.glow(h.lane * L, 0.06, cz - 2, 2.25, 0, 0, 0, 0, 7.5, c, 6, (fire ? 1.6 : 0.7 + 0.5 * h.warn) * sk);        // the lock: a target on the lane
+        if (fire) {                                                          // tracer fire walks down the lane
+          const gx = hx, gy = hy - 0.7, gz = hz - 2.6;
+          for (let i = 0; i < 5; i++) {
+            const ph = (h.strike * 1.5 + i / 5) % 1, ix = h.lane * L + (hash1(i * 7 + Math.floor(T * 30)) - 0.5) * 1.6, iz = cz - 15 + 22 * ph;
+            if (Math.floor(T * 30 + i) % 2) this.glow((gx + ix) / 2, gy / 2, (gz + iz) / 2, 0.14, 0, 0, (ix - gx) / 2, -gy / 2, (iz - gz) / 2, [1, 0.85, 0.45], 8, 2.6);
+            this.sprite(ix, 0.3, iz, 1.3, [1, 0.6, 0.25], 1.8); this.glow(ix, 0.05, iz, 1.6, 0, 0, 0, 0, 1.6, [1, 0.4, 0.2], 0, 1.2);
+          }
+          this.sprite(gx, gy, gz, 1.4, [1, 0.8, 0.4], Math.floor(T * 30) % 2 ? 2.4 : 0.6);
+        }
       }
       // ── debris: smashed vehicles and the wrecked car shatter into shards of light ──
       for (const b of G.bursts) {

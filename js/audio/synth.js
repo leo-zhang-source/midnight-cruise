@@ -503,6 +503,7 @@ export class Synth {
     this.p = { bassCut: 600, bassDrive: 1.3, padCut: 2000, padMul: 1, arpCut: 3600, kickMul: 1, hatMul: 1 };
     // ambience
     this.sirG = 0; this.sirP = 0; this.sirW = 0;   // police siren: level, oscillator phase, wail phase
+    this.heliG = 0; this.heliP = 0; this.heliF = new SVF(); this.heliR = new RNG(91);   // helicopter rotor: level, blade phase, noise
     this.eng = [new Saw(0), new Saw(0.5)]; this.engLp = new SVF(); this.windL = new SVF(); this.windR = new SVF(); this.wr = [new RNG(77), new RNG(78)];
     this.levels = { music: 0, peak: 0 };
     this.smp = {};
@@ -569,6 +570,8 @@ export class Synth {
       case 'siren': v = new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4); this.voices.push(new Blip(s, o, 1040, 780, 0.16, 0.05, 0.4, 0.26), new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4, 0.52), new Blip(s, o, 1040, 780, 0.2, 0.05, 0.4, 0.78)); break;
       case 'lock': v = new Blip(s, o, 1900, 1890, 0.05, 0.05); this.voices.push(new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.14), new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.28)); break;
       case 'zap': v = new Blip(s, o, 2600, 180, 0.12, 0.1); this.voices.push(new Click(s, o, 0.8)); break;
+      case 'burst': v = new Blip(s, o, 520, 150, 0.04, 0.13); for (let k = 1; k < 6; k++) this.voices.push(new Blip(s, o, 520 - k * 14, 150, 0.04, 0.12, (k % 2 ? 0.25 : -0.25), k * 0.075)); break;   // the helicopter opens fire
+      case 'hook': v = new Click(s, o, 1.2, 1); this.voices.push(new Blip(s, o, 1250, 420, 0.07, 0.1), new Blip(s, o, 210, 70, 0.3, 0.13, 0, 0.05)); break;                                                // the grappler net bites
       case 'ffwd': v = new Squeal(s, o, n.d ?? 0.4, true); break;
       default: return;
     }
@@ -699,6 +702,20 @@ export class Synth {
           this.sirP += (640 + 520 * wail * wail * (3 - 2 * wail)) / SR; if (this.sirP >= 1) this.sirP -= 1;
           const a = this.sirP * TAU, y = (Math.sin(a) + 0.35 * Math.sin(2 * a) + 0.12 * Math.sin(3 * a)) * this.sirG;
           B.sfxL[i] += y * 0.8; B.sfxR[i] += y;
+        }
+      }
+    }
+    // the helicopter at three stars: rotor chop (noise through a low filter, pulsed at the blade rate)
+    {
+      const st = this._st, g = st.g, on = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.star >= 3;
+      const tgt = on ? 0.05 + 0.03 * g.sk : 0;
+      if (tgt > 0 || this.heliG > 1e-5) {
+        const kA = 1 - exp(-1 / (0.6 * SR)); this.heliF.set(190, 0.8);
+        for (let i = 0; i < N; i++) {
+          this.heliG += (tgt - this.heliG) * kA;
+          this.heliP += 11.5 / SR; if (this.heliP >= 1) this.heliP -= 1;
+          const env = Math.pow(0.5 + 0.5 * Math.cos(this.heliP * TAU), 4), y = this.heliF.lp(this.heliR.next()) * (0.25 + env) * this.heliG;
+          B.sfxL[i] += y; B.sfxR[i] += y * 0.85;
         }
       }
     }

@@ -19,6 +19,37 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 19: grappler, helicopter fire, readable cars
+
+Four points after playing Revision 18.
+
+- **The air attack is the helicopter's now.** The drone is gone. At three stars the helicopter hangs ahead of you and its searchlight sweeps the road. Every 6 s the light swings onto your lane and locks: the beam and its pool turn amber, then flash red, and a target marks the lane. 1.2 s after the lock the helicopter fires down the beam and tracer rounds walk along that lane for 0.45 s. The timings are the drone's; only who does it and how it looks changed. A rotor chop joins the siren at three stars.
+- **The cruiser uses a grappler instead of ramming.** I took "the towing tool police really use" to mean the grappler bumper: a fork that folds out ahead of the push bar with a net across its mouth, which snags a rear wheel and tethers the car. During the 1.1 s warning the cruiser lines up behind you and the yellow fork unfolds. Then it lunges. If you are still in its lane, the net takes your rear wheel: the cruiser hangs on for a second, you lose 30 % of your speed and the tail snakes, then the strap lets go. That is a stumble, as the ram was. If you changed lane, it shoots past and drops back.
+- **Cars are easier to see, and their lights are calm.**
+  - What flickered: far vehicles faded in through a noise dither that changed 30 times a second, and thin tail-light bars shimmered at a distance under bloom. Vehicles now come out of the haze by colour, with no dither anywhere, and a tail lamp far away is one small steady glow.
+  - Tail lamps are about half as bright. The lamp glows no longer swell with distance until they hide the car.
+  - Paint is brighter, bodies get a rim of horizon light, and each car throws a faint pool of its own colour on the road, plus a headlamp pool ahead.
+- **The car models are rebuilt** (`js/vehicles.js`). Looking at them on a turntable (`tools/vehicle-preview.html`) showed real faults:
+  - the end faces were wound the wrong way round, so the tail and nose were see-through;
+  - the van's and the truck cab's upper halves were one black "glasshouse" open at the back;
+  - no car had head lamps, a grille or visible wheels.
+
+  Each body is now a single closed shell whose faces are panels: side windows with pillars, windscreen, rear window, painted roof. Added: head lamps, bumpers, grille, door mirrors, wheel hubs. The van is a panel van with cab windows and two rear doors. The police cruiser is black and white. The taxi has a chequered stripe.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 42/42 (new: hooked → the cruiser hangs on, then lets go) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 39/39, 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak | 16 seeds × 300 s: no stumble (4–9 grappler runs and 5–13 helicopter strikes dodged per run). With nitro: 3 of 16 crash after 220 s or more, as before |
+
+**Limits**
+
+- The grappler reading of "towing tool" is my guess. If you meant something else (a tow truck, a harpoon and cable, spike strips), the mechanic underneath stays the same and only the look changes.
+- The helicopter is still built from boxes and is small on screen.
+- Your own car was not touched. If the modelling remark was about it, I need to know what looks wrong.
+
 ## Revision 18: a police chase on a highway into the city
 
 Your eleven points after playing the first version, and what changed for each.

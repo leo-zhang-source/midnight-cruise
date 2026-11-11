@@ -57,7 +57,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 - Driving into the back of a vehicle or a roadblock **wrecks** the car. The run is over.
 - Changing lane into a vehicle that is alongside is a **sideswipe**: the car bounces back, the combo resets, you gain a star, and the police close in.
-- A **stumble** (a sideswipe, being rammed, a drone hit) puts the pursuit car on your tail for 6 s. The camera pulls back so you see it, and a timer bar counts down under the stars. A second stumble while it is there and you are **busted**.
+- A **stumble** (a sideswipe, being hooked by the grappler, being hit by the helicopter) puts the pursuit car on your tail for 6 s. The camera pulls back so you see it, and a timer bar counts down under the stars. A second stumble while it is there and you are **busted**.
 - Holding the brake for more than about 2 s also brings the pursuit car onto your tail.
 
 **After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability. **HOME** goes back to the home screen. A new run always starts from the home screen.
@@ -67,8 +67,8 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 | Stars | You get there by | What the police do |
 |---|---|---|
 | ★ | every run starts here | One cruiser follows you. |
-| ★★ | a sideswipe (+1 star), three vehicles smashed with nitro (+⅓ each), or 3.5 km driven | Roadblocks appear. The cruiser makes ramming runs: chevrons race up your lane from behind for 1.1 s, then it charges. Change lane. If it hits, it shoves you and you lose speed for a second. |
-| ★★★ | more of the same, or 8 km driven | A helicopter paces you with its searchlight. A drone locks the lane you are in (amber target), and 1.2 s later it strikes that lane. More roadblocks. |
+| ★★ | a sideswipe (+1 star), three vehicles smashed with nitro (+⅓ each), or 3.5 km driven | Roadblocks appear. The cruiser comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second and you lose speed. |
+| ★★★ | more of the same, or 8 km driven | A helicopter hangs ahead of you, sweeping the road with its searchlight. Every 6 s the light locks the lane you are in (the beam turns amber, then red, with a target on the lane), and 1.2 s later it fires down that lane. More roadblocks. |
 
 Heat cools by one star every 12 s once 10 s pass without an incident, but never below the level your distance has earned.
 
@@ -82,7 +82,7 @@ Heat cools by one star every 12 s once 10 s pass without an incident, but never 
 
 **The road.** One highway into the city for the whole run: megastructure towers on the horizon, a sign gantry over the road every 2,400 units, and a big billboard every 1,600. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 2,900 road units, whichever comes first.
 
-**Fairness.** All traffic moves at one speed, so a row that had an open lane when it appeared keeps it, and every row leaves a lane open within one lane of the previous opening. A ramming run or a drone lock only starts when a neighbouring lane is clear. `tools/bot.mjs` drives 16 different seeds for 5 minutes each without a single stumble (4–9 ramming runs and 5–13 drone strikes dodged per run). With nitro the same bot crashes in 3 of 16 runs, after 220 s or more: coming out of a burst into dense gear-6 traffic is the risk you take for the points.
+**Fairness.** All traffic moves at one speed, so a row that had an open lane when it appeared keeps it, and every row leaves a lane open within one lane of the previous opening. A grappler run or a searchlight lock only starts when a neighbouring lane is clear. `tools/bot.mjs` drives 16 different seeds for 5 minutes each without a single stumble (4–9 grappler runs and 5–13 helicopter strikes dodged per run). With nitro the same bot crashes in 3 of 16 runs, after 220 s or more: coming out of a burst into dense gear-6 traffic is the risk you take for the points.
 
 **Pause.** `P` pauses the run like a VCR: the game clock stops and the music carries on, muffled. The run also pauses by itself when the tab is hidden or the window loses focus, and stays paused until you resume.
 
@@ -133,7 +133,7 @@ node tools/interact.mjs          # end-to-end input test in free mode (mouse, ke
 ```
 
 ```bash
-node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, ram, drone, nitro stock, stars, pause
+node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, grappler, helicopter, nitro stock, stars, pause
 ```
 
 ```bash
@@ -145,8 +145,10 @@ node tools/bot.mjs               # fairness soak: a look-ahead bot drives severa
 ```
 
 ```bash
-node tools/scenes.mjs renders/scenes 1280x720   # stills of the moments worth checking: ram warning, drone, roadblock, rewind, menus …
+node tools/scenes.mjs renders/scenes 1280x720   # stills of the moments worth checking: grappler run, searchlight lock, roadblock, rewind, menus …
 ```
+
+Open `http://localhost:8086/tools/vehicle-preview.html` to see the traffic and police bodies on a turntable.
 
 ```bash
 node tools/touch.mjs             # emulated-touch test at 390×844
@@ -189,9 +191,9 @@ index.html            semantic shell, controls, cassette deck, VCR OSD
 css/style.css         UI styling (no CSS transitions drive animation)
 js/cue.js             THE cue sheet: timecodes, harmony, patterns — read by picture and sound
 js/timeline.js        event log + 240 Hz fixed-step simulation (speed, brake, lanes, runs, home / restart, rewind)
-js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car, drone
-js/gameview.js        game layer and highway scenery: traffic, police, roadblock, drone, helicopter, pickups, debris, city, gantries, billboards
-js/vehicles.js        instanced car / van / truck-cab bodies lofted from cross-sections
+js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car and its grappler, the helicopter
+js/gameview.js        game layer and highway scenery: traffic, police, grappler, roadblock, helicopter, pickups, debris, city, gantries, billboards
+js/vehicles.js        instanced car / van / truck-cab bodies: one lofted shell each, with panels, lamps and liveries
 js/director.js        pure choreography: (T, events, viewport) → frame description
 js/world.js           sky/sun, grid, wireframe mountains, palms, light trails (GLSL)
 js/title.js           extruded chamfered logotype + chrome material, 1986 plate

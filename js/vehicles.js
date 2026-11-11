@@ -1,89 +1,125 @@
-// Vehicle bodies for traffic and the police: shells lofted from cross-sections (the same method as the player's
-// car), merged with wheels, lights and a roof bar into ONE geometry per body style and drawn instanced.
-// Per instance: position, heading, scale, paint colour, fade, and the state of its lights.
+// Vehicle bodies for traffic and the police. Each body style is ONE lofted shell — rings of a cross-section from
+// the rear bumper to the nose, with the glasshouse as part of the same surface — plus wheels, lamps, mirrors and a
+// roof bar, merged into one geometry and drawn instanced.
+// Every face carries a part id (paint, glass, lamp …), so windows, pillars and the roof are real panels of the body.
+// Per instance: position, heading, scale, paint colour, fade, livery, and the state of its lights.
 import * as THREE from '../vendor/three.module.min.js';
 
-const lerp = (a, b, t) => a + (b - a) * t;
+const lerp = (a, b, t) => a + (b - a) * t, sat = (x) => Math.max(0, Math.min(1, x));
 const pl = (keys, x) => { if (x <= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (x <= keys[i][0]) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; return va + (vb - va) * (x - a) / (b - a); } return keys[keys.length - 1][1]; };
+const inAny = (ranges, x) => ranges.some(([a, b]) => x >= a && x <= b);
 
-// Body styles. s runs from the rear bumper (0) to the nose (L). top/bot: body outline, hw: half width,
-// cab: [s0, s1] and roof: glasshouse height along s (0 = meets the body).
+// parts: 0 paint · 1 glass · 2 tail lamp · 3 dark trim, tyres · 4, 5 roof bar left / right · 6 head lamp · 7 wheel hub
+// s runs from the rear bumper (0) to the nose (L).
+//  hw(s)   half width
+//  belt    beltline height along s (the top of the doors, bonnet and boot)
+//  roof    height of the glasshouse above the beltline along s (0 = none)
+//  inset   how far the roof edge leans in from the beltline (tumblehome)
+//  side    s ranges of the side windows · screen: s ranges where the sloping roof is glass (windscreen, rear window)
 const STYLES = {
-  car: {   // a low four-door: the size of the player's car, a touch taller
-    L: 4.7, hw: (s) => 1.0 - 0.07 * Math.max(0, (s - 4.0) / 0.7) ** 1.5 - 0.04 * Math.max(0, (0.2 - s) / 0.2),
-    top: [[0, 0.78], [0.08, 0.9], [1.0, 0.93], [3.1, 0.9], [4.1, 0.76], [4.6, 0.6], [4.7, 0.46]], bot: 0.24,
-    cab: [0.75, 3.35], roof: [[0.75, 0], [1.45, 0.44], [2.55, 0.46], [3.35, 0]], inset: 0.16, tail: 'bar',
+  car: {   // a four-door saloon: the size of the player's car, a touch taller
+    L: 4.7, bot: 0.25, inset: 0.2, wheel: [0.34, [0.86, 3.72]],
+    hw: (s) => 1.0 - 0.08 * Math.max(0, (s - 4.05) / 0.65) ** 1.6 - 0.05 * Math.max(0, (0.25 - s) / 0.25) ** 1.4,
+    belt: [[0, 0.8], [0.1, 0.9], [1.0, 0.92], [3.2, 0.89], [4.2, 0.8], [4.62, 0.7], [4.7, 0.62]],
+    roof: [[0.72, 0], [1.42, 0.45], [2.5, 0.47], [3.28, 0]],
+    side: [[1.14, 1.93], [2.03, 2.9]], screen: [[0.72, 1.42], [2.5, 3.28]], tail: 'bar', mirror: 2.95,
   },
-  van: {   // a tall box van
-    L: 5.3, hw: (s) => 1.1 - 0.06 * Math.max(0, (s - 4.6) / 0.7) ** 1.5,
-    top: [[0, 1.0], [0.06, 1.12], [4.2, 1.12], [4.7, 1.0], [5.2, 0.86], [5.3, 0.6]], bot: 0.28,
-    cab: [0.04, 4.45], roof: [[0.04, 0.82], [0.2, 0.93], [3.5, 0.93], [4.45, 0]], inset: 0.06, tail: 'posts',
+  van: {   // a tall panel van: windows for the cab only
+    L: 5.3, bot: 0.28, inset: 0.07, wheel: [0.36, [0.95, 4.2]],
+    hw: (s) => 1.1 - 0.07 * Math.max(0, (s - 4.6) / 0.7) ** 1.5 - 0.03 * Math.max(0, (0.15 - s) / 0.15),
+    belt: [[0, 1.08], [0.08, 1.15], [4.3, 1.15], [4.8, 1.06], [5.2, 0.96], [5.3, 0.84]],
+    roof: [[0, 0.82], [0.14, 0.9], [3.85, 0.9], [4.52, 0]],
+    side: [[3.1, 3.82]], screen: [[3.85, 4.52]], tail: 'posts', mirror: 3.9, doors: true,
   },
-  cab: {   // truck tractor (the trailer is drawn separately)
-    L: 3.2, hw: (s) => 1.3 - 0.08 * Math.max(0, (s - 2.5) / 0.7) ** 1.5,
-    top: [[0, 1.5], [2.3, 1.5], [2.9, 1.35], [3.2, 0.9]], bot: 0.45,
-    cab: [0.1, 2.75], roof: [[0.1, 1.5], [0.3, 1.62], [1.9, 1.62], [2.75, 0]], inset: 0.05, tail: 'none',
+  cab: {   // a cab-over truck tractor (the trailer is drawn separately)
+    L: 3.2, bot: 0.5, inset: 0.05, wheel: [0.5, [0.7, 2.5]],
+    hw: (s) => 1.3 - 0.05 * Math.max(0, (s - 2.8) / 0.4) ** 1.5,
+    belt: [[0, 1.8], [2.9, 1.8], [3.2, 1.7]],
+    roof: [[0, 1.3], [2.62, 1.3], [3.14, 0.02]],
+    side: [[1.9, 2.56]], screen: [[2.62, 3.14]], tail: 'none', mirror: 2.6, grille: true,
   },
 };
 
 function shell(st) {
-  const { L } = st, zOf = (s) => L / 2 - s, pos = [], part = [];
-  const topY = (s) => pl(st.top, s);
-  const quad = (a, b, c, d, p) => { for (const v of [a, c, b, b, c, d]) { pos.push(...v); part.push(p); } };
-  // body: closed rings
+  const { L } = st, zOf = (s) => L / 2 - s, pos = [], nor = [], part = [];
+  // stations: an even grid plus every key of the outline, so panel edges fall on rings
+  const stations = [];
+  for (let i = 0; i <= 24; i++) stations.push(L * i / 24);
+  for (const k of [...st.belt, ...st.roof]) stations.push(k[0]);
+  for (const r of [...st.side, ...st.screen]) stations.push(r[0], r[1]);
+  stations.sort((a, b) => a - b);
+  const S = stations.filter((s, i) => s >= 0 && s <= L && (i === 0 || s - stations[i - 1] > 0.035));
+  const roofH = (s) => (s < st.roof[0][0] || s > st.roof[st.roof.length - 1][0] ? 0 : pl(st.roof, s));
+  // the cross-section at s, as a closed loop: bottom centre → right side → top centre → left side
+  const HALF = 7;
   const ring = (s) => {
-    const hw = st.hw(s), t = topY(s), b = st.bot, r = [];
-    const half = [[hw - 0.14, b], [hw - 0.02, b + 0.07], [hw, b + 0.2], [hw, lerp(b, t, 0.62)], [hw - 0.06, t - 0.05], [hw - 0.2, t], [hw * 0.45, t + 0.012]];
-    r.push([0, b]); for (const p of half) r.push(p); r.push([0, t + 0.018]);
-    for (let i = half.length - 1; i >= 0; i--) r.push([-half[i][0], half[i][1]]);
-    return r.map(([x, y]) => [x, y, zOf(s)]);
+    const hw = st.hw(s), b = st.bot, belt = pl(st.belt, s), h = roofH(s), k = sat(h / 0.18);
+    const half = [
+      [hw - 0.16, b], [hw - 0.02, b + 0.08], [hw, b + 0.22], [hw, belt - 0.07], [hw - 0.06, belt],
+      [hw - 0.06 - st.inset * k, belt + h * 0.84], [hw - 0.06 - (st.inset + 0.15) * k, belt + h],
+    ];
+    const r = [[0, b], ...half, [0, belt + h + 0.02 * (1 + k)]];
+    for (let i = HALF - 1; i >= 0; i--) r.push([-half[i][0], half[i][1]]);
+    return r.map(([x, y]) => new THREE.Vector3(x, y, zOf(s)));
   };
-  const n = 26; let prev = ring(0);
-  for (let i = 1; i <= n; i++) {
-    const cur = ring(L * i / n), m = cur.length;
-    for (let j = 0; j < m; j++) quad(prev[j], prev[(j + 1) % m], cur[j], cur[(j + 1) % m], 0);
-    prev = cur;
+  const rings = S.map(ring), M = rings[0].length;
+  // smooth normals on the ring grid (face normals summed at each grid point)
+  const N = rings.map((r) => r.map(() => new THREE.Vector3()));
+  const fn = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let i = 0; i < rings.length - 1; i++) for (let j = 0; j < M; j++) {
+    const j1 = (j + 1) % M, a = rings[i][j], b = rings[i][j1], c = rings[i + 1][j], d = rings[i + 1][j1];
+    fn.copy(e1.subVectors(c, a).cross(e2.subVectors(b, a))).add(e1.subVectors(b, d).cross(e2.subVectors(c, d)));
+    for (const n of [N[i][j], N[i][j1], N[i + 1][j], N[i + 1][j1]]) n.add(fn);
   }
-  for (const [s, flip] of [[0, true], [L, false]]) {            // end caps
-    const r = ring(s), m = r.length, c = [0, (st.bot + topY(s)) / 2, zOf(s)];
-    for (let j = 0; j < m; j++) { const a = r[j], b = r[(j + 1) % m]; for (const v of flip ? [c, b, a] : [c, a, b]) { pos.push(...v); part.push(0); } }
-  }
-  // glasshouse: open arcs, glass on the ends and sides, painted roof
-  const [c0, c1] = st.cab;
-  const arc = (s) => {
-    const base = topY(s) - 0.01, r = Math.max(base + 0.004, base + pl(st.roof, s)), hb = st.hw(s) - st.inset, hr = hb - 0.16;
-    const half = [[hb, base], [hb - 0.04, lerp(base, r, 0.6)], [hr, r - 0.03], [hr - 0.14, r]];
-    const a = half.slice(); a.push([0, r + 0.01]); for (let i = half.length - 1; i >= 0; i--) a.push([-half[i][0], half[i][1]]);
-    return a.map(([x, y]) => [x, y, zOf(s)]);
+  for (const r of N) for (const n of r) n.normalize();
+  // which panel is strip k (0 underside … 4 shoulder, 5 glasshouse side, 6 roof edge, 7 roof) between two rings?
+  const panel = (k, s) => {
+    if (k === 0) return 3;
+    const glass = roofH(s) > 0.16;
+    if (k === 5) return glass && inAny(st.side, s) ? 1 : 0;
+    if (k >= 6) return roofH(s) > 0.05 && inAny(st.screen, s) ? 1 : 0;
+    return 0;
   };
-  const nc = 18; prev = arc(c0);
-  for (let i = 1; i <= nc; i++) {
-    const s = lerp(c0, c1, i / nc), cur = arc(s), m = cur.length, flat = Math.abs(pl(st.roof, s) - pl(st.roof, lerp(c0, c1, (i - 1) / nc))) < 0.012;
-    for (let j = 0; j < m - 1; j++) quad(prev[j], prev[j + 1], cur[j], cur[j + 1], flat && j >= 2 && j <= m - 4 ? 0 : 1);
-    prev = cur;
+  for (let i = 0; i < rings.length - 1; i++) for (let j = 0; j < M; j++) {
+    const j1 = (j + 1) % M, k = j <= HALF ? j : M - 1 - j, p = panel(k, (S[i] + S[i + 1]) / 2);
+    for (const [ri, rj] of [[i, j], [i + 1, j], [i, j1], [i, j1], [i + 1, j], [i + 1, j1]]) { const v = rings[ri][rj], n = N[ri][rj]; pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z); part.push(p); }
   }
-  const box = (x, y, z, sx, sy, sz, p) => {
-    const g = new THREE.BoxGeometry(sx, sy, sz).toNonIndexed(), a = g.getAttribute('position').array;
-    for (let i = 0; i < a.length; i += 3) { pos.push(a[i] + x, a[i + 1] + y, a[i + 2] + z); part.push(p); }
+  for (const [idx, nz] of [[0, 1], [rings.length - 1, -1]]) {                 // flat end faces
+    const r = rings[idx], c = new THREE.Vector3(0, (st.bot + r[HALF + 1].y) / 2, r[0].z);
+    for (let j = 0; j < M; j++) { const a = r[j], b = r[(j + 1) % M]; for (const v of nz > 0 ? [c, a, b] : [c, b, a]) { pos.push(v.x, v.y, v.z); nor.push(0, 0, nz); part.push(0); } }
+  }
+  const merge = (g, x, y, z, p) => {
+    const g2 = g.index ? g.toNonIndexed() : g, a = g2.getAttribute('position').array, n = g2.getAttribute('normal').array;
+    for (let i = 0; i < a.length; i += 3) { pos.push(a[i] + x, a[i + 1] + y, a[i + 2] + z); nor.push(n[i], n[i + 1], n[i + 2]); part.push(p); }
   };
-  // wheels
-  const wr = st === STYLES.cab ? 0.5 : 0.36, wy = wr, wx = st.hw(L * 0.5) - 0.13;
-  for (const s of [L * 0.19, L * 0.8]) for (const sx of [-1, 1]) {
-    const g = new THREE.CylinderGeometry(wr, wr, 0.3, 14).toNonIndexed(); g.rotateZ(Math.PI / 2);
-    const a = g.getAttribute('position').array;
-    for (let i = 0; i < a.length; i += 3) { pos.push(a[i] + sx * wx, a[i + 1] + wy, a[i + 2] + zOf(s)); part.push(3); }
+  const box = (x, y, z, sx, sy, sz, p) => merge(new THREE.BoxGeometry(sx, sy, sz), x, y, z, p);
+  // wheels: tyre and hub
+  const [wr, ws] = st.wheel;
+  for (const s of ws) for (const sx of [-1, 1]) {
+    const wx = st.hw(s) - 0.12;
+    const tyre = new THREE.CylinderGeometry(wr, wr, 0.3, 18); tyre.rotateZ(Math.PI / 2); merge(tyre, sx * wx, wr, zOf(s), 3);
+    const hub = new THREE.CylinderGeometry(wr * 0.58, wr * 0.58, 0.04, 14); hub.rotateZ(Math.PI / 2); merge(hub, sx * (wx + 0.15), wr, zOf(s), 7);
   }
-  // rear lights
-  const rz = L / 2 + 0.012, hw0 = st.hw(0.05), ty = topY(0.3);
-  if (st.tail === 'bar') { box(0, ty - 0.2, rz, hw0 * 1.72, 0.1, 0.04, 2); box(0, st.bot + 0.12, rz - 0.02, hw0 * 1.8, 0.08, 0.06, 3); }
-  else if (st.tail === 'posts') { for (const sx of [-1, 1]) box(sx * (hw0 - 0.1), 1.25, rz, 0.14, 0.75, 0.04, 2); box(0, st.bot + 0.14, rz - 0.02, hw0 * 1.85, 0.1, 0.06, 3); }
+  const rz = L / 2, fz = -L / 2, hw0 = st.hw(0.05), hwL = st.hw(L), beltR = pl(st.belt, 0), beltF = pl(st.belt, L);
+  // rear: lamps, bumper, number plate recess
+  if (st.tail === 'bar') { box(0, beltR - 0.14, rz + 0.012, hw0 * 1.78, 0.1, 0.04, 2); box(0, st.bot + 0.11, rz + 0.01, hw0 * 1.86, 0.16, 0.08, 3); box(0, beltR - 0.36, rz + 0.008, 0.52, 0.14, 0.03, 3); }
+  else if (st.tail === 'posts') { for (const sx of [-1, 1]) box(sx * (hw0 - 0.1), 1.28, rz + 0.012, 0.15, 0.72, 0.04, 2); box(0, st.bot + 0.13, rz + 0.01, hw0 * 1.9, 0.18, 0.08, 3); }
+  if (st.doors) { box(0, 1.12, rz + 0.006, 0.035, 1.45, 0.02, 3); for (const sx of [-1, 1]) box(sx * 0.5, 1.72, rz + 0.008, 0.72, 0.4, 0.02, 1); }   // van: two rear doors with windows
+  // front: head lamps, grille, bumper
+  const hy = st.grille ? 0.88 : lerp(st.bot, beltF, 0.68);
+  for (const sx of [-1, 1]) box(sx * (hwL - 0.3), hy, fz - 0.012, 0.4, st.grille ? 0.16 : 0.1, 0.04, 6);
+  box(0, st.bot + 0.1, fz - 0.01, hwL * 1.9, 0.16, 0.08, 3);
+  if (st.grille) { box(0, 1.22, fz - 0.008, hwL * 1.3, 0.62, 0.03, 3); for (let k = 0; k < 4; k++) box(0, 1.0 + k * 0.15, fz - 0.02, hwL * 1.24, 0.03, 0.02, 7); }
+  else box(0, hy, fz - 0.008, (hwL - 0.55) * 2, 0.09, 0.03, 3);
+  // door mirrors
+  for (const sx of [-1, 1]) box(sx * (st.hw(st.mirror) + 0.07), pl(st.belt, st.mirror) + 0.1, zOf(st.mirror), 0.17, 0.1, 0.1, st.grille ? 3 : 0);
   // roof bar: left and right halves (taxi sign / police lights), collapsed for plain cars
-  const rs = lerp(c0, c1, 0.5), ry = topY(rs) + pl(st.roof, rs) + 0.09;
+  const rs = (st.roof[1][0] + st.roof[2][0]) / 2, ry = pl(st.belt, rs) + roofH(rs) + 0.1;
   box(-0.3, ry, zOf(rs), 0.56, 0.15, 0.3, 4); box(0.3, ry, zOf(rs), 0.56, 0.15, 0.3, 5);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('aPart', new THREE.Float32BufferAttribute(part, 1));
-  g.computeVertexNormals();
   return g;
 }
 
@@ -98,11 +134,11 @@ function makeStyle(style, uniforms) {
   const mat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */`
-      attribute float aPart; attribute vec3 aP, aC; attribute vec4 aS, aL;   // aS: heading, scale, fade, roof bar (0 none, 1 taxi, 2 police) · aL: tail, roof left, roof right, brake
+      attribute float aPart; attribute vec3 aP, aC; attribute vec4 aS, aL;   // aS: heading, scale, fade, livery (0 plain, 1 taxi, 2 police) · aL: tail, roof left, roof right, brake
       varying vec3 vN, vW, vC, vL; varying float vPart; varying vec4 vS, vLi;
       void main(){
         vec3 p = position;
-        if (aPart > 3.5 && aS.w < 0.5) p = vec3(0.0);                     // plain cars have no roof bar
+        if (aPart > 3.5 && aPart < 5.5 && aS.w < 0.5) p = vec3(0.0);        // plain cars have no roof bar
         float c = cos(aS.x), s = sin(aS.x);
         mat3 R = mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
         vL = p; vec3 w = aP + R * (p * aS.y); vW = w; vN = R * normal; vC = aC; vPart = aPart; vS = aS; vLi = aL;
@@ -110,9 +146,8 @@ function makeStyle(style, uniforms) {
       }`,
     fragmentShader: /* glsl */`
       precision highp float;
-      uniform float uT; uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog;
+      uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog;
       varying vec3 vN, vW, vC, vL; varying float vPart; varying vec4 vS, vLi;
-      float h21(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
       vec3 env(vec3 R){
         float y = R.y;
         vec3 c = y > 0.0 ? mix(cSky * 1.1, cTop, smoothstep(0.05, 0.7, y)) : mix(cHor * 0.25, cGrid * 0.12, smoothstep(-0.02, -0.5, y));
@@ -121,22 +156,28 @@ function makeStyle(style, uniforms) {
         return c;
       }
       void main(){
-        if (vS.z < 0.995 && h21(floor(gl_FragCoord.xy) + floor(uT * 30.0) * 7.0) > vS.z) discard;
         vec3 N = normalize(vN), V = normalize(cameraPosition - vW), R = reflect(-V, N);
-        float fr = 0.04 + 0.96 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+        float nv = max(dot(N, V), 0.0), fr = 0.04 + 0.96 * pow(1.0 - nv, 5.0), dist = length(vW - cameraPosition);
+        float rim = pow(1.0 - nv, 3.0);
         vec3 col;
-        if (vPart < 0.5) {            // paint: candy colour, clear-coat reflection, neon bounce from the road
-          col = vC * (0.42 + 0.58 * max(N.y, 0.0)) * mix(0.5, 1.0, smoothstep(0.25, 0.7, vL.y)) + env(R) * (0.08 + 0.92 * fr) * 0.9;
-          col += cGrid * 0.22 * smoothstep(0.6, 0.25, vL.y) * max(0.4 - N.y, 0.0);
-        } else if (vPart < 1.5) col = vec3(0.006, 0.006, 0.02) + env(R) * (0.12 + 0.88 * fr) * 1.2;
-        else if (vPart < 2.5) col = vec3(3.0, 0.16, 0.28) * (0.75 + 1.6 * vLi.w) * vLi.x;
-        else if (vPart < 3.5) col = vec3(0.012, 0.01, 0.02) + env(R) * 0.04;
-        else {
+        if (vPart < 0.5) {            // paint: lit from the sky and the road, clear-coat reflection, a rim of horizon light
+          vec3 base = vC;
+          if (vS.w > 1.5) base = (vL.z > -0.72 && vL.z < 1.22 && vL.y > 0.3) ? vec3(0.86, 0.88, 0.94) : vec3(0.045, 0.06, 0.15);    // police: white doors and roof, dark bonnet and boot
+          else if (vS.w > 0.5 && abs(N.y) < 0.5 && abs(vL.y - 0.72) < 0.07) base = mod(floor(vL.z / 0.14) + floor((vL.y - 0.65) / 0.07), 2.0) < 0.5 ? vec3(0.02) : vec3(0.95);   // taxi: chequered stripe
+          float light = 0.5 + 0.5 * max(N.y, 0.0) + 0.18 * max(N.z, 0.0);
+          col = base * light * mix(0.62, 1.0, smoothstep(0.2, 0.75, vL.y)) + env(R) * (0.06 + 0.94 * fr) * 0.8;
+          col += cGrid * 0.2 * smoothstep(0.7, 0.25, vL.y) * max(0.5 - N.y, 0.0) + (cHor * 0.5 + base * 0.35) * rim * 0.55;
+        } else if (vPart < 1.5) col = vec3(0.035, 0.04, 0.075) + cSky * 0.4 + env(R) * (0.1 + 0.9 * fr) * 1.1 + cHor * rim * 0.2;     // glass: tinted, reflecting the sky
+        else if (vPart < 2.5) col = vec3(1.9, 0.1, 0.18) * (0.55 + 1.3 * vLi.w) * vLi.x * mix(1.0, 0.3, smoothstep(50.0, 170.0, dist));   // tail lamps (a soft sprite takes over far away)
+        else if (vPart < 3.5) col = vec3(0.014, 0.012, 0.022) + env(R) * 0.05 + cHor * rim * 0.06;
+        else if (vPart < 5.5) {
           float on = vPart < 4.5 ? vLi.y : vLi.z;
-          vec3 lc = vS.w > 1.5 ? (vPart < 4.5 ? vec3(4.0, 0.15, 0.3) : vec3(0.2, 0.6, 4.5)) : vec3(2.6, 2.0, 0.3);
+          vec3 lc = vS.w > 1.5 ? (vPart < 4.5 ? vec3(4.0, 0.15, 0.3) : vec3(0.2, 0.6, 4.5)) : vec3(2.2, 1.7, 0.25);
           col = lc * on + vec3(0.03);
-        }
-        float dist = length(vW - cameraPosition);
+        } else if (vPart < 6.5) col = vec3(1.5, 1.4, 1.15) * mix(1.0, 0.35, smoothstep(50.0, 170.0, dist));                             // head lamps
+        else col = vec3(0.2, 0.2, 0.24) + env(R) * 0.5;                                                                              // hubs, grille bars
+        // far away the car comes out of the haze (no flicker), and the usual distance fog
+        col = mix(cFog, col, vS.z);
         col = mix(col, cFog, (1.0 - exp(-dist / 900.0)) * 0.6);
         gl_FragColor = vec4(col, 1.0);
       }`,
@@ -148,20 +189,20 @@ function makeStyle(style, uniforms) {
 
 export class Vehicles {
   constructor() {
-    this.u = { uT: { value: 0 }, cSky: { value: new THREE.Vector3() }, cTop: { value: new THREE.Vector3() }, cHor: { value: new THREE.Vector3() }, cSun: { value: new THREE.Vector3() }, cGrid: { value: new THREE.Vector3() }, cFog: { value: new THREE.Vector3() } };
+    this.u = { cSky: { value: new THREE.Vector3() }, cTop: { value: new THREE.Vector3() }, cHor: { value: new THREE.Vector3() }, cSun: { value: new THREE.Vector3() }, cGrid: { value: new THREE.Vector3() }, cFog: { value: new THREE.Vector3() } };
     this.group = new THREE.Group();
     this.m = {};
     for (const k of Object.keys(STYLES)) { this.m[k] = makeStyle(k, this.u); this.group.add(this.m[k]); }
   }
-  begin(P, T) {
+  begin(P) {
     const u = this.u;
-    u.uT.value = T; u.cSky.value.set(...P.skyMid); u.cTop.value.set(...P.skyTop); u.cHor.value.set(...P.horizon); u.cSun.value.set(...P.sunMid); u.cGrid.value.set(...P.grid); u.cFog.value.set(...P.fog);
+    u.cSky.value.set(...P.skyMid); u.cTop.value.set(...P.skyTop); u.cHor.value.set(...P.horizon); u.cSun.value.set(...P.sunMid); u.cGrid.value.set(...P.grid); u.cFog.value.set(...P.fog);
     for (const k in this.m) this.m[k].userData.n = 0;
   }
-  // style: 'car' | 'van' | 'cab' · bar: 0 none, 1 taxi sign, 2 police · tail / roofL / roofR: light levels · brake: 0..1
-  add(style, x, y, z, yaw, scale, col, fade = 1, bar = 0, tail = 1, roofL = 0, roofR = 0, brake = 0) {
+  // style: 'car' | 'van' | 'cab' · livery: 0 plain, 1 taxi, 2 police · tail / roofL / roofR: light levels · brake: 0..1
+  add(style, x, y, z, yaw, scale, col, fade = 1, livery = 0, tail = 1, roofL = 0, roofR = 0, brake = 0) {
     const d = this.m[style].userData, i = d.n; if (i >= MAX) return; d.n++;
-    d.A.aP.array.set([x, y, z], i * 3); d.A.aS.array.set([yaw, scale, fade, bar], i * 4);
+    d.A.aP.array.set([x, y, z], i * 3); d.A.aS.array.set([yaw, scale, fade, livery], i * 4);
     d.A.aC.array.set(col, i * 3); d.A.aL.array.set([tail, roofL, roofR, brake], i * 4);
   }
   end() {

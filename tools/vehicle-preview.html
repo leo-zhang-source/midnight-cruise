@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vehicle preview (development)</title>
+<style>html, body { margin: 0; background: #15121f; } canvas { display: block; }</style>
+<canvas id="c"></canvas>
+<script type="module">
+// Development aid: the traffic / police bodies from js/vehicles.js on a turntable grid.
+// Open http://localhost:8086/tools/vehicle-preview.html?w=1600&h=1000  (rows: car, taxi, police, van, cab · columns: view angles)
+import * as THREE from '../vendor/three.module.min.js';
+import { Vehicles } from '../js/vehicles.js';
+import { PALETTES } from '../js/palette.js';
+const Q = new URLSearchParams(location.search), W = +Q.get('w') || 1600, H = +Q.get('h') || 1000, pal = PALETTES[+Q.get('pal') || 0];
+const canvas = document.getElementById('c');
+const r = new THREE.WebGLRenderer({ canvas, antialias: true });
+r.outputColorSpace = THREE.LinearSRGBColorSpace; r.setPixelRatio(1); r.setSize(W, H, false); r.autoClear = false;
+canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+const scene = new THREE.Scene(), veh = new Vehicles(); scene.add(veh.group);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: Q.has('dark') ? 0x0a0214 : 0x2a2440 })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
+const rows = [['car', [0.5, 0.05, 0.09], 0], ['car', [0.8, 0.56, 0.03], 1], ['car', [0.52, 0.56, 0.7], 2], ['van', [0.05, 0.28, 0.4], 0], ['cab', [0.36, 0.36, 0.42], 0]];
+const views = [[0.6, 0.35, 9], [2.5, 0.3, 9], [Math.PI, 0.45, 10], [0, 0.12, 9], [Math.PI / 2, 0.08, 10], [0.9, 1.1, 10]];   // azimuth (0 = from behind), elevation, distance
+const only = Q.get('row');
+r.setScissorTest(true);
+r.setClearColor(Q.has('dark') ? 0x05020f : 0x15121f, 1);
+const list = only === null ? rows : [rows[+only]];
+list.forEach(([style, col, bar], ri) => {
+  veh.begin(pal, 0); veh.add(style, 0, 0, 0, 0, 1.06, col, 1, bar, 1, 1, 0.1, 0); veh.end();
+  views.forEach(([az, el, d], ci) => {
+    const cw = W / views.length, ch = H / list.length;
+    r.setViewport(ci * cw, H - (ri + 1) * ch, cw, ch); r.setScissor(ci * cw, H - (ri + 1) * ch, cw, ch);
+    cam.aspect = cw / ch; cam.position.set(Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d + 0.6, Math.cos(az) * Math.cos(el) * d); cam.lookAt(0, 0.7, 0); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+    r.clear(); r.render(scene, cam);
+  });
+});
+window.__ready = true;
+</script>

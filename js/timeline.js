@@ -240,7 +240,7 @@ export class Timeline {
     st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;
     const g = st.g;
     g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.brkAcc = 0;
-    g.polM = P_TAIL; g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
+    g.polM = P_TAIL; g.polZ = Math.min(g.polZ, -GAME.polFar + 2); g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
     st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
     this._endNitro(T);
     this._gev.push({ t: T, k: 'revive' });
