@@ -52,16 +52,23 @@ await p.keyboard.down('Space'); await p.waitForTimeout(300);
 await p.evaluate(() => window.dispatchEvent(new Event('blur'))); await p.waitForTimeout(150);
 s = await st(); ok('focus loss cancels acceleration', s.thrOn === 0);
 await p.keyboard.up('Space');
-// steering
-await p.mouse.move(W * 0.95, H * 0.4); await p.waitForTimeout(800);
-await p.mouse.move(W * 0.05, H * 0.4); await p.waitForTimeout(1200);
-s = await st(); ok('mouse does not steer', Math.abs(s.steer) < 0.02, `steer=${s.steer.toFixed(2)}`);
-await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(1200);
-s = await st(); ok('left arrow steers left', s.steer < -0.5, `steer=${s.steer.toFixed(2)}`); await p.keyboard.up('ArrowLeft');
-await p.waitForTimeout(1200);
-s = await st(); ok('released arrow recentres', Math.abs(s.steer) < 0.1, `steer=${s.steer.toFixed(2)}`);
-await p.keyboard.down('ArrowRight'); await p.waitForTimeout(1200);
-s = await st(); ok('arrow key steers', s.steer > 0.5, `steer=${s.steer.toFixed(2)}`); await p.keyboard.up('ArrowRight');
+// three lanes (s.steer = lateral position in lanes: −1, 0, +1)
+const lane = () => p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).lane);
+await p.mouse.move(W * 0.95, H * 0.4); await p.waitForTimeout(500);
+await p.mouse.move(W * 0.05, H * 0.4); await p.waitForTimeout(600);
+s = await st(); ok('moving the mouse does not change lane', Math.abs(s.steer) < 0.02, `x=${s.steer.toFixed(2)} lanes`);
+await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(450);
+s = await st(); ok('← moves one lane left, settled within 0.45 s', Math.abs(s.steer + 1) < 0.05, `x=${s.steer.toFixed(2)} lanes`);
+await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(300);
+ok('stops at the left edge', (await lane()) === -1);
+await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowRight'); await p.waitForTimeout(550);
+s = await st(); ok('two quick → presses cross two lanes', Math.abs(s.steer - 1) < 0.05, `x=${s.steer.toFixed(2)} lanes`);
+await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(700); await p.keyboard.up('ArrowLeft');
+ok('holding ← moves only one lane (no key repeat)', (await lane()) === 0);
+await p.mouse.click(W * 0.2, H * 0.45); await p.waitForTimeout(100);
+ok('click on the left half of the scene → left lane', (await lane()) === -1);
+await p.mouse.click(W * 0.8, H * 0.45); await p.waitForTimeout(450);
+s = await st(); ok('click on the right half → back to the centre lane', (await lane()) === 0 && Math.abs(s.steer) < 0.05, `x=${s.steer.toFixed(2)} lanes`);
 // turbo
 await p.click('#turbo');
 await p.waitForTimeout(100);

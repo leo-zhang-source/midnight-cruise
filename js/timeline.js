@@ -3,13 +3,13 @@
 // Everything visible or audible is a pure function of (scene time T, events).
 // The same class runs on the main thread, inside the AudioWorklet and in Node.
 // ─────────────────────────────────────────────────────────────────────────────
-import { IGNITION, SKIP_FF, REWIND, BEAT, TURBO, ENV_XFADE, THROTTLE, AUTO_ENV } from './cue.js';
+import { IGNITION, SKIP_FF, REWIND, BEAT, TURBO, ENV_XFADE, THROTTLE, AUTO_ENV, ROAD, LANE_FEEL } from './cue.js';
 import { smooth, easeInOutCubic, lerp } from './util.js';
 
 export const SIM_HZ = 240;
 export const DT = 1 / SIM_HZ;
 
-const freshState = () => ({ pos: 0, vel: 5.5, thrOn: 0, thrA: 0, thr: 0, steerIn: 0, steer: 0, steerV: 0, cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0 });
+const freshState = () => ({ pos: 0, vel: 5.5, thrOn: 0, thrA: 0, thr: 0, lane: 0, laneS: 0, x: 0, xv: 0, yaw: 0, yawV: 0, camX: 0, camXv: 0, steer: 0, steerV: 0, cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0 });
 const copy = (s) => ({ ...s });
 
 export function ignitionSpeed(it) {
@@ -185,7 +185,7 @@ export class Timeline {
       if (e.type === 'thr') st.thrOn = e.on ? 1 : 0;
       else if (e.type === 'env') { st.cur = e.preset; st.autoT0 = T; st.autoPos0 = st.pos; }
       else if (e.type === 'auto') { st.autoOn = e.on ? 1 : 0; st.autoT0 = T; st.autoPos0 = st.pos; }
-      else if (e.type === 'steer') st.steerIn = Math.max(-1, Math.min(1, e.x));
+      else if (e.type === 'lane') { if (this.phaseAt(e.t).phase === 'cruise') st.lane = Math.max(-1, Math.min(1, st.lane + (e.dir > 0 ? 1 : -1))); }
     }
     const ph = this.phaseAt(T);
     const cruise = ph.phase === 'cruise';
@@ -200,10 +200,18 @@ export class Timeline {
     const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
     st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
     st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
-    const en = cruise ? smooth(ph.ct / 1.4) : 0;
-    const w = 6.2;
-    const acc = w * w * (st.steerIn * en - st.steer) - 2 * w * st.steerV;
-    st.steerV += acc * DT; st.steer += st.steerV * DT;
+    // three-lane driving: lateral spring on a lightly smoothed lane target; drift yaw and camera follow as springs
+    if (!cruise) st.lane = 0;
+    const F = LANE_FEEL, L = ROAD.lane;
+    st.laneS += (st.lane * L - st.laneS) * (1 - Math.exp(-DT / F.tauIn));
+    const ax = F.w * F.w * (st.laneS - st.x) - 2 * F.w * st.xv;
+    st.xv += ax * DT; st.x += st.xv * DT;
+    const yT = Math.max(-F.yawMax, Math.min(F.yawMax, -st.xv * F.yawK));
+    const ay = F.yawW * F.yawW * (yT - st.yaw) - 2 * F.yawZ * F.yawW * st.yawV;
+    st.yawV += ay * DT; st.yaw += st.yawV * DT;
+    const ac = F.camW * F.camW * (st.x * F.camK - st.camX) - 2 * F.camW * st.camXv;
+    st.camXv += ac * DT; st.camX += st.camXv * DT;
+    st.steer = st.x / L; st.steerV = st.xv / L;
     const vt = this.baseSpeed(ph) * (1 + 1.35 * st.thr) * this.turboMul(T);
     const tauV = ph.phase === 'cruise' ? 0.2 : 0.09;
     st.vel += (vt - st.vel) * (1 - Math.exp(-DT / tauV));
@@ -233,7 +241,8 @@ export class Timeline {
     if (this._T === 0) return copy(b);
     return {
       pos: lerp(a.pos, b.pos, f), vel: lerp(a.vel, b.vel, f), thr: lerp(a.thr, b.thr, f),
-      steer: lerp(a.steer, b.steer, f), steerV: lerp(a.steerV, b.steerV, f), thrOn: b.thrOn, steerIn: b.steerIn,
+      steer: lerp(a.steer, b.steer, f), steerV: lerp(a.steerV, b.steerV, f), thrOn: b.thrOn, lane: b.lane,
+      x: lerp(a.x, b.x, f), xv: lerp(a.xv, b.xv, f), yaw: lerp(a.yaw, b.yaw, f), yawV: lerp(a.yawV, b.yawV, f), camX: lerp(a.camX, b.camX, f),
       cur: b.cur, autoOn: b.autoOn, autoT0: b.autoT0, autoPos0: b.autoPos0,
     };
   }
@@ -253,7 +262,7 @@ export function phaseFrom(segs, T) {
 // Canonical interaction script used for inspection renders, replays and the audio reference.
 export const CANONICAL = [
   { type: 'start', t: 1.0 },
-  { type: 'steer', t: 13.0, x: -0.6 }, { type: 'steer', t: 14.5, x: 0.7 }, { type: 'steer', t: 16.0, x: 0 },
+  { type: 'lane', t: 13.0, dir: -1 }, { type: 'lane', t: 14.5, dir: 1 }, { type: 'lane', t: 14.75, dir: 1 }, { type: 'lane', t: 16.0, dir: -1 },
   { type: 'thr', t: 17.0, on: true }, { type: 'thr', t: 20.5, on: false },
   { type: 'turbo', t: 24.3 },
   { type: 'env', t: 34.0, preset: 1 }, { type: 'env', t: 44.0, preset: 2 }, { type: 'env', t: 54.0, preset: 3 }, { type: 'env', t: 64.0, preset: 0 },

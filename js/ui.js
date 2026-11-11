@@ -21,8 +21,6 @@ export class UI {
     this.meterBars = [...this.el.lcdMeter.children];
     this.el.spdBar.innerHTML = '<i></i>'.repeat(14);
     this.spdSegs = [...this.el.spdBar.children];
-    this.keys = { left: 0, right: 0 };
-    this.pointerSteer = 0; this.sentSteer = 0; this.touch = null;
     this.space = false; this.driveHeld = false;
     this.win = { n: 0, ei: 0, st: null };
     this.cache = {};
@@ -70,22 +68,20 @@ export class UI {
     E.deckBar.addEventListener('pointermove', (e) => { if (this.dragging) this.pendingWin = { x: e.clientX, y: e.clientY }; });
     const wUp = (e) => { if (!this.dragging) return; this.dragging = false; this.flushWin(); this.ev('win', { act: 'up', x: e.clientX ?? 0, y: e.clientY ?? 0 }); };
     E.deckBar.addEventListener('pointerup', wUp); E.deckBar.addEventListener('pointercancel', wUp); E.deckBar.addEventListener('lostpointercapture', wUp);
-    // steering: arrow keys / A·D, or a drag on a touch screen. The mouse does not steer.
+    // lane change: ← → / A D, or a tap / click on the left or right half of the scene (fires on press, no wait)
     const cv = E.canvas;
-    cv.addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'touch' && this.touch && e.pointerId === this.touch.id) this.pointerSteer = clamp((e.clientX - this.touch.x) / (innerWidth * 0.28), -1, 1);
+    cv.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      this.lane(e.clientX < innerWidth / 2 ? -1 : 1);
     });
-    cv.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') { this.touch = { id: e.pointerId, x: e.clientX }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} } });
-    const tEnd = (e) => { if (this.touch && e.pointerId === this.touch.id) { this.touch = null; this.pointerSteer = 0; } };
-    cv.addEventListener('pointerup', tEnd); cv.addEventListener('pointercancel', tEnd);
     // keyboard
     const interactive = (t) => t && t !== document.body && t !== E.drive && t.matches && t.matches('button, input, a, [tabindex]');
     addEventListener('keydown', (e) => {
       const k = e.key;
       if (k === ' ' || e.code === 'Space') { if (interactive(document.activeElement)) return; e.preventDefault(); if (!e.repeat) { if (this.phase() === 'idle') { this.app.start(); return; } this.space = true; this.refreshThrottle(); } return; }
       if (e.repeat) return;
-      if (k === 'ArrowLeft' || k === 'a' || k === 'A') { this.keys.left = 1; }
-      else if (k === 'ArrowRight' || k === 'd' || k === 'D') { this.keys.right = 1; }
+      if (k === 'ArrowLeft' || k === 'a' || k === 'A') { e.preventDefault(); this.lane(-1); }
+      else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); this.lane(1); }
       else if (k === 't' || k === 'T') this.turbo();
       else if (k === 'Escape' || k === 's' || k === 'S') { if (this.phase() === 'ign') this.ev('skip'); }
       else if (k === 'r' || k === 'R') { if (this.phase() === 'cruise') { this.ev('replay'); this.sfx('clunk'); } }
@@ -96,14 +92,12 @@ export class UI {
     addEventListener('keyup', (e) => {
       const k = e.key;
       if (k === ' ' || e.code === 'Space') { this.space = false; this.refreshThrottle(); }
-      if (k === 'ArrowLeft' || k === 'a' || k === 'A') this.keys.left = 0;
-      if (k === 'ArrowRight' || k === 'd' || k === 'D') this.keys.right = 0;
     });
-    const release = () => { this.space = false; this.driveHeld = false; this.keys.left = this.keys.right = 0; this.touch = null; this.refreshThrottle(); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
+    const release = () => { this.space = false; this.driveHeld = false; this.refreshThrottle(); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
     this.setMin(true);   // the deck starts minimised; its title-bar key expands it
-    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Hold Drive · Drag to steer'; document.body.classList.add('touch'); }
+    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Hold Drive · Tap left / right to change lane'; document.body.classList.add('touch'); }
   }
 
   setMin(m) {
@@ -113,6 +107,12 @@ export class UI {
     E.deckMin.setAttribute('aria-label', m ? 'Expand cassette deck' : 'Minimise cassette deck');
   }
 
+  // one lane left (−1) or right (+1); only while cruising
+  lane(dir) {
+    if (this.phase() !== 'cruise') return;
+    this.ev('lane', { dir });
+  }
+
   turbo() {
     const T = this.app.now();
     if (this.app.tl.turboReady(T) >= 1) { this.ev('turbo'); this.fireT = T; }
@@ -120,12 +120,8 @@ export class UI {
 
   flushWin() { if (this.pendingWin) { this.ev('win', { act: 'move', ...this.pendingWin }); this.pendingWin = null; } }
 
-  // per-frame: emit coalesced continuous inputs (steer, drag) as timestamped events
+  // per-frame: emit coalesced continuous inputs (deck drag) as timestamped events
   pump() {
-    const ks = this.keys.right - this.keys.left;
-    const target = ks !== 0 ? ks : this.pointerSteer;
-    const q = Math.round(target * 200) / 200;
-    if (Math.abs(q - this.sentSteer) >= 0.005) { this.sentSteer = q; this.ev('steer', { x: q }); }
     if (this.dragging) this.flushWin();
   }
 

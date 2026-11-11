@@ -25,13 +25,13 @@ It opens in a current Chrome, Edge, Safari or Firefox, on desktop or phone, and 
 | Skip the intro | **SKIP INTRO** (top right) | `Esc` / `S` |
 | Replay the intro | **REPLAY INTRO** (top right) | `R` |
 | Accelerate | hold **DRIVE** | hold `Space` |
-| Steer | drag on touch (the mouse does not steer) | `←` `→` or `A` `D` |
+| Change lane (three lanes) | tap or click the left / right half of the scene | `←` `→` or `A` `D`, one lane per press |
 | Turbo | **TURBO** (the ring shows when it's ready) | `T` |
 | Music play / pause, mute, volume | cassette deck | `M` toggles mute |
 | Environment | cassette deck: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
 | Automatic colour change | cassette deck **AUTO** key (on by default; its bar fills towards the next change) | — |
 
-While you cruise, the environment changes by itself to the next preset every 40 s or 1500 road units, whichever comes first. Accelerating gets you there sooner. You drive the car seen from behind. A live MPH speedometer sits next to TURBO and DRIVE, and control hints appear when cruising starts. The cassette deck starts minimised to its chrome title bar. The key on the right of the bar expands it, and you can drag the deck by that bar. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
+While you cruise, the environment changes by itself to the next preset every 40 s or 1500 road units, whichever comes first. Accelerating gets you there sooner. You drive the car seen from behind on a three-lane road. Each press or tap moves it one lane, in about 0.2 s, with a slight drift. A live MPH speedometer sits next to TURBO and DRIVE, and control hints appear when cruising starts. The cassette deck starts minimised to its chrome title bar. The key on the right of the bar expands it, and you can drag the deck by that bar. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
 
 ## Inspection and determinism
 

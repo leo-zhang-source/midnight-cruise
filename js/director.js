@@ -1,6 +1,6 @@
 // The director: turns (scene time T, event timeline, viewport) into a complete frame
 // description. Pure function — no wall clock, no hidden state.
-import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, neonPower, drumPulse } from './cue.js';
+import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, neonPower, drumPulse } from './cue.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 
@@ -236,13 +236,15 @@ export function frameState(tl, T, w, h, opt = {}) {
     const hintEnd = Math.min(9, firstThr ? firstThr.t - ph.seg.C + 0.6 : 9);
     ui.hint = smooth(lin(ct, 0.3, 0.8)) * (1 - smooth(lin(ct, hintEnd - 0.5, hintEnd)));
     if (ph.seg.skip !== null && ct < 0.8) ui.osd = 'FF';
-    // steering: lateral offset, yaw, bank
-    car.x = sim.steer * ROAD.steerX;
-    car.yaw = -(sim.steerV * 0.07 + sim.steer * 0.02) * (reduced ? 0.4 : 1);
-    car.roll = reduced ? 0 : sim.steerV * 0.022;
-    camX += car.x * 0.58;
-    yaw += -sim.steer * 0.03;
-    roll += reduced ? 0 : sim.steer * 0.02 + sim.steerV * 0.004;
+    // lanes: the car tracks the lane spring; the drift is body yaw around a pivot near the front axle (the tail
+    // swings out, then a small counter-steer), plus roll with the lateral speed. The camera follows on its own spring.
+    car.yaw = sim.yaw * (reduced ? 0.4 : 1);
+    car.x = sim.x + LANE_FEEL.pivot * Math.sin(car.yaw);
+    car.roll = reduced ? 0 : (sim.xv / ROAD.lane) * 0.03;
+    const camF = lerp(1.4, 1.0, L.k);   // narrow screens follow the car more closely so the outer lanes stay in frame
+    camX += sim.camX * camF;
+    yaw += -(sim.camX / ROAD.lane) * 0.025;
+    roll += reduced ? 0 : (sim.camX / ROAD.lane) * 0.018 + (sim.xv / ROAD.lane) * 0.003;
     car.z = carZ0 - sim.thr * 0.6 * zs;
     car.pitch = -sim.thr * 0.018;
     car.flame = sim.thr * 0.65; car.exhaust = 0.1 + 0.9 * sim.thr; car.tail = 0.85 + 0.3 * sim.thr;

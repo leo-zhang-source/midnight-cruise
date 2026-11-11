@@ -48,10 +48,15 @@ export const TURBO = { minAntic: 0.75, sustain: 1.8, recover: 2.7, cooldown: 7.0
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
 export const AUTO_ENV = { time: 40, dist: 1500 };
-// Road layout (world units, x across). The player's lane runs between the grid lines at ±4, traffic keeps to the
-// outer lanes, and the cyan rails sit on the ±8 grid lines. steerX is the car's lateral reach at full lock:
-// its body stays clear of the traffic lights passing on either side.
-export const ROAD = { rail: 8.0, traffic: 6.3, trail: 9.4, steerX: 4.2 };
+// Road layout (world units, x across): three lanes of `lane` width (a car is ~2 wide), centred on −lane, 0, +lane.
+// The grid is offset so its lines fall on the dashed lane dividers (±lane/2) and on the cyan rails (±1.5·lane).
+// Traffic runs outside the rails, so it never meets the player's car.
+export const ROAD = { lane: 4.0, rail: 6.0, traffic: 7.8, trail: 9.4 };
+// Lane change feel (sim, 240 Hz): the lateral move is a critically damped spring on a lightly smoothed target
+// (≈ 0.21 s to 90 %), so a second press mid-move retargets with the velocity it already has. The drift is
+// visual only: body yaw follows the lateral speed (capped at yawMax, so a two-lane dash stays slight) through an under-damped spring (lag, then a small counter-steer),
+// the tail swings out around a pivot near the front axle, and the body rolls with the lateral speed.
+export const LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 0.0056, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
 // Title exit once cruising starts (cruise time, s): the neon flickers out, the 1986 plate wipes shut,
 // the chrome word pulls toward the camera and then recedes to the horizon. After that the road stays clear.
 export const TITLE_EXIT = { neon: [0.2, 0.62], plate: [0.25, 0.7], chrome: [0.3, 1.35] };

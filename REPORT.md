@@ -19,6 +19,30 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 16: three lanes with drift (lane-runner controls)
+
+- **Road.** The road is now three lanes, each 4 units wide, so each holds one car (a car is about 2 wide).
+  - The grid is offset so its lines fall on the lane edges. Dashed, travelling lane dividers sit at ±2, and the cyan rails moved back to ±6.
+  - Traffic tail lights run outside the rails (±7.8), so they never meet the player's car.
+  - Layout constants are in `ROAD` in `js/cue.js`.
+- **Controls.** `←` `→` / `A` `D` move one lane per press; holding a key does not repeat. A tap or click on the left or right half of the scene does the same, firing on press with no wait. The mouse still does not steer by moving.
+- **Feel.** Constants are in `LANE_FEEL` in `js/cue.js`; everything is simulated at 240 Hz and is deterministic.
+  - **Lateral move:** a critically damped spring on a lightly smoothed lane target. It reaches 90 % in 0.22 s, with peak lateral speed at 74 ms.
+  - **Quick presses:** a second press mid-move retargets with the velocity the car already has, so quick double presses and zig-zags stay crisp. Two presses 80 ms apart cross two lanes and settle in about 0.24 s.
+  - **Drift (visual only, so it never slows the move):**
+    - Body yaw follows the lateral speed through an under-damped spring, peaking at about 9° mid-move and capped at 0.16 rad. A two-lane dash peaks at about 12°.
+    - It settles with a 1.4° counter-steer.
+    - The tail swings out around a pivot 1.25 units ahead of centre.
+    - The body rolls with the lateral speed.
+  - **Camera:** follows on its own spring, more closely on narrow screens so the outer lanes stay in frame on phones.
+- **Tests.** `tools/interact.mjs` and `tools/touch.mjs` cover these cases:
+  - one lane per press, settled within 0.45 s
+  - the car stops at the edge lane
+  - two quick presses cross two lanes
+  - a held key moves only one lane
+  - click / tap on each half of the scene
+  - moving the mouse never changes lane
+
 ## Revision 15: sharp picture, and the sky bug behind "the sky is in the wrong place"
 
 - **Sky bug.**

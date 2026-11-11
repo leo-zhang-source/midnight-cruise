@@ -120,7 +120,7 @@ function makeGrid() {
       void main(){
         const float S = 4.0;
         vec3 v = vW - cameraPosition; float dist = length(v); vec3 dir = v / dist;
-        float gx = vW.x / S;
+        float gx = (vW.x - ${(ROAD.lane / 2).toFixed(2)}) / S;   // lines on the lane edges
         float gz = (vW.z - uPos) / S;
         // motion blur along z for the cross lines (energy conserving)
         float blur = abs(uVel) * uShutter / S;
@@ -153,6 +153,14 @@ function makeGrid() {
         float pulse = 1.0 + uPulse * 0.25;
         col += lc * (lines * 1.05 + glow) * fade * near * uBright * pulse;
         col += gridAlt * (rail * 1.2 + railGlow * 0.18) * exp(-dist / 600.0) * near * uBright;
+        // lane dividers (x = ±lane/2): bright dashes that travel with the road
+        float ldv = abs(abs(vW.x) - ${(ROAD.lane / 2).toFixed(2)});
+        float fwl = max(fwidth(vW.x), 1e-4);
+        float ldl = 1.0 - smoothstep(max(0.05, fwl * 0.7) - fwl, max(0.05, fwl * 0.7) + fwl, ldv);
+        float dph = fract((vW.z - uPos) / 4.0), dfw = max(fwidth((vW.z - uPos) / 4.0), 1e-4);
+        float dash = smoothstep(0.38 - dfw, 0.38 + dfw, dph) * (1.0 - smoothstep(0.92 - dfw, 0.92 + dfw, dph));
+        dash = mix(dash, 0.55, smoothstep(0.12, 0.45, dfw));   // far away the dashes merge into a steady line
+        col += mix(grid, vec3(1.0), 0.55) * ldl * dash * 0.95 * exp(-dist / 520.0) * near * uBright;
         col = mix(col, horizon * 0.42 + fog * 0.35, smoothstep(250.0, 3000.0, dist));
         gl_FragColor = vec4(col, 1.0);
       }`,

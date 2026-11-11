@@ -41,6 +41,8 @@
   var TURBO = { minAntic: 0.75, sustain: 1.8, recover: 2.7, cooldown: 7 };
   var ENV_XFADE = 1.6;
   var AUTO_ENV = { time: 40, dist: 1500 };
+  var ROAD = { lane: 4, rail: 6, traffic: 7.8, trail: 9.4 };
+  var LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 56e-4, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
   var THROTTLE = { rise: 0.42, fall: 0.95 };
   var FLICK = [
     // [time, level] steps
@@ -308,7 +310,7 @@
   // js/timeline.js
   var SIM_HZ = 240;
   var DT = 1 / SIM_HZ;
-  var freshState = () => ({ pos: 0, vel: 5.5, thrOn: 0, thrA: 0, thr: 0, steerIn: 0, steer: 0, steerV: 0, cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0 });
+  var freshState = () => ({ pos: 0, vel: 5.5, thrOn: 0, thrA: 0, thr: 0, lane: 0, laneS: 0, x: 0, xv: 0, yaw: 0, yawV: 0, camX: 0, camXv: 0, steer: 0, steerV: 0, cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0 });
   var copy = (s) => ({ ...s });
   function ignitionSpeed(it) {
     if (it < 0.5) return 2;
@@ -528,7 +530,9 @@
           st.autoOn = e.on ? 1 : 0;
           st.autoT0 = T;
           st.autoPos0 = st.pos;
-        } else if (e.type === "steer") st.steerIn = Math.max(-1, Math.min(1, e.x));
+        } else if (e.type === "lane") {
+          if (this.phaseAt(e.t).phase === "cruise") st.lane = Math.max(-1, Math.min(1, st.lane + (e.dir > 0 ? 1 : -1)));
+        }
       }
       const ph = this.phaseAt(T);
       const cruise = ph.phase === "cruise";
@@ -545,11 +549,21 @@
       const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
       st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
       st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
-      const en = cruise ? smooth(ph.ct / 1.4) : 0;
-      const w = 6.2;
-      const acc = w * w * (st.steerIn * en - st.steer) - 2 * w * st.steerV;
-      st.steerV += acc * DT;
-      st.steer += st.steerV * DT;
+      if (!cruise) st.lane = 0;
+      const F = LANE_FEEL, L = ROAD.lane;
+      st.laneS += (st.lane * L - st.laneS) * (1 - Math.exp(-DT / F.tauIn));
+      const ax = F.w * F.w * (st.laneS - st.x) - 2 * F.w * st.xv;
+      st.xv += ax * DT;
+      st.x += st.xv * DT;
+      const yT = Math.max(-F.yawMax, Math.min(F.yawMax, -st.xv * F.yawK));
+      const ay = F.yawW * F.yawW * (yT - st.yaw) - 2 * F.yawZ * F.yawW * st.yawV;
+      st.yawV += ay * DT;
+      st.yaw += st.yawV * DT;
+      const ac = F.camW * F.camW * (st.x * F.camK - st.camX) - 2 * F.camW * st.camXv;
+      st.camXv += ac * DT;
+      st.camX += st.camXv * DT;
+      st.steer = st.x / L;
+      st.steerV = st.xv / L;
       const vt = this.baseSpeed(ph) * (1 + 1.35 * st.thr) * this.turboMul(T);
       const tauV = ph.phase === "cruise" ? 0.2 : 0.09;
       st.vel += (vt - st.vel) * (1 - Math.exp(-DT / tauV));
@@ -587,7 +601,12 @@
         steer: lerp(a.steer, b.steer, f),
         steerV: lerp(a.steerV, b.steerV, f),
         thrOn: b.thrOn,
-        steerIn: b.steerIn,
+        lane: b.lane,
+        x: lerp(a.x, b.x, f),
+        xv: lerp(a.xv, b.xv, f),
+        yaw: lerp(a.yaw, b.yaw, f),
+        yawV: lerp(a.yawV, b.yawV, f),
+        camX: lerp(a.camX, b.camX, f),
         cur: b.cur,
         autoOn: b.autoOn,
         autoT0: b.autoT0,
