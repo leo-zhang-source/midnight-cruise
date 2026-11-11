@@ -1231,7 +1231,7 @@
     _derive() {
       if (this._derived) return this._derived;
       const segs = [], envs = [], music = [], wins = [], autos = [], opts = { seed: SEED, free: 0 };
-      const quick = (t) => segs.push({ rew: null, s: t, end: t, C: t + SKIP_FF, skip: t, until: Infinity, quick: true });
+      const again = (t) => segs.push({ rew: t, s: t + REWIND, end: t + REWIND + IGNITION, C: t + REWIND + IGNITION, skip: null, until: Infinity });
       for (const e of this.events) {
         const cur = segs[segs.length - 1];
         switch (e.type) {
@@ -1240,10 +1240,7 @@
               segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
               if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
               opts.free = e.free ? 1 : 0;
-            } else if (cur.home !== void 0 && e.t >= cur.home) {
-              const s = e.t + REWIND;
-              segs.push({ rew: e.t, s, end: s + IGNITION, C: s + IGNITION, skip: null, until: Infinity });
-            }
+            } else if (cur.home !== void 0 && e.t >= cur.home) again(e.t);
             break;
           case "home":
             if (cur && e.t >= cur.C && cur.until === Infinity) {
@@ -1254,7 +1251,7 @@
           case "restart":
             if (cur && e.t >= cur.C && cur.until === Infinity) {
               cur.until = e.t;
-              quick(e.t);
+              again(e.t);
             }
             break;
           case "replay":

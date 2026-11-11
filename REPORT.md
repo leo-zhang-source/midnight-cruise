@@ -32,15 +32,15 @@ Five requests after Revision 23.
 - **Smashing traffic in a burst no longer adds heat.** It used to add a third of a star per vehicle, which would have undone the above within one burst. Ramming a police cruiser still costs a whole star.
 - **The intro is part of every start.** It used to play once, on the first START; later starts from the home screen cut straight to the run, and the home screen carried a separate REPLAY INTRO button. Now every START from the home screen rewinds the tape (0.6 s) and plays the ten-second intro into the run, and the REPLAY INTRO button is gone.
   - SKIP INTRO (or `S` / `Esc`) still cuts it to a 0.4 s fast-forward, and now also works while the tape is rewinding.
-  - RESTART in the pause menu still starts a new run at once. That is my reading of "every start"; say so if a restart should open with it too.
+  - RESTART in the pause menu opens with it as well (confirmed afterwards; it first kept its instant start).
 - **Overpasses and street lamps are gone.** Reflector posts, roadside signs and the emergency phones stay.
 
 **Checks**
 
 | Check | Result |
 |---|---|
-| `tools/game-test.mjs` | 58/58 (new: nitro takes a star off and the distance level counts lower for 20 s; every start from home rewinds and plays the intro; SKIP during the rewind) |
-| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 42/42, 46/46, 9/9, 8/8 |
+| `tools/game-test.mjs` | 59/59 (new: nitro takes a star off and the distance level counts lower for 20 s; every start from home rewinds and plays the intro; SKIP during the rewind) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 43/43, 46/46, 9/9, 8/8 |
 | `tools/bot.mjs` fairness soak | 40 seeds × 300 s without nitro: not one hit. 16 seeds with nitro: not one hit |
 | `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
 

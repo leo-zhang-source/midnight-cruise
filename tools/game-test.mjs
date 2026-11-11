@@ -57,9 +57,12 @@ let crashT;
   ok('SKIP during it: 0.4 s fast-forward, then run 2', p1 === 'ff' && tl.phaseAt(crashT + 7.5).phase === 'cruise' && s2.run === 2 && s2.over === 0 && s2.g.gd > 20 && s2.g.lives === 2 && s2.tapes === GAME.tapesStart, `run ${s2.run}, distance ${s2.g.gd.toFixed(0)}`);
   tl.add('restart', crashT + 11);
   const s3 = tl.stateAt(crashT + 11 + 0.4 + 1);
-  ok('RESTART (from the pause menu): a new run at once, no intro', s3.run === 3 && s3.g.gd < 60 && tl.phaseAt(crashT + 11.2).phase === 'ff');
-  tl.add('home', crashT + 14); tl.add('start', crashT + 16);
-  ok('left alone, the intro runs its full 10 s and then the run starts', tl.phaseAt(crashT + 16.3).phase === 'rewind' && tl.phaseAt(crashT + 22).phase === 'ign' && tl.phaseAt(crashT + 16.6 + 9.9).phase === 'ign' && tl.stateAt(crashT + 16.6 + 10 + 2).run === 4);
+  ok('RESTART (from the pause menu) opens with the intro as well', tl.phaseAt(crashT + 11.2).phase === 'rewind' && tl.phaseAt(crashT + 12).phase === 'ign' && s3.run === 2);
+  tl.add('skip', crashT + 12.5);
+  const s3b = tl.stateAt(crashT + 12.5 + 0.4 + 1);
+  ok('… and SKIP takes it into run 3', s3b.run === 3 && s3b.g.gd < 60 && s3b.g.gd > 5 && s3b.over === 0);
+  tl.add('home', crashT + 15); tl.add('start', crashT + 17);
+  ok('left alone, the intro runs its full 10 s and then the run starts', tl.phaseAt(crashT + 17.3).phase === 'rewind' && tl.phaseAt(crashT + 23).phase === 'ign' && tl.phaseAt(crashT + 17.6 + 9.9).phase === 'ign' && tl.stateAt(crashT + 17.6 + 10 + 2).run === 4);
   { const t9 = fresh(); t9.stateAt(C + 12); const oT = t9.stateAt(C + 40).overT; t9.add('home', oT + 1); t9.add('start', oT + 3); t9.add('skip', oT + 3.2);
     ok('SKIP pressed while the tape is still rewinding takes effect as the intro begins', t9.phaseAt(oT + 3.7).phase === 'ff' && t9.phaseAt(oT + 4.1).phase === 'cruise' && t9.stateAt(oT + 5).run === 2); }
 }

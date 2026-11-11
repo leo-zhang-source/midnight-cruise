@@ -76,8 +76,8 @@ export class Timeline {
   _derive() {
     if (this._derived) return this._derived;
     const segs = [], envs = [], music = [], wins = [], autos = [], opts = { seed: SEED, free: 0 };
-    // a quick start: no ignition, just the 0.4 s fast-forward into the run
-    const quick = (t) => segs.push({ rew: null, s: t, end: t, C: t + SKIP_FF, skip: t, until: Infinity, quick: true });
+    // every start after the first opens the same way: the tape rewinds, then the intro plays into the run
+    const again = (t) => segs.push({ rew: t, s: t + REWIND, end: t + REWIND + IGNITION, C: t + REWIND + IGNITION, skip: null, until: Infinity });
     for (const e of this.events) {
       const cur = segs[segs.length - 1];
       switch (e.type) {
@@ -86,16 +86,13 @@ export class Timeline {
             segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
             if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
             opts.free = e.free ? 1 : 0;
-          } else if (cur.home !== undefined && e.t >= cur.home) {            // from the home screen: the tape rewinds and the intro plays again — every start opens with it
-            const s = e.t + REWIND;
-            segs.push({ rew: e.t, s, end: s + IGNITION, C: s + IGNITION, skip: null, until: Infinity });
-          }
+          } else if (cur.home !== undefined && e.t >= cur.home) again(e.t);   // from the home screen
           break;
         case 'home':                     // back to the home screen (title and START)
           if (cur && e.t >= cur.C && cur.until === Infinity) { cur.until = e.t; cur.home = e.t; }
           break;
-        case 'restart':                  // a new run right away
-          if (cur && e.t >= cur.C && cur.until === Infinity) { cur.until = e.t; quick(e.t); }
+        case 'restart':                  // a new run from the pause menu
+          if (cur && e.t >= cur.C && cur.until === Infinity) { cur.until = e.t; again(e.t); }
           break;
         case 'replay':                   // rewind and play the intro again (from a run or from the home screen)
           if (cur && e.t >= cur.C && (cur.until === Infinity || (cur.home !== undefined && e.t >= cur.home))) {

@@ -227,7 +227,7 @@ export function frameState(tl, T, w, h, opt = {}) {
   };
   const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, cassette: 1, cassetteT: 99, controls: 1, start: 0, skip: 0, replay: 0, ready: 1, drive: sim.brkOn && ph.phase === 'cruise' ? 1 : 0, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
   let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0, game = null, trafficI = 1;
-  let scenery = ph.seg && ph.seg.quick ? 1 : ph.phase === 'ign' || ph.phase === 'ff' ? smooth(lin(ph.it ?? 0, 2, 5)) : ph.phase === 'rewind' ? 0.5 : ph.phase === 'home' ? 1 : 0;
+  let scenery = ph.phase === 'ign' || ph.phase === 'ff' ? smooth(lin(ph.it ?? 0, 2, 5)) : ph.phase === 'rewind' ? 0.5 : ph.phase === 'home' ? 1 : 0;
 
   // idle micro-motion (also underlies cruise)
   camX += Math.sin(tv * 0.13) * 0.18; yaw += Math.sin(tv * 0.09 + 1) * 0.004;
@@ -260,7 +260,7 @@ export function frameState(tl, T, w, h, opt = {}) {
 
   if (ph.phase === 'ign' || ph.phase === 'ff') {
     const ff = ph.phase === 'ff';
-    const it = ph.seg.quick ? 7.6 : ff ? Math.max(ph.it, 0) : ph.it;   // a quick start fast-forwards from the finished title
+    const it = ff ? Math.max(ph.it, 0) : ph.it;
     ui.start = 0; ui.replay = 0; ui.skip = ff ? 0 : 1; ui.ready = 0;
     // camera flight
     camX = cr(CAM_X, it) + (it > 6 ? 0 : Math.sin(it * 1.7) * 0.08);

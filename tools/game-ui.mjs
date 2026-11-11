@@ -110,7 +110,9 @@ async function wreck(p, touch, once) {
   ok('the RESUME button resumes', (await pz()).paused === 0);
   st = await drive(p, 1200);
   await p.click('#pause'); await p.waitForTimeout(300); await p.click('#restart'); await p.waitForTimeout(900);
-  s = await gs(p); ok('pause key, then RESTART → run 3 from the top', s.phase === 'cruise' && s.run === 3 && s.score < 300 && !s.paused && (await pz()).paused === 0, `run ${s.run}, score ${s.score}`);
+  s = await gs(p); ok('pause key, then RESTART → the intro plays', s.phase === 'ign' && s.hud === 'hidden' && (await pz()).panel === false, s.phase);
+  await p.click('#skip'); await p.waitForTimeout(900);
+  s = await gs(p); ok('SKIP INTRO → run 3 from the top', s.phase === 'cruise' && s.run === 3 && s.score < 300 && !s.paused && (await pz()).paused === 0, `run ${s.run}, score ${s.score}`);
   // a hit takes a life and puts the police on the tail for good → a second hit ends the run
   st = await drive(p, 3200);
   let hit = await wreck(p, false, true);
