@@ -55,17 +55,18 @@ export const AUTO_ENV = { time: 40, dist: 2900 };
 // generated stays passable. The car always drives flat out; the brake buys reaction time but lets the police close in.
 export const GAME = {
   mph: 2.4,                                      // speedometer: road units per second → MPH
-  vTraffic: 12,
+  vTraffic: 26,                                  // everyone else drives at this speed (62 on the speedometer), so a row of traffic stays a row;
+  breathe: 1.5,                                  // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
   gears: [54, 61, 69, 78, 87, 96],               // cruising speed per gear
   gearAt: [0, 1000, 2500, 4500, 7000, 10000],    // run distance at which each gear engages
   creep: [1000, 20],                             // past the last gear: +1 u/s per 1000 units, up to +20
   brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
-  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 700, nitroEvery: [1100, 1900], nitroFree: 7,
-  ahead: 340, firstRow: 260, despawn: 30,        // spawn distance ahead of the car, first row of a run, cull distance behind
+  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 520, nitroEvery: [820, 1420], nitroFree: 7,   // (distances measured against the traffic: the first after about 17 s)
+  ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
   rowGap: [1.5, 0.9],                            // seconds between rows at the gear's closing speed (gear 1 → 6)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
-  taxiAt: 2.2, taxiBlink: 0.7, taxiMove: 0.6,    // a taxi signals 2.2 s before you reach it, then changes lane
+  taxiAt: 2.4, taxiBlink: 0.7, taxiMove: 0.9,    // a taxi signals 2.4 s before you reach it, then steers across one lane
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
   swipeInv: 0.5, swipeKick: 9, reviveInv: 2.0,
   // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
@@ -75,7 +76,11 @@ export const GAME = {
   heatSwipe: 1, heatSmash: 0.34, heatHold: 10, heatDecay: 12,
   closeT: 6, stumbleGrace: 0.9, polClose: 6.5, polFar: 19,
   ramFirst: 6, ramEvery: [6, 9], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.7, ramOwn: 1.8,   // a ram only starts when a lane beside you stays clear for ramClear s
-  blockP: [0, 0, 0.2, 0.3],                      // share of rows that are police roadblocks, by star
+  blockP: [0, 0, 0.2, 0.3],                      // share of rows that are police units ahead of you, by star
+  // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
+  // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
+  // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
+  blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.35, 0.45], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
   drEvery: 6, drWarn: 1.2, drStrike: 0.45, drClear: 2.7,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,

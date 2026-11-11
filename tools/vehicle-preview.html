@@ -6,6 +6,7 @@
 <script type="module">
 // Development aid: the traffic / police bodies from js/vehicles.js on a turntable grid.
 // Open http://localhost:8086/tools/vehicle-preview.html?w=1600&h=1000  (rows: car, taxi, police, van, cab · columns: view angles)
+// &row=2 one row only · &roll=0.1 &pitch=-0.05 the body on its springs · &t=0.1 wheel angle · &brake=1
 import * as THREE from '../vendor/three.module.min.js';
 import { Vehicles } from '../js/vehicles.js';
 import { PALETTES } from '../js/palette.js';
@@ -24,7 +25,7 @@ r.setScissorTest(true);
 r.setClearColor(Q.has('dark') ? 0x05020f : 0x15121f, 1);
 const list = only === null ? rows : [rows[+only]];
 list.forEach(([style, col, bar], ri) => {
-  veh.begin(pal, 0); veh.add(style, 0, 0, 0, 0, 1.06, col, 1, bar, 1, 1, 0.1, 0); veh.end();
+  veh.begin(pal, +Q.get('t') || 0); veh.add(style, 0, 0, 0, 0, 1.06, col, 1, bar, 1, 1, 0.1, +Q.get('brake') || 0, +Q.get('roll') || 0, +Q.get('pitch') || 0); veh.end();
   views.forEach(([az, el, d], ci) => {
     const cw = W / views.length, ch = H / list.length;
     r.setViewport(ci * cw, H - (ri + 1) * ch, cw, ch); r.setScissor(ci * cw, H - (ri + 1) * ch, cw, ch);

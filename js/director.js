@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TAXI, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose } from './game.js';
+import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose, sCurveD, sCurveA, weave } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 
@@ -75,6 +75,7 @@ const POP = {
   stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : 'SIDESWIPE') + ' · POLICE ON YOUR TAIL', 'bad'],
   tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'], lock: () => ['SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
+  block: () => ['ROLLING ROADBLOCK AHEAD', 'bad'], weave: () => ['CRUISER WEAVING · WATCH ITS LANE', 'bad'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [`CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
   draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: () => ['SHOVED THE POLICE BACK', 'hot'],
 };
@@ -89,7 +90,31 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     const v = veh[o + 3], lane = veh[o + 1], dz = veh[o + 2] - g.gd - back * (v - sv.vel);
-    out.veh.push({ type, x: lane * L, dz, fade: far(dz), sig: type === T_TAXI && veh[o + 6] !== 0 && veh[o + 7] !== 0 ? veh[o + 6] : 0, id: veh[o + 8] });
+    const a = veh[o + 6], b = veh[o + 7], fl = veh[o + 5], id = veh[o + 8], gt = g.gt;
+    // A car is steered, not slid: its heading follows its path (sideways speed over road speed), the body leans away from
+    // the turn and dips under braking. vx, ax: sideways speed and acceleration, in road units.
+    let vx = 0, ax = 0, wag = 0, wander = type === T_BLOCK ? 0.5 : 1, sweep = 0, took = 0;
+    if (type === T_TAXI && a !== 0) {
+      wander = 0;
+      if (b > 0) { const m = (gt - b - G.taxiBlink) / G.taxiMove; vx = a * L * sCurveD(m) / G.taxiMove; ax = a * L * sCurveA(m) / (G.taxiMove * G.taxiMove); }
+    } else if (type === T_TAXI && b < 0) {             // it has just arrived in its new lane: a wag of the tail as it straightens up
+      const u = gt + b; wag = Math.sign(lane) * 0.06 * Math.exp(-u * 4.5) * Math.sin(u * 13); wander = smooth(u / 2.5);
+    } else if (type === T_WEAVE) {
+      wander = 0;
+      if (fl & COMMIT) { const W = G.weaveSnap; vx = b * L; ax = L * (W * W * ((fl & SIDE ? a : 0) - lane) - 2 * W * b); took = (fl & SIDE ? a : 0) * L + 100; }   // took: the x of the lane it picked (+100, so 0 means none)
+      else { const ph = gt + b; vx = a * L * weave(ph, 1); ax = a * L * weave(ph, 2); sweep = a; }
+    }
+    let x = lane * L - back * vx;
+    if (wander > 0) {                                    // nobody holds a lane dead straight
+      const p1 = gt * 0.55 + id * 2.4, p2 = gt * 1.3 + id * 1.1;
+      x += wander * (0.24 * Math.sin(p1) + 0.1 * Math.sin(p2)); vx += wander * (0.132 * Math.cos(p1) + 0.13 * Math.cos(p2));
+    }
+    const slow = type === T_BLOCK ? sat((G.vTraffic - v) / G.blockSlow) : 0;      // a rolling roadblock on the brakes
+    out.veh.push({
+      type, x, dz, fade: far(dz), id, sig: type === T_TAXI && a !== 0 && b !== 0 ? a : 0, sweep, took, vx, v,
+      yaw: type === T_TRUCK ? 0 : -Math.atan2(vx, v) * 1.2 + wag, roll: clamp(ax * 0.004, -0.12, 0.12),
+      pitch: -0.045 * Math.sin(Math.PI * Math.min(slow, 0.999)) - 0.012 * slow, brake: slow > 0.01 && dz > -6 ? 1 : 0,
+    });
   }
   const cel = g.cel, rel = back * (G.vTraffic - sv.vel);
   for (let i = 0; i < NC; i++) {

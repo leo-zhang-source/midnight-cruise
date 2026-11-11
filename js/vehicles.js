@@ -2,7 +2,8 @@
 // the rear bumper to the nose, with the glasshouse as part of the same surface — plus wheels, lamps, mirrors and a
 // roof bar, merged into one geometry and drawn instanced.
 // Every face carries a part id (paint, glass, lamp …), so windows, pillars and the roof are real panels of the body.
-// Per instance: position, heading, scale, paint colour, fade, livery, and the state of its lights.
+// Per instance: position, heading, lean and dive of the body on its springs, scale, paint colour, fade, livery,
+// and the state of its lights. The wheels stay on the road and their hubs show turning spokes.
 import * as THREE from '../vendor/three.module.min.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, sat = (x) => Math.max(0, Math.min(1, x));
@@ -41,7 +42,7 @@ const STYLES = {
 };
 
 function shell(st) {
-  const { L } = st, zOf = (s) => L / 2 - s, pos = [], nor = [], part = [];
+  const { L } = st, zOf = (s) => L / 2 - s, pos = [], nor = [], part = [], wheels = [];
   // stations: an even grid plus every key of the outline, so panel edges fall on rings
   const stations = [];
   for (let i = 0; i <= 24; i++) stations.push(L * i / 24);
@@ -88,8 +89,9 @@ function shell(st) {
     const r = rings[idx], c = new THREE.Vector3(0, (st.bot + r[HALF + 1].y) / 2, r[0].z);
     for (let j = 0; j < M; j++) { const a = r[j], b = r[(j + 1) % M]; for (const v of nz > 0 ? [c, a, b] : [c, b, a]) { pos.push(v.x, v.y, v.z); nor.push(0, 0, nz); part.push(0); } }
   }
-  const merge = (g, x, y, z, p) => {
+  const merge = (g, x, y, z, p, wr = 0) => {                                  // wr: the radius of the wheel this is part of
     const g2 = g.index ? g.toNonIndexed() : g, a = g2.getAttribute('position').array, n = g2.getAttribute('normal').array;
+    if (wr) wheels.push([pos.length / 3, a.length / 3, z, y, wr]);
     for (let i = 0; i < a.length; i += 3) { pos.push(a[i] + x, a[i + 1] + y, a[i + 2] + z); nor.push(n[i], n[i + 1], n[i + 2]); part.push(p); }
   };
   const box = (x, y, z, sx, sy, sz, p) => merge(new THREE.BoxGeometry(sx, sy, sz), x, y, z, p);
@@ -97,8 +99,8 @@ function shell(st) {
   const [wr, ws] = st.wheel;
   for (const s of ws) for (const sx of [-1, 1]) {
     const wx = st.hw(s) - 0.12;
-    const tyre = new THREE.CylinderGeometry(wr, wr, 0.3, 18); tyre.rotateZ(Math.PI / 2); merge(tyre, sx * wx, wr, zOf(s), 3);
-    const hub = new THREE.CylinderGeometry(wr * 0.58, wr * 0.58, 0.04, 14); hub.rotateZ(Math.PI / 2); merge(hub, sx * (wx + 0.15), wr, zOf(s), 7);
+    const tyre = new THREE.CylinderGeometry(wr, wr, 0.3, 18); tyre.rotateZ(Math.PI / 2); merge(tyre, sx * wx, wr, zOf(s), 3, wr);
+    const hub = new THREE.CylinderGeometry(wr * 0.62, wr * 0.62, 0.04, 16); hub.rotateZ(Math.PI / 2); merge(hub, sx * (wx + 0.15), wr, zOf(s), 7, wr);
   }
   const rz = L / 2, fz = -L / 2, hw0 = st.hw(0.05), hwL = st.hw(L), beltR = pl(st.belt, 0), beltF = pl(st.belt, L);
   // rear: lamps, bumper, number plate recess
@@ -120,6 +122,9 @@ function shell(st) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('aPart', new THREE.Float32BufferAttribute(part, 1));
+  const wh = new Float32Array(pos.length);                                    // per vertex: its wheel's centre (z, y) and radius, or zeros
+  for (const [i0, n, cz, cy, r] of wheels) for (let i = i0; i < i0 + n; i++) wh.set([cz, cy, r], i * 3);
+  g.setAttribute('aWheel', new THREE.BufferAttribute(wh, 3));
   return g;
 }
 
@@ -137,27 +142,34 @@ const MAX = 40;
 function makeStyle(style, uniforms) {
   const base = shell(STYLES[style]);
   const g = new THREE.InstancedBufferGeometry();
-  for (const k of ['position', 'normal', 'aPart']) g.setAttribute(k, base.getAttribute(k));
+  for (const k of ['position', 'normal', 'aPart', 'aWheel']) g.setAttribute(k, base.getAttribute(k));
   const A = {};
-  for (const [n, k] of [['aP', 3], ['aS', 4], ['aC', 3], ['aL', 4]]) { A[n] = new THREE.InstancedBufferAttribute(new Float32Array(MAX * k), k); A[n].setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, A[n]); }
+  for (const [n, k] of [['aP', 3], ['aS', 4], ['aC', 3], ['aL', 4], ['aR', 2]]) { A[n] = new THREE.InstancedBufferAttribute(new Float32Array(MAX * k), k); A[n].setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, A[n]); }
   g.instanceCount = 0;
   const mat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */`
-      attribute float aPart; attribute vec3 aP, aC; attribute vec4 aS, aL;   // aS: heading, scale, fade, livery (0 plain, 1 taxi, 2 police) · aL: tail, roof left, roof right, brake
-      varying vec3 vN, vW, vC, vL; varying float vPart; varying vec4 vS, vLi;
+      attribute float aPart; attribute vec3 aP, aC, aWheel; attribute vec4 aS, aL; attribute vec2 aR;   // aS: heading, scale, fade, livery (0 plain, 1 taxi, 2 police) · aL: tail, roof left, roof right, brake · aR: roll, pitch
+      varying vec3 vN, vW, vC, vL, vWheel; varying float vPart; varying vec4 vS, vLi;
+      vec3 lean(vec3 q){                                                   // roll about the car's long axis, then pitch about the axle line
+        float cr = cos(aR.x), sr = sin(aR.x), cp = cos(aR.y), sp = sin(aR.y);
+        q = vec3(q.x * cr - q.y * sr, q.x * sr + q.y * cr, q.z);
+        return vec3(q.x, q.y * cp - q.z * sp, q.y * sp + q.z * cp);
+      }
       void main(){
-        vec3 p = position;
+        vec3 p = position, n = normal;
         if (aPart > 3.5 && aPart < 5.5 && aS.w < 0.5) p = vec3(0.0);        // plain cars have no roof bar
+        vL = p; vWheel = aWheel;
+        if (aWheel.z < 0.01) { p = lean(p - vec3(0.0, 0.36, 0.0)) + vec3(0.0, 0.36, 0.0); n = lean(n); }   // the body moves on its springs; the wheels stay on the road
         float c = cos(aS.x), s = sin(aS.x);
         mat3 R = mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
-        vL = p; vec3 w = aP + R * (p * aS.y); vW = w; vN = R * normal; vC = aC; vPart = aPart; vS = aS; vLi = aL;
+        vec3 w = aP + R * (p * aS.y); vW = w; vN = R * n; vC = aC; vPart = aPart; vS = aS; vLi = aL;
         gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
       }`,
     fragmentShader: /* glsl */`
       precision highp float;
-      uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog;
-      varying vec3 vN, vW, vC, vL; varying float vPart; varying vec4 vS, vLi;
+      uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog; uniform float uT;
+      varying vec3 vN, vW, vC, vL, vWheel; varying float vPart; varying vec4 vS, vLi;
       ${ENV_GLSL}
       void main(){
         vec3 N = normalize(vN), V = normalize(cameraPosition - vW), R = reflect(-V, N);
@@ -179,7 +191,14 @@ function makeStyle(style, uniforms) {
           vec3 lc = vS.w > 1.5 ? (vPart < 4.5 ? vec3(4.0, 0.15, 0.3) : vec3(0.2, 0.6, 4.5)) : vec3(2.2, 1.7, 0.25);
           col = lc * on + vec3(0.03);
         } else if (vPart < 6.5) col = vec3(1.5, 1.4, 1.15) * mix(1.0, 0.35, smoothstep(50.0, 170.0, dist));                             // head lamps
-        else col = vec3(0.2, 0.2, 0.24) + env(R) * 0.5;                                                                              // hubs, grille bars
+        else {
+          col = vec3(0.2, 0.2, 0.24) + env(R) * 0.5;                                                                                 // hubs, grille bars
+          if (vWheel.z > 0.01) {                                                                                                     // a turning wheel: five spokes, blurred by their speed
+            vec2 q = vec2(vL.z - vWheel.x, vL.y - vWheel.y) / vWheel.z;
+            float spoke = smoothstep(0.15, 0.8, abs(fract((atan(q.y, q.x) - uT * 13.0) * 0.7958) - 0.5) * 2.0);
+            col = mix(vec3(0.025, 0.025, 0.04), col * 1.5 + cHor * 0.15, (0.3 + 0.7 * spoke) * smoothstep(0.12, 0.2, length(q)));
+          }
+        }
         // far away the car comes out of the haze (no flicker), and the usual distance fog
         col = mix(cFog, col, vS.z);
         col = mix(col, cFog, (1.0 - exp(-dist / 900.0)) * 0.6);
@@ -193,21 +212,22 @@ function makeStyle(style, uniforms) {
 
 export class Vehicles {
   constructor() {
-    this.u = { cSky: { value: new THREE.Vector3() }, cTop: { value: new THREE.Vector3() }, cHor: { value: new THREE.Vector3() }, cSun: { value: new THREE.Vector3() }, cGrid: { value: new THREE.Vector3() }, cFog: { value: new THREE.Vector3() } };
+    this.u = { cSky: { value: new THREE.Vector3() }, cTop: { value: new THREE.Vector3() }, cHor: { value: new THREE.Vector3() }, cSun: { value: new THREE.Vector3() }, cGrid: { value: new THREE.Vector3() }, cFog: { value: new THREE.Vector3() }, uT: { value: 0 } };
     this.group = new THREE.Group();
     this.m = {};
     for (const k of Object.keys(STYLES)) { this.m[k] = makeStyle(k, this.u); this.group.add(this.m[k]); }
   }
-  begin(P) {
-    const u = this.u;
+  begin(P, T = 0) {
+    const u = this.u; u.uT.value = T;
     u.cSky.value.set(...P.skyMid); u.cTop.value.set(...P.skyTop); u.cHor.value.set(...P.horizon); u.cSun.value.set(...P.sunMid); u.cGrid.value.set(...P.grid); u.cFog.value.set(...P.fog);
     for (const k in this.m) this.m[k].userData.n = 0;
   }
   // style: 'car' | 'van' | 'cab' · livery: 0 plain, 1 taxi, 2 police · tail / roofL / roofR: light levels · brake: 0..1
-  add(style, x, y, z, yaw, scale, col, fade = 1, livery = 0, tail = 1, roofL = 0, roofR = 0, brake = 0) {
+  // roll: the body leans (+ = its roof towards −x) · pitch: + = nose up
+  add(style, x, y, z, yaw, scale, col, fade = 1, livery = 0, tail = 1, roofL = 0, roofR = 0, brake = 0, roll = 0, pitch = 0) {
     const d = this.m[style].userData, i = d.n; if (i >= MAX) return; d.n++;
     d.A.aP.array.set([x, y, z], i * 3); d.A.aS.array.set([yaw, scale, fade, livery], i * 4);
-    d.A.aC.array.set(col, i * 3); d.A.aL.array.set([tail, roofL, roofR, brake], i * 4);
+    d.A.aC.array.set(col, i * 3); d.A.aL.array.set([tail, roofL, roofR, brake], i * 4); d.A.aR.array.set([roll, pitch], i * 2);
   }
   end() {
     for (const k in this.m) { const m = this.m[k], d = m.userData; d.g.instanceCount = d.n; m.visible = d.n > 0; for (const a in d.A) d.A[a].needsUpdate = true; }

@@ -1,10 +1,11 @@
 // Unit tests for the game simulation (no browser).   node tools/game-test.mjs
 // Determinism, crash, home / start / restart, rewind (state and reverse playback), sideswipe and busted,
-// brake, nitro canisters, police stars, the grappler, helicopter fire, pause, free mode, audio-thread parity.
+// brake, nitro canisters, police stars, the grappler, helicopter fire, steering curves, the rolling roadblock,
+// the weaving cruiser, pause, free mode, audio-thread parity.
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
 import { GAME } from '../js/cue.js';
-import { NV, VF, policeClose, P_HOOK, HOOK_Z } from '../js/game.js';
+import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, CAR_HL, freshGame, stepGame, breathe } from '../js/game.js';
 import { play } from './bot.mjs';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
 const C = 1.9;   // cruise start of the test timelines (start 1.0, skip 1.5, 0.4 s fast-forward)
@@ -172,6 +173,46 @@ let crashT;
   ok('free mode: nitro available, refilled 7 s after use', tl.turboAt(C + 61.5) !== null && tl.turboReady(C + 63) === 0 && tl.turboReady(C + 61 + 7.3) === 1);
 }
 
+// ── traffic that drives: steering curves, the rolling roadblock, the weaving cruiser ──
+{
+  const r = play(31337, 200), tl = new Timeline(); tl.load(r.ev);
+  const H = 0.02, log = new Map();                       // every vehicle's track, sampled 50 times a second
+  for (let T = C + 4; T < C + 200; T += H) {
+    const g = tl.stateAt(T).g;
+    for (let i = 0; i < NV; i++) { const o = i * VF; if (!g.veh[o]) continue; const id = g.veh[o + 8]; if (!log.has(id)) log.set(id, []); log.get(id).push({ T, id, type: g.veh[o], lane: g.veh[o + 1], dz: g.veh[o + 2] - g.gd, u: g.veh[o + 2] - GAME.vTraffic * g.gt - breathe(id, g.gt), v: g.veh[o + 3], hl: g.veh[o + 4], fl: g.veh[o + 5], a: g.veh[o + 6], b: g.veh[o + 7] }); }
+  }
+  const tracks = [...log.values()], of = (type) => tracks.filter((t) => t[0].type === type && t[0].dz > 200 && t[t.length - 1].dz < 0);
+  const cars = tracks.filter((t) => t[0].type < T_TAXI && t.length > 50);
+  const spread = cars.map((t) => { const a = t.filter((q) => q.dz > 0), vs = a.map((q) => q.v); return { lo: Math.min(...vs), hi: Math.max(...vs), slip: Math.max(...a.map((q) => Math.abs(q.u - a[0].u))) }; });
+  ok('traffic drives at 26 u/s (62 on the speedometer), each vehicle easing ahead of and behind its place in the row by at most 1.5',
+    cars.length > 100 && spread.every((x) => x.lo > GAME.vTraffic - 1.6 && x.hi < GAME.vTraffic + 1.6 && x.slip < 0.05) && spread.some((x) => x.hi - x.lo > 1),
+    `${cars.length} vehicles tracked, speeds ${Math.min(...spread.map((x) => x.lo)).toFixed(1)} … ${Math.max(...spread.map((x) => x.hi)).toFixed(1)} u/s`);
+  // a taxi steers across: a sine ramp, so it leaves and arrives with no sideways speed, and it is across before we get there
+  const taxis = of(T_TAXI).map((t) => { const m = t.filter((q, i) => i > 0 && q.lane !== t[i - 1].lane), sp = m.map((q) => Math.abs(q.lane - t[t.indexOf(q) - 1].lane) / H); return { t, m, sp, end: m[m.length - 1], hit: t.find((q) => q.dz < q.hl + CAR_HL) }; }).filter((x) => x.m.length);
+  ok('a taxi steers across its lane: no sideways speed at either end, never faster than 2 lanes ÷ the move, across before we arrive',
+    taxis.length >= 3 && taxis.every((x) => x.sp[0] < 0.15 && x.sp[x.sp.length - 1] < 0.15 && Math.max(...x.sp) < 2 / GAME.taxiMove * 1.06 && Math.max(...x.sp) > 2 / GAME.taxiMove * 0.9 && Math.abs(x.m.length * H - GAME.taxiMove) < 0.06 && x.hit.T - x.end.T > 0.5),
+    `${taxis.length} taxis; fastest ${Math.max(...taxis.map((x) => Math.max(...x.sp))).toFixed(2)} lanes/s; in lane ${Math.min(...taxis.map((x) => x.hit.T - x.end.T)).toFixed(2)} s or more before we reach it`);
+  // a rolling roadblock: cruisers that drive with the traffic and brake as we come up
+  const blocks = of(T_BLOCK), ev = tl.gameEvents(0, C + 200);
+  ok('a rolling roadblock drives with the traffic and brakes as we come up to it',
+    blocks.length >= 4 && blocks.every((t) => t.filter((q) => q.dz > 150).every((q) => q.v === GAME.vTraffic) && Math.abs(Math.min(...t.filter((q) => q.dz > 0).map((q) => q.v)) - (GAME.vTraffic - GAME.blockSlow)) < 0.3) && ev.some((e) => e.k === 'block'),
+    `${blocks.length} cruisers, slowest ${Math.min(...blocks.flatMap((t) => t.map((q) => q.v))).toFixed(1)} u/s`);
+  // a weaving cruiser: swings between two lanes, then takes one in good time and stays in it
+  const weavers = of(T_WEAVE).map((t) => { const i = t.findIndex((q) => q.fl & COMMIT), hit = t.find((q) => q.dz < q.hl + CAR_HL); const pre = t.slice(0, i), post = t.filter((q) => q.T > t[i].T + 0.7 && q.dz > -5); return { pre, post, lead: hit.T - t[i].T, range: Math.max(...pre.map((q) => Math.abs(q.lane))) - Math.min(...pre.map((q) => Math.abs(q.lane))), jump: Math.max(...t.map((q, k) => (k ? Math.abs(q.lane - t[k - 1].lane) : 0))) }; });
+  ok('a weaving cruiser swings across two lanes, then takes one at least a second before we reach it and stays there',
+    weavers.length >= 3 && ev.some((e) => e.k === 'weave') && weavers.every((x) => x.range > 0.95 && x.lead > 1.0 && x.jump < 0.08 && x.post.length > 5 && x.post.every((q) => Math.abs(q.lane - Math.round(q.lane)) < 0.04 && Math.round(q.lane) === Math.round(x.post[0].lane))),
+    `${weavers.length} cruisers; lane taken ${Math.min(...weavers.map((x) => x.lead)).toFixed(2)} s or more ahead`);
+  ok('the bot gets past all of it without a touch', r.stats.stumbles === 0 && !r.stats.over);
+  // the warning is timed for full speed: a taxi signals at the same distance whether we come up flat out or on the brake
+  const sigGap = (vel) => {
+    const g = freshGame(5); g.genU = 1e12; g.veh.set([T_TAXI, 0, 120, GAME.vTraffic, 2.4, 0, 1, 0, 1], 0);   // close enough to be reached in first gear either way
+    for (let i = 0, out = []; i < 240 * 120; i++) { stepGame(g, { dt: 1 / 240, x: -5, lane: -1, vel, brk: 0, nitro: 0 }, out); if (g.veh[7] > 0) return g.veh[2] - g.gd; }
+    return -1;
+  };
+  const gapA = sigGap(GAME.gears[0]), gapB = sigGap(GAME.gears[0] * GAME.brakeMul);
+  ok('braking on the way in does not shorten a taxi\'s warning: it signals at the same distance', gapB > 0 && Math.abs(gapB - gapA) < 1, `signals ${gapA.toFixed(0)} units out at full speed, ${gapB.toFixed(0)} on the brake`);
+}
+
 // ── pause: the game clock stops (VCR pause), the car halts, inputs are ignored; resume carries on ──
 {
   const tl = fresh(); tl.add('pause', C + 4, { on: true });
@@ -180,6 +221,7 @@ let crashT;
   const b = tl.stateAt(C + 10);
   ok('pause: game clock and traffic stop, the car halts, inputs are ignored', b.paused === 1 && b.g.gt === gt1 && Math.abs(b.g.gd - gd1) < 1e-9 && Math.abs(b.vel) < 0.5 && b.lane === 0 && !b.over, `game time ${b.g.gt.toFixed(2)} s after 6 s paused`);
   tl.add('pause', C + 11, { on: false });
-  const c = tl.stateAt(C + 11 + (crashT - C) + 1);
-  ok('resume: the run continues from where it stopped', c.paused === 0 && c.over === 1 && c.overT - (C + 11) > crashT - C - 4 - 0.5 && c.overT - (C + 11) < crashT - C - 4 + 1.5, `crash ${(c.overT - C - 11).toFixed(2)} s after resuming (4.0 s were driven before the pause, ${(crashT - C).toFixed(2)} s without one)`);
+  const t0 = fresh().stateAt(C + 40).overT - C;                   // the same hands-off run without a pause
+  const c = tl.stateAt(C + 11 + t0 + 3);
+  ok('resume: the run continues from where it stopped', c.paused === 0 && c.over === 1 && c.overT - (C + 11) > t0 - 4 - 0.1 && c.overT - (C + 11) < t0 - 4 + 1.5, `crash ${(c.overT - C - 11).toFixed(2)} s after resuming (4.0 s were driven before the pause, ${t0.toFixed(2)} s without one; pulling away again costs a little)`);
 }

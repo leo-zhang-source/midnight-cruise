@@ -40,7 +40,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 ## The game
 
-**How a run goes.** Every run opens with a police cruiser on your bumper ("POLICE! PULL OVER"). After a second you floor it and the cruiser drops back, but it follows you for the whole run: you hear its siren and see its lights at the bottom of the screen. All traffic drives in your direction, slower than you, so the road comes at you in rows. Each press moves the car one lane, in about 0.2 s.
+**How a run goes.** Every run opens with a police cruiser on your bumper ("POLICE! PULL OVER"). After a second you floor it and the cruiser drops back, but it follows you for the whole run: you hear its siren and see its lights at the bottom of the screen. All traffic drives in your direction at 62 MPH, less than half your speed, so the road comes at you in rows. Everyone on it is driving: cars drift a little in their lanes, steer into lane changes and lean as they do, their wheels turn, and their tail lamps streak the road behind them. Each press moves the car one lane, in about 0.2 s.
 
 **What is on the road**
 
@@ -48,14 +48,15 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 |---|---|
 | Car, van | Blocks a lane. Each is at least as big as your car. |
 | Truck | A cab and a long trailer: blocks a lane for longer. |
-| Taxi | Drives in the middle lane, signals, then pulls over to one side as you close in. |
-| Roadblock | From two stars: a police cruiser parked across a lane behind a hard-light barrier, usually two lanes wide. |
+| Taxi | Drives in the middle lane, signals for 0.7 s, then steers across to one side as you close in (0.9 s, nose first, leaning out of the turn). |
+| Rolling roadblock | From two stars: two police cruisers driving abreast with their lights on and a warning sign over each. They brake as you come up. One lane is left. |
+| Weaving cruiser | From two stars: one cruiser swinging between the middle lane and one side; chevrons over the two lanes show which way it is steering. About 1.2 s before you reach it, it takes the lane it is heading for and the sign over that lane turns into a warning triangle. At three stars a second cruiser may hold the third lane. |
 | Energy cells | Mark the open lane. Each adds score; 100 of them earn a spare tape (up to 3). |
 | Nitro canister | A blue ring with a light pillar, now and then. Drive through it to take it aboard; you can carry three. |
 
 **Mistakes**
 
-- Driving into the back of a vehicle or a roadblock **wrecks** the car. The run is over.
+- Driving into the back of a vehicle or a police cruiser **wrecks** the car. The run is over.
 - Changing lane into a vehicle that is alongside is a **sideswipe**: the car bounces back, the combo resets, you gain a star, and the police close in.
 - A **stumble** (a sideswipe, being hooked by the grappler, being hit by the helicopter) puts the pursuit car on your tail for 6 s. The camera pulls back so you see it, and a timer bar counts down under the stars. A second stumble while it is there and you are **busted**.
 - Holding the brake for more than about 2 s also brings the pursuit car onto your tail.
@@ -67,8 +68,8 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 | Stars | You get there by | What the police do |
 |---|---|---|
 | ★ | every run starts here | One cruiser follows you. |
-| ★★ | a sideswipe (+1 star), three vehicles smashed with nitro (+⅓ each), or 3.5 km driven | Roadblocks appear. The cruiser comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second and you lose speed. |
-| ★★★ | more of the same, or 8 km driven | A police helicopter flies in and hangs ahead of you, side-on, sweeping the road with its searchlight. Every 6 s it turns to face you and the light locks the lane you are in (the beam turns amber, then red, with a target on the lane); 1.2 s later it fires down that lane from its two gun pods. More roadblocks. |
+| ★★ | a sideswipe (+1 star), three vehicles smashed with nitro (+⅓ each), or 3.5 km driven | Police appear ahead of you: rolling roadblocks and weaving cruisers. The cruiser behind comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second and you lose speed. |
+| ★★★ | more of the same, or 8 km driven | A police helicopter flies in and hangs ahead of you, side-on, sweeping the road with its searchlight. Every 6 s it turns to face you and the light locks the lane you are in (the beam turns amber, then red, with a target on the lane); 1.2 s later it fires down that lane from its two gun pods. More police ahead. |
 
 Heat cools by one star every 12 s once 10 s pass without an incident, but never below the level your distance has earned.
 
@@ -77,12 +78,12 @@ Heat cools by one star every 12 s once 10 s pass without an incident, but never 
 - **Distance** scores points all the time.
 - **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per star above the first.
 - **Gears** engage with distance: the base speed rises from 130 MPH in gear 1 to 230 MPH in gear 6, and rows come closer together.
-- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and roadblocks, and shove the pursuit car back if it is in your way. Each vehicle smashed scores points and adds a third of a star.
+- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and police cruisers (a cruiser costs a whole star), and shove the pursuit car back if it is in your way. Each vehicle smashed scores points and adds a third of a star.
 - **Slipstream**: staying close behind a vehicle before you pull out scores a bonus.
 
 **The road.** One highway into the city for the whole run: megastructure towers on the horizon, a sign gantry over the road every 2,400 units, and a big billboard every 1,600. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 2,900 road units, whichever comes first.
 
-**Fairness.** All traffic moves at one speed, so a row that had an open lane when it appeared keeps it, and every row leaves a lane open within one lane of the previous opening. A grappler run or a searchlight lock only starts when a neighbouring lane is clear. `tools/bot.mjs` drives 16 different seeds for 5 minutes each without a single stumble (4–9 grappler runs and 5–13 helicopter strikes dodged per run). With nitro the same bot crashes in 3 of 16 runs, after 220 s or more: coming out of a burst into dense gear-6 traffic is the risk you take for the points.
+**Fairness.** All traffic holds one speed, give or take a car's length of easing, so a row that had an open lane when it appeared keeps it, and every row leaves a lane open within one lane of the previous opening. A weaving cruiser works the side you are on and takes its lane at least 1.2 s before you reach it, and the row after it leaves the middle lane open. Warnings are timed for the speed you would be doing flat out, so braking on the way in never shortens one. A grappler run or a searchlight lock only starts when a neighbouring lane is clear and no taxi or weaving cruiser is about to move. `tools/bot.mjs` drives 16 different seeds for 5 minutes each without a single stumble (2–6 grappler runs and 4–9 helicopter strikes dodged per run). With nitro the same bot crashes in 2 of 16 runs, after 175 s or more: coming out of a burst into dense gear-6 traffic is the risk you take for the points.
 
 **Pause.** `P` pauses the run like a VCR: the game clock stops and the music carries on, muffled. The run also pauses by itself when the tab is hidden or the window loses focus, and stays paused until you resume.
 
@@ -133,7 +134,7 @@ node tools/interact.mjs          # end-to-end input test in free mode (mouse, ke
 ```
 
 ```bash
-node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, grappler, helicopter, nitro stock, stars, pause
+node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, grappler, helicopter, steering curves, rolling roadblock, weaving cruiser, nitro stock, stars, pause
 ```
 
 ```bash
@@ -147,6 +148,7 @@ node tools/bot.mjs               # fairness soak: a look-ahead bot drives severa
 ```bash
 node tools/scenes.mjs renders/scenes 1280x720   # stills of the moments worth checking: grappler run, searchlight lock, roadblock, rewind, menus …
 node tools/scenes.mjs renders/scenes 1280x720 1000 heli   # only the shots whose name starts with "heli"
+node tools/seq.mjs renders/scenes/seq 42.1 43.6 6   # a strip of frames from a bot run, to judge motion (a lane change, a weave, a pass)
 node tools/smoke.mjs             # after a build: the Pages build and both single files load a three-star moment without errors
 ```
 

@@ -9,23 +9,38 @@ import { GAME, ROAD } from './cue.js';
 export const NV = 28, VF = 9;      // vehicle pool: [type, lane, z, v, halfLen, flags, a, b, id]
 export const NC = 16, CF = 5;      // cell lines:   [count, lane, z0, spacing, takenMask]
 export const NI = 4, IF = 3;       // nitro canisters: [active, lane, z]
-export const T_CAR = 1, T_VAN = 2, T_TRUCK = 3, T_TAXI = 4, T_BLOCK = 5;
-export const HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.5];
-export const HALF_W = [0, 1.05, 1.15, 1.4, 1.05, 2.4];
+// T_BLOCK: a cruiser of a rolling roadblock · T_WEAVE: a cruiser weaving between the middle lane and one side
+export const T_CAR = 1, T_VAN = 2, T_TRUCK = 3, T_TAXI = 4, T_BLOCK = 5, T_WEAVE = 6;
+export const HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.4, 2.4];
+export const HALF_W = [0, 1.05, 1.15, 1.4, 1.05, 1.05, 1.05];
 export const CAR_HL = 2.2, CAR_HW = 0.95;
 export const POL_HL = 2.4, POL_HW = 1.05;                  // the pursuit car
 // pursuit car modes: on the tail, lining up with the grappler out, lunging, dropping back, hooked onto our rear wheel
 export const P_TAIL = 0, P_WARN = 1, P_CHARGE = 2, P_BACK = 3, P_HOOK = 4;
 // the grappler (a net on a fork ahead of the cruiser's bumper) reaches our rear wheel at this distance, within this offset
 export const HOOK_Z = POL_HL + CAR_HL + 1.25, HOOK_W = 1.7;
-const LAT = 1, LON = 2, THREAT = 4, NEAR = 8, PASSED = 16;
+const LAT = 1, LON = 2, THREAT = 4, NEAR = 8, PASSED = 16, WARNED = 32;
+export const COMMIT = 64, SIDE = 128;      // a weaving cruiser has picked its lane (SIDE: the side lane, else the middle)
+// A lane change the way a car steers it: m = 0..1 through the move → 0..1 across the lane, with no sideways speed or
+// acceleration at either end (a sine ramp). sCurveD is its slope, sCurveA its curvature.
+const TAU = Math.PI * 2;
+export const sCurve = (m) => (m <= 0 ? 0 : m >= 1 ? 1 : m - Math.sin(TAU * m) / TAU);
+export const sCurveD = (m) => (m <= 0 || m >= 1 ? 0 : 1 - Math.cos(TAU * m));
+export const sCurveA = (m) => (m <= 0 || m >= 1 ? 0 : TAU * Math.sin(TAU * m));
+// The weaving cruiser, t seconds into its cycle: 0 = in the middle lane, 1 = in the side lane. k: 0 position, 1 speed (per s), 2 acceleration.
+export function weave(t, k = 0) {
+  const D = GAME.weaveHold, M = GAME.weaveMove, P = 2 * (D + M); let u = t % P; if (u < 0) u += P;
+  let m, s = 1;
+  if (u < D) return 0; else if (u < D + M) m = (u - D) / M; else if (u < 2 * D + M) return k ? 0 : 1; else { m = (u - 2 * D - M) / M; s = -1; }
+  return k === 0 ? (s > 0 ? sCurve(m) : 1 - sCurve(m)) : k === 1 ? s * sCurveD(m) / M : s * sCurveA(m) / (M * M);
+}
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
 export function freshGame(seed = 1986, free = 0) {
   return {
     seed, free: free ? 1 : 0, rs: seed | 0, gt: 0, gd: 0,
     veh: new Float64Array(NV * VF), cel: new Float64Array(NC * CF), itm: new Float64Array(NI * IF), nid: 1,
-    genU: GAME.firstRow, genI: 0, path: 0, lastPat: 0, itmNext: GAME.nitroFirst,
+    genU: GAME.firstRow, genI: 0, path: 0, lastPat: 0, mid: 0, itmNext: GAME.nitroFirst,
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: 0,
     nstock: free ? 1 : 0, nfree: 0,
     heat: 1, heatGt: -1e9, star: 1,
@@ -33,7 +48,7 @@ export function freshGame(seed = 1986, free = 0) {
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
     drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
     hx: 0, sx: 0, sk: 0, ha: 0, hb: 0,                                               // helicopter x, searchlight spot x, how locked the light is (0..1), how far it has arrived (0..1), its bank
-    inv: 0, draft: 0, draftEv: -1e9, goEv: 0, over: 0,
+    inv: 0, draft: 0, draftEv: -1e9, goEv: 0, blkEv: -1e9, over: 0,
   };
 }
 export function copyGame(g) { const c = { ...g }; c.veh = g.veh.slice(); c.cel = g.cel.slice(); c.itm = g.itm.slice(); return c; }
@@ -47,6 +62,9 @@ function rnd(g) {
   t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
+// Nobody holds a speed exactly: a car, van or truck drifts up to GAME.breathe ahead of and behind its place in the row,
+// each in its own time (a period of 6 to 10 s). k = 0: that offset, k = 1: its rate of change.
+export function breathe(id, gt, k = 0) { const w = 0.6 + 0.07 * (id % 7), p = w * gt + id * 2.4; return GAME.breathe * (k ? w * Math.cos(p) : Math.sin(p)); }
 // u: position in the traffic frame (constant for same-direction traffic); z = u + vTraffic·gt
 function spawn(g, type, lane, u, a = 0, b = 0) {
   const veh = g.veh;
@@ -54,6 +72,7 @@ function spawn(g, type, lane, u, a = 0, b = 0) {
     const o = i * VF; if (veh[o]) continue;
     veh[o] = type; veh[o + 1] = lane; veh[o + 2] = u + GAME.vTraffic * g.gt; veh[o + 3] = GAME.vTraffic; veh[o + 4] = HALF_L[type];
     veh[o + 5] = 0; veh[o + 6] = a; veh[o + 7] = b; veh[o + 8] = g.nid++;
+    if (type < T_TAXI) veh[o + 2] += breathe(veh[o + 8], g.gt);
     return i;
   }
   return -1;
@@ -80,10 +99,11 @@ function genRow(g) {
   const side = () => (rnd(g) < 0.5 ? -1 : 1);
   const adj = (l) => (l === 0 ? side() : 0);                 // a lane next to l
   const third = (a, b) => -(a + b);                           // the lane that is neither a nor b (lanes sum to 0)
-  const block = i >= 3 && rnd(g) < G.blockP[g.star];          // a police roadblock instead of traffic
-  let len = 5;
+  const block = i >= 3 && rnd(g) < G.blockP[g.star];          // police ahead instead of traffic: a rolling roadblock or a weaving cruiser
+  const weaver = block && rnd(g) < G.weaveP[g.star];
+  let len = 5, first = 1;
   const put = (lane) => {
-    if (block) { spawn(g, T_BLOCK, lane, u); return; }
+    if (block) { spawn(g, T_BLOCK, lane, u, 0, first ? 1 : 0); first = 0; return; }   // b = 1: the one that announces the pair
     const r = rnd(g), type = r < 0.46 ? T_CAR : r < 0.72 ? T_VAN : T_TRUCK;
     if (type === T_TRUCK) len = 12.4;
     spawn(g, type, lane, u);
@@ -94,7 +114,8 @@ function genRow(g) {
   const wConvoy = 0.10 + 0.05 * gear, wGate = 0.08 + 0.02 * gear, wTaxi = gear >= 1 && !block ? 0.14 : 0, wRest = 0.06;
   const wSingle = 0.40, wDecoy = 0.20;
   let x = r * (wSingle + wConvoy + wDecoy + wGate + wTaxi + wRest);
-  if (block) pat = r < 0.6 ? 2 : 4;
+  if (weaver) pat = 6;
+  else if (block) pat = r < 0.6 ? 2 : 4;
   else if (i < 3) pat = i === 0 ? 1 : (r < 0.7 ? 1 : 3);
   else if ((x -= wSingle) < 0) pat = 1;
   else if ((x -= wConvoy) < 0) pat = 2;
@@ -102,6 +123,7 @@ function genRow(g) {
   else if ((x -= wGate) < 0) pat = 4;
   else if ((x -= wTaxi) < 0) pat = 5;
   else pat = 0;
+  if (g.mid) { g.mid = 0; pat = block || r < 0.5 ? 4 : 3; }   // after a weaving cruiser we may be in any lane: this row leaves the middle open
   if ((pat === 3 || pat === 4 || pat === 0) && (g.lastPat === 3 || g.lastPat === 4 || g.lastPat === 0)) pat = block ? 2 : 1;   // never two rows in a row that need no move
   g.lastPat = pat;
 
@@ -118,6 +140,12 @@ function genRow(g) {
     spawn(g, T_TAXI, 0, u, d, 0);
     cellLine(g, p === 0 ? -d : p, u - 26, 4, 6);
     g.path = 0; g.genU = u + 5 + w * tg * 1.25;
+    return;
+  } else if (pat === 6) {                // a cruiser weaving across the middle lane and one side, then taking one of the two
+    const d = p !== 0 ? p : side();      // (the side we are on: whichever lane it takes, the free one is at most one lane away)
+    spawn(g, T_WEAVE, 0, u, d, rnd(g) * 2 * (G.weaveHold + G.weaveMove));
+    if (g.star >= 3 && rnd(g) < 0.5) spawn(g, T_BLOCK, -d, u);       // … and a second one may hold the third lane
+    g.path = 0; g.mid = 1; g.genU = u + 5 + w * tg * 1.25;
     return;
   } else {                               // breather: a zig-zag of cells
     const l2 = adj(p);
@@ -147,10 +175,15 @@ function stumble(g, out, by) {
   out.push({ k: 'stumble', by });
   return true;
 }
-// a taxi ahead that has yet to cut across: the police hold off, so the squeeze is never unfair
-function taxiPending(g) {
+// a taxi ahead that has yet to cut across, or a weaving cruiser we are about to pass: the pursuit car and the helicopter
+// hold off, so the squeeze is never unfair
+function hazardPending(g, vel) {
   const veh = g.veh;
-  for (let i = 0; i < NV; i++) { const o = i * VF; if (veh[o] === T_TAXI && veh[o + 6] !== 0 && veh[o + 2] - g.gd > -6) return true; }
+  for (let i = 0; i < NV; i++) {
+    const o = i * VF, dz = veh[o + 2] - g.gd; if (dz <= -6) continue;
+    if (veh[o] === T_TAXI && veh[o + 6] !== 0) return true;
+    if (veh[o] === T_WEAVE && dz < Math.max(1, vel - veh[o + 3]) * 3) return true;
+  }
   return false;
 }
 // is lane l clear of traffic around the car for the next `secs` seconds?
@@ -158,7 +191,7 @@ function laneClear(g, l, vel, secs) {
   const veh = g.veh, L = ROAD.lane;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
-    if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !(type === T_TAXI && veh[o + 6] !== 0 && (l === 0 || l === veh[o + 6]))) continue;
+    if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !((type === T_WEAVE || (type === T_TAXI && veh[o + 6] !== 0)) && (l === 0 || l === veh[o + 6]))) continue;
     const dz = veh[o + 2] - g.gd, reach = veh[o + 4] + CAR_HL + 1.5, rel = Math.max(1, vel * 1.12 - veh[o + 3]);   // margin for a gear change
     if (dz > -reach && dz < reach + rel * secs) return false;
   }
@@ -166,7 +199,7 @@ function laneClear(g, l, vel, secs) {
 }
 
 // inp: { dt, x (car lateral position), lane (target lane), vel, brk (brake held), nitro (smashing through) }
-// out: receives events { k, … }: gear, near, smash, swipe{back,dir}, crash, bust, stumble{by}, star, ramwarn, ram,
+// out: receives events { k, … }: gear, near, smash, swipe{back,dir}, crash, bust, stumble{by}, star, block, weave, ramwarn, ram,
 //      lock, strike, tail, draft, cell, tape, item, full
 export function stepGame(g, inp, out) {
   const DT = inp.dt, G = GAME, L = ROAD.lane;
@@ -186,30 +219,54 @@ export function stepGame(g, inp, out) {
   let mult = gameMult(g);
 
   // ── vehicles ──
-  const veh = g.veh; let draft = 0;
+  // Warnings are timed for the speed we would be doing flat out, so easing off the brake never shortens one.
+  const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g)); let draft = 0;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     if (type === T_TAXI && veh[o + 6] !== 0) {       // a: side it will cut to, b: time it started signalling
       if (veh[o + 7] === 0) {
         const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL);
-        if (gap0 < (inp.vel - veh[o + 3]) * G.taxiAt) veh[o + 7] = gt;
+        if (gap0 < (vFull - veh[o + 3]) * G.taxiAt) veh[o + 7] = gt;
       } else {
         const m = (gt - veh[o + 7] - G.taxiBlink) / G.taxiMove;
-        if (m >= 1) { veh[o + 1] = veh[o + 6]; veh[o + 6] = 0; }
-        else if (m > 0) veh[o + 1] = veh[o + 6] * (m * m * (3 - 2 * m));
+        if (m >= 1) { veh[o + 1] = veh[o + 6]; veh[o + 6] = 0; veh[o + 7] = -gt; }     // b < 0: when it finished (the picture lets it settle)
+        else if (m > 0) veh[o + 1] = veh[o + 6] * sCurve(m);
       }
     }
-    veh[o + 2] += veh[o + 3] * DT;
+    let fl = veh[o + 5];
+    if (type < T_TAXI) veh[o + 3] = G.vTraffic + breathe(veh[o + 8], gt, 1);
+    if (type === T_WEAVE) {              // a: the side it weaves to · b: where in its cycle it started; once it has picked a lane, its sideways speed
+      if (fl & COMMIT) {
+        const W = G.weaveSnap, tgt = fl & SIDE ? veh[o + 6] : 0;
+        veh[o + 7] += (W * W * (tgt - veh[o + 1]) - 2 * W * veh[o + 7]) * DT; veh[o + 1] += veh[o + 7] * DT;
+      } else {
+        const ph = gt + veh[o + 7]; veh[o + 1] = veh[o + 6] * weave(ph);
+        if (veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - G.vTraffic) * G.weaveLock) {   // we are close: it takes the lane it is heading for
+          const v = weave(ph, 1);
+          fl |= COMMIT | ((v !== 0 ? v > 0 : weave(ph) > 0.5) ? SIDE : 0); veh[o + 7] = veh[o + 6] * v;
+        }
+      }
+    }
+    if (type === T_BLOCK || type === T_WEAVE) {
+      const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL), rel0 = vFull - G.vTraffic;
+      if (type === T_BLOCK) {                          // a rolling roadblock brakes as we come up to it
+        const tv = gap0 > 0 && gap0 < rel0 * G.blockAt ? G.vTraffic - G.blockSlow : G.vTraffic;
+        veh[o + 3] += clamp(tv - veh[o + 3], -G.blockDecel * DT, G.blockDecel * DT);
+      }
+      if (!(fl & WARNED) && gap0 < rel0 * G.weaveWarn && (type === T_WEAVE || veh[o + 7] === 1)) {
+        fl |= WARNED; if (gt - g.blkEv > 2.5) { g.blkEv = gt; out.push({ k: type === T_WEAVE ? 'weave' : 'block', lane: veh[o + 1] }); }   // one call-out at a time
+      }
+    }
+    veh[o + 2] += ((fl & PASSED) && veh[o + 3] > inp.vel ? inp.vel : veh[o + 3]) * DT;    // traffic we have passed does not run into our tail when we slow
     const dz = veh[o + 2] - gd, reach = veh[o + 4] + CAR_HL;
     if (dz < -G.despawn) { veh[o] = 0; continue; }
     const vx = veh[o + 1] * L, dx = Math.abs(px - vx);
     const lat = dx < HALF_W[type] + CAR_HW - 0.12, lon = Math.abs(dz) < reach - 0.2;
-    let fl = veh[o + 5];
     const rel = inp.vel - veh[o + 3], gap = dz - reach;
     if (lat && lon) {
       if (inp.nitro) {
         veh[o] = 0; g.smash++; g.combo++; g.score += G.ptsSmash * mult;
-        addHeat(g, type === T_BLOCK ? 1 : G.heatSmash);
+        addHeat(g, type >= T_BLOCK ? 1 : G.heatSmash);
         out.push({ k: 'smash', lane: veh[o + 1], dz, type });
         continue;
       }
@@ -232,7 +289,7 @@ export function stepGame(g, inp, out) {
         out.push({ k: 'near', lane: veh[o + 1], pts: Math.round(G.ptsNear * mult) });
       }
       if (!(fl & PASSED) && dz < -reach) { fl |= PASSED; g.passed++; g.combo++; g.score += G.ptsPass * mult; }
-      if (lat && type !== T_BLOCK && gap > 0 && gap < clamp(rel * G.draftT, 12, 60)) draft = 1;
+      if (lat && type < T_BLOCK && gap > 0 && gap < clamp(rel * G.draftT, 12, 60)) draft = 1;
     }
     veh[o + 5] = (fl & ~(LAT | LON)) | (lat ? LAT : 0) | (lon ? LON : 0);
   }
@@ -292,7 +349,7 @@ export function stepGame(g, inp, out) {
     const close = policeClose(g);
     g.polZ += ((close ? -G.polClose : -G.polFar) - g.polZ) * eK(close ? 0.3 : 1.1);
     g.polX += (px - g.polX) * eK(0.3);
-    if (g.star >= 2 && gt >= g.ramNext && gt > G.introT + 4 && g.drT < 0 && !inp.nitro && !taxiPending(g)) {
+    if (g.star >= 2 && gt >= g.ramNext && gt > G.introT + 4 && g.drT < 0 && !inp.nitro && !hazardPending(g, inp.vel)) {
       const l = inp.lane, s = G.ramClear;
       if (laneClear(g, l, inp.vel, G.ramOwn) && ((l > -1 && laneClear(g, l - 1, inp.vel, s)) || (l < 1 && laneClear(g, l + 1, inp.vel, s)))) {
         g.polM = P_WARN; g.polT = gt; g.polLane = l; g.polF = 0;
@@ -340,7 +397,7 @@ export function stepGame(g, inp, out) {
   // ── police: the helicopter, from three stars. Its searchlight locks the lane we are in, then it fires down the beam ──
   if (g.star >= 3) {
     if (g.drT < 0) {
-      if (gt >= g.drNext && g.polM === P_TAIL && !taxiPending(g)) {
+      if (gt >= g.drNext && g.polM === P_TAIL && !hazardPending(g, inp.vel)) {
         const l = inp.lane, s = G.drClear;
         if ((l > -1 && laneClear(g, l - 1, inp.vel, s)) || (l < 1 && laneClear(g, l + 1, inp.vel, s))) {
           g.drT = gt; g.drLane = l; g.drAcc = 0; g.drHit = 0; g.drS = 0; out.push({ k: 'lock', lane: l });

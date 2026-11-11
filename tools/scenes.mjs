@@ -5,7 +5,8 @@ import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { play } from './bot.mjs';
 import { Timeline } from '../js/timeline.js';
-import { NV, VF, T_BLOCK } from '../js/game.js';
+import { NV, VF, T_TAXI, T_BLOCK, T_WEAVE, COMMIT } from '../js/game.js';
+import { GAME } from '../js/cue.js';
 
 const [out = 'renders/scenes', size = '1280x720', seedArg = '1000', only = ''] = process.argv.slice(2);
 const [w, h] = size.split('x').map(Number), seed = +seedArg;
@@ -22,18 +23,16 @@ const rw = first('ramwarn'); if (rw) shots.push(['grappler', clean, rw.t + 0.8],
 shots.push(['traffic_a', clean, 12], ['traffic_b', clean, 21.5], ['traffic_c', clean, 27]);
 const lk = first('lock'); if (lk) shots.push(['heli_search', clean, lk.t - 1.5], ['heli_lock', clean, lk.t + 0.8], ['heli_fire', clean, lk.t + 1.4]);
 const s3 = gev.find((e) => e.k === 'star' && e.n === 3); if (s3) shots.push(['heli_in_a', clean, s3.t + 0.5], ['heli_in_b', clean, s3.t + 1.0], ['heli_in_c', clean, s3.t + 1.7], ['heli', clean, s3.t + 3]);
-// a roadblock in view
-for (let T = 20; T < 200; T += 0.5) {
-  const st = r.tl.stateAt(T); let hit = 0;
-  for (let i = 0; i < NV; i++) { const o = i * VF; if (st.g.veh[o] === T_BLOCK) { const dz = st.g.veh[o + 2] - st.g.gd; if (dz > 25 && dz < 45) hit = 1; } }
-  if (hit) { shots.push(['roadblock', clean, T]); break; }
-}
-// a roadblock close by, a sign gantry and a billboard coming up
-for (let T = 20; T < 200; T += 0.1) {
-  const st = r.tl.stateAt(T); let hit = 0;
-  for (let i = 0; i < NV; i++) { const o = i * VF; if (st.g.veh[o] === T_BLOCK) { const dz = st.g.veh[o + 2] - st.g.gd; if (dz > 9 && dz < 14) hit = 1; } }
-  if (hit) { shots.push(['roadblock_near', clean, T]); break; }
-}
+// the first vehicle (by id) that satisfies `test` at some moment: when(test) → [T, id] or null
+const when = (test, from = 6, id = 0) => { for (let T = from; T < 200; T += 0.02) { const g = r.tl.stateAt(T).g; for (let i = 0; i < NV; i++) { const o = i * VF; if (g.veh[o] && (!id || g.veh[o + 8] === id) && test(g.veh, o, g.veh[o + 2] - g.gd, g)) return [T, g.veh[o + 8]]; } } return null; };
+// a taxi steering across a lane: early, half-way, straightening up
+{ const m = (v, o, g) => (g.gt - v[o + 7] - GAME.taxiBlink) / GAME.taxiMove, cut = (lo) => (v, o, dz, g) => v[o] === T_TAXI && v[o + 6] !== 0 && v[o + 7] > 0 && m(v, o, g) > lo;
+  const a = when(cut(0.3)); if (a) { shots.push(['taxi_cut_a', clean, a[0]]); const b = when(cut(0.5), a[0], a[1]), c = when(cut(0.8), a[0], a[1]); if (b) shots.push(['taxi_cut_b', clean, b[0]]); if (c) shots.push(['taxi_cut_c', clean, c[0]]); } }
+// a rolling roadblock: far off, and on the brakes as we come up
+{ const a = when((v, o, dz) => v[o] === T_BLOCK && v[o + 7] === 1 && dz < 85 && dz > 40, 20); if (a) { shots.push(['block_far', clean, a[0]]); const b = when((v, o, dz) => dz < 26, a[0], a[1]); if (b) shots.push(['block_near', clean, b[0]]); } }
+// a weaving cruiser: mid-swing, just after it has picked its lane, and as we pass it
+{ const a = when((v, o, dz, g) => v[o] === T_WEAVE && dz < 130 && !(v[o + 5] & COMMIT) && Math.abs(v[o + 1]) > 0.35 && Math.abs(v[o + 1]) < 0.65, 20);
+  if (a) { shots.push(['weave_a', clean, a[0]]); const b = when((v, o) => v[o + 5] & COMMIT, a[0], a[1]); if (b) shots.push(['weave_b', clean, b[0] + 0.25]); const c = when((v, o, dz) => dz < 16, a[0], a[1]); if (c) shots.push(['weave_c', clean, c[0]]); } }
 const mod = (a, n) => ((a % n) + n) % n;
 if (s3) for (let T = s3.t + 4, k = 0; T < 200 && k < 3; T += 0.02) {             // the helicopter lifting over a sign gantry
   const d = Math.min(mod(1500 - r.tl.stateAt(T).pos, 4800), mod(3900 - r.tl.stateAt(T).pos, 4800));

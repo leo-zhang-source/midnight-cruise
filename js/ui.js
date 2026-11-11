@@ -195,6 +195,7 @@ export class UI {
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
       else if (k === 'stumble' || k === 'tail' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
       else if (k === 'ramwarn' || k === 'lock') this.sfx('lock');
+      else if (k === 'block' || k === 'weave') this.sfx('siren');
       else if (k === 'strike') this.sfx('burst');
       else if (k === 'shove') this.sfx('smash');
       else if (k === 'go') this.sfx('whoosh');

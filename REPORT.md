@@ -19,6 +19,77 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 21: traffic that drives, police that move
+
+Your three points after playing Revision 20.
+
+### 1. The other cars looked parked
+
+Three causes, all real:
+
+- They drove at 12 units a second, 29 on the speedometer, against your 130 to 230. At that ratio a moving car closes on you almost exactly as fast as a palm tree does.
+- Nothing on them moved. No wheel turned, no body leaned, nobody strayed a hand's width from the lane centre.
+- Every vehicle held exactly the same speed, so a row of traffic came at you as one rigid block.
+
+What changed:
+
+- **Traffic drives at 26 units a second (62 MPH).** Cars now travel along the road and past the palms while you catch them. Row spacing was already defined in seconds, so rows arrive as often as before; the traffic is closer together on the road. The first row and the nitro canisters were re-timed to arrive when they used to.
+- **Each car, van and truck eases up to 1.5 units ahead of and behind its place**, on its own period of 6 to 10 s, so two vehicles side by side creep past each other.
+- **Everyone drifts about 0.3 units from side to side in the lane.**
+- **Wheels turn** (five blurred spokes), and **bodies lean and dip on their springs** while the wheels stay on the road.
+- **Tail lamps streak the road behind each vehicle**, longer the faster it goes.
+- A vehicle you have passed holds your speed if you brake below its own, so it cannot run into your tail.
+
+### 2. The taxi slid sideways
+
+It did: its lane position eased across in 0.6 s while the body kept pointing straight ahead.
+
+- The move is now the curve a steered car follows (a sine ramp: no sideways speed and no sideways acceleration at either end), over 0.9 s.
+- The nose follows the path: up to about 28° off the road's direction half-way across.
+- The body leans out of the turn, up to 7°, and the tail wags once as it straightens up.
+- It signals 2.4 s before you reach it (was 2.2) and is in its new lane at least 0.8 s before you arrive.
+- All warnings are now timed for the speed you would be doing flat out. Before, coming up on the brake and then letting go could make a taxi cut across later than promised.
+
+### 3. The static roadblock
+
+The hard-light barrier with a cruiser parked across the lane is gone. It moved along at traffic speed while looking parked, which is what made everything near it look parked too. Two kinds of police now work ahead of you, both driving:
+
+- **Rolling roadblock.** Two cruisers abreast, light bars on, a warning sign over each, one lane left open. They drive with the traffic and brake when you are 1.3 s away (26 → 17 units a second): brake lights, noses down.
+- **Weaving cruiser.** One cruiser swinging between the middle lane and one side, a swing every 1.85 s, steering and leaning as it goes. Chevrons over the two lanes run the way it is steering. 1.25 s before you reach it, it takes the lane it is heading for, and a warning triangle marks that lane. At three stars a second cruiser may hold the third lane, so the only way through is the lane the weaver gives up.
+
+Rules that keep it fair:
+
+- The weaver works the side you are on, so whichever lane it takes, a free one is at most one lane away.
+- The row after a weaver always leaves the middle lane open, because you may come out of it in any lane.
+- The grappler and the helicopter hold off while a weaver is within 3 s.
+- Ramming a cruiser with nitro still costs a whole star.
+
+Call-outs: ROLLING ROADBLOCK AHEAD and CRUISER WEAVING · WATCH ITS LANE, each with a siren chirp.
+
+### The bot
+
+`tools/bot.mjs` had to learn the new road. It now takes its timing margins from the gear schedule, follows a rolling roadblock's braking and a weaver's path step by step, and no longer makes an early lane change that commits it to a second one straight after (that habit crashed it once the traffic sat closer together).
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 48/48 (new: traffic speed and easing, the taxi's steering curve, a taxi's warning distance on the brake, the rolling roadblock's braking, the weaving cruiser's lane and notice) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 39/39, 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak, no nitro | 16 seeds × 300 s: no stumble (2–6 grappler runs and 4–9 helicopter strikes dodged per run, among rolling roadblocks and weaving cruisers) |
+| The same with nitro | 2 of 16 crash, after 175 s and 281 s (Revision 20: 3 of 16) |
+| `tools/perf.mjs`, 1920×1080 | traffic 7.3 ms median, 9.3 ms 95th percentile per frame |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+
+**Limits**
+
+- I judged the motion from strips of frames (`tools/seq.mjs`), not by playing. Whether the traffic now feels like it is driving is yours to say.
+- Wheels only show when a vehicle is beside you; from straight behind you see the tyres' backs.
+- Trucks do not steer or lean: the trailer is one rigid box.
+- Passing traffic still makes no sound of its own.
+- When it takes its lane, the weaver moves sideways at up to 3 lanes a second, quicker than a real car could.
+- The three-star case (weaver plus a second cruiser) leaves you about 1.2 s to read the lane. The bot manages; it has not been tried on people.
+
 ## Revision 20: the helicopter, rebuilt
 
 Revision 19 left the helicopter as a handful of boxes, about 35 pixels wide at 720p under a 130-pixel rotor glow, seen from behind. It is now a modelled police helicopter that faces you: about 85 pixels wide nose-on and 130 to 170 side-on, under a 280-pixel rotor disc.

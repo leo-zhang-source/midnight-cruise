@@ -45,7 +45,10 @@
   var GAME = {
     mph: 2.4,
     // speedometer: road units per second → MPH
-    vTraffic: 12,
+    vTraffic: 26,
+    // everyone else drives at this speed (62 on the speedometer), so a row of traffic stays a row;
+    breathe: 1.5,
+    // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
     gears: [54, 61, 69, 78, 87, 96],
     // cruising speed per gear
     gearAt: [0, 1e3, 2500, 4500, 7e3, 1e4],
@@ -60,22 +63,23 @@
     nitroTail: 0.55,
     nitroGrace: 0.7,
     nitroMax: 3,
-    nitroFirst: 700,
-    nitroEvery: [1100, 1900],
+    nitroFirst: 520,
+    nitroEvery: [820, 1420],
     nitroFree: 7,
+    // (distances measured against the traffic: the first after about 17 s)
     ahead: 340,
-    firstRow: 260,
+    firstRow: 175,
     despawn: 30,
-    // spawn distance ahead of the car, first row of a run, cull distance behind
+    // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
     rowGap: [1.5, 0.9],
     // seconds between rows at the gear's closing speed (gear 1 → 6)
     nearT: 0.32,
     draftT: 0.9,
     // close-call and slipstream windows, in seconds of closing time
-    taxiAt: 2.2,
+    taxiAt: 2.4,
     taxiBlink: 0.7,
-    taxiMove: 0.6,
-    // a taxi signals 2.2 s before you reach it, then changes lane
+    taxiMove: 0.9,
+    // a taxi signals 2.4 s before you reach it, then steers across one lane
     introT: 2.8,
     introHold: 1.1,
     introClose: 1.7,
@@ -109,7 +113,19 @@
     ramOwn: 1.8,
     // a ram only starts when a lane beside you stays clear for ramClear s
     blockP: [0, 0, 0.2, 0.3],
-    // share of rows that are police roadblocks, by star
+    // share of rows that are police units ahead of you, by star
+    // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
+    // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
+    // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
+    blockAt: 1.3,
+    blockSlow: 9,
+    blockDecel: 14,
+    weaveP: [0, 0, 0.35, 0.45],
+    weaveHold: 0.45,
+    weaveMove: 1.4,
+    weaveLock: 1.25,
+    weaveSnap: 8,
+    weaveWarn: 3,
     drEvery: 6,
     drWarn: 1.2,
     drStrike: 0.45,
@@ -410,8 +426,9 @@
   var T_TRUCK = 3;
   var T_TAXI = 4;
   var T_BLOCK = 5;
-  var HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.5];
-  var HALF_W = [0, 1.05, 1.15, 1.4, 1.05, 2.4];
+  var T_WEAVE = 6;
+  var HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.4, 2.4];
+  var HALF_W = [0, 1.05, 1.15, 1.4, 1.05, 1.05, 1.05];
   var CAR_HL = 2.2;
   var CAR_HW = 0.95;
   var POL_HL = 2.4;
@@ -428,6 +445,27 @@
   var THREAT = 4;
   var NEAR = 8;
   var PASSED = 16;
+  var WARNED = 32;
+  var COMMIT = 64;
+  var SIDE = 128;
+  var TAU = Math.PI * 2;
+  var sCurve = (m) => m <= 0 ? 0 : m >= 1 ? 1 : m - Math.sin(TAU * m) / TAU;
+  var sCurveD = (m) => m <= 0 || m >= 1 ? 0 : 1 - Math.cos(TAU * m);
+  var sCurveA = (m) => m <= 0 || m >= 1 ? 0 : TAU * Math.sin(TAU * m);
+  function weave(t, k = 0) {
+    const D = GAME.weaveHold, M = GAME.weaveMove, P2 = 2 * (D + M);
+    let u = t % P2;
+    if (u < 0) u += P2;
+    let m, s = 1;
+    if (u < D) return 0;
+    else if (u < D + M) m = (u - D) / M;
+    else if (u < 2 * D + M) return k ? 0 : 1;
+    else {
+      m = (u - 2 * D - M) / M;
+      s = -1;
+    }
+    return k === 0 ? s > 0 ? sCurve(m) : 1 - sCurve(m) : k === 1 ? s * sCurveD(m) / M : s * sCurveA(m) / (M * M);
+  }
   var clamp2 = (x, a, b) => x < a ? a : x > b ? b : x;
   function freshGame(seed = 1986, free = 0) {
     return {
@@ -444,6 +482,7 @@
       genI: 0,
       path: 0,
       lastPat: 0,
+      mid: 0,
       itmNext: GAME.nitroFirst,
       score: 0,
       cells: 0,
@@ -489,6 +528,7 @@
       draft: 0,
       draftEv: -1e9,
       goEv: 0,
+      blkEv: -1e9,
       over: 0
     };
   }
@@ -508,6 +548,10 @@
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   }
+  function breathe(id, gt, k = 0) {
+    const w = 0.6 + 0.07 * (id % 7), p = w * gt + id * 2.4;
+    return GAME.breathe * (k ? w * Math.cos(p) : Math.sin(p));
+  }
   function spawn(g, type, lane, u, a = 0, b = 0) {
     const veh = g.veh;
     for (let i = 0; i < NV; i++) {
@@ -522,6 +566,7 @@
       veh[o + 6] = a;
       veh[o + 7] = b;
       veh[o + 8] = g.nid++;
+      if (type < T_TAXI) veh[o + 2] += breathe(veh[o + 8], g.gt);
       return i;
     }
     return -1;
@@ -558,10 +603,12 @@
     const adj = (l) => l === 0 ? side() : 0;
     const third = (a, b) => -(a + b);
     const block = i >= 3 && rnd(g) < G.blockP[g.star];
-    let len = 5;
+    const weaver = block && rnd(g) < G.weaveP[g.star];
+    let len = 5, first = 1;
     const put = (lane) => {
       if (block) {
-        spawn(g, T_BLOCK, lane, u);
+        spawn(g, T_BLOCK, lane, u, 0, first ? 1 : 0);
+        first = 0;
         return;
       }
       const r2 = rnd(g), type = r2 < 0.46 ? T_CAR : r2 < 0.72 ? T_VAN : T_TRUCK;
@@ -573,7 +620,8 @@
     const wConvoy = 0.1 + 0.05 * gear, wGate = 0.08 + 0.02 * gear, wTaxi = gear >= 1 && !block ? 0.14 : 0, wRest = 0.06;
     const wSingle = 0.4, wDecoy = 0.2;
     let x = r * (wSingle + wConvoy + wDecoy + wGate + wTaxi + wRest);
-    if (block) pat = r < 0.6 ? 2 : 4;
+    if (weaver) pat = 6;
+    else if (block) pat = r < 0.6 ? 2 : 4;
     else if (i < 3) pat = i === 0 ? 1 : r < 0.7 ? 1 : 3;
     else if ((x -= wSingle) < 0) pat = 1;
     else if ((x -= wConvoy) < 0) pat = 2;
@@ -581,6 +629,10 @@
     else if ((x -= wGate) < 0) pat = 4;
     else if ((x -= wTaxi) < 0) pat = 5;
     else pat = 0;
+    if (g.mid) {
+      g.mid = 0;
+      pat = block || r < 0.5 ? 4 : 3;
+    }
     if ((pat === 3 || pat === 4 || pat === 0) && (g.lastPat === 3 || g.lastPat === 4 || g.lastPat === 0)) pat = block ? 2 : 1;
     g.lastPat = pat;
     if (pat === 1) {
@@ -601,6 +653,14 @@
       spawn(g, T_TAXI, 0, u, d, 0);
       cellLine(g, p === 0 ? -d : p, u - 26, 4, 6);
       g.path = 0;
+      g.genU = u + 5 + w * tg * 1.25;
+      return;
+    } else if (pat === 6) {
+      const d = p !== 0 ? p : side();
+      spawn(g, T_WEAVE, 0, u, d, rnd(g) * 2 * (G.weaveHold + G.weaveMove));
+      if (g.star >= 3 && rnd(g) < 0.5) spawn(g, T_BLOCK, -d, u);
+      g.path = 0;
+      g.mid = 1;
       g.genU = u + 5 + w * tg * 1.25;
       return;
     } else {
@@ -638,11 +698,13 @@
     out.push({ k: "stumble", by });
     return true;
   }
-  function taxiPending(g) {
+  function hazardPending(g, vel) {
     const veh = g.veh;
     for (let i = 0; i < NV; i++) {
-      const o = i * VF;
-      if (veh[o] === T_TAXI && veh[o + 6] !== 0 && veh[o + 2] - g.gd > -6) return true;
+      const o = i * VF, dz = veh[o + 2] - g.gd;
+      if (dz <= -6) continue;
+      if (veh[o] === T_TAXI && veh[o + 6] !== 0) return true;
+      if (veh[o] === T_WEAVE && dz < Math.max(1, vel - veh[o + 3]) * 3) return true;
     }
     return false;
   }
@@ -651,7 +713,7 @@
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
       if (!type) continue;
-      if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !(type === T_TAXI && veh[o + 6] !== 0 && (l === 0 || l === veh[o + 6]))) continue;
+      if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !((type === T_WEAVE || type === T_TAXI && veh[o + 6] !== 0) && (l === 0 || l === veh[o + 6]))) continue;
       const dz = veh[o + 2] - g.gd, reach = veh[o + 4] + CAR_HL + 1.5, rel = Math.max(1, vel * 1.12 - veh[o + 3]);
       if (dz > -reach && dz < reach + rel * secs) return false;
     }
@@ -688,7 +750,7 @@
     const up = gd - G.vTraffic * gt;
     for (let n = 0; g.genU < up + G.ahead && n < 6; n++) genRow(g);
     let mult = gameMult(g);
-    const veh = g.veh;
+    const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g));
     let draft = 0;
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
@@ -696,16 +758,48 @@
       if (type === T_TAXI && veh[o + 6] !== 0) {
         if (veh[o + 7] === 0) {
           const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL);
-          if (gap0 < (inp.vel - veh[o + 3]) * G.taxiAt) veh[o + 7] = gt;
+          if (gap0 < (vFull - veh[o + 3]) * G.taxiAt) veh[o + 7] = gt;
         } else {
           const m = (gt - veh[o + 7] - G.taxiBlink) / G.taxiMove;
           if (m >= 1) {
             veh[o + 1] = veh[o + 6];
             veh[o + 6] = 0;
-          } else if (m > 0) veh[o + 1] = veh[o + 6] * (m * m * (3 - 2 * m));
+            veh[o + 7] = -gt;
+          } else if (m > 0) veh[o + 1] = veh[o + 6] * sCurve(m);
         }
       }
-      veh[o + 2] += veh[o + 3] * DT2;
+      let fl = veh[o + 5];
+      if (type < T_TAXI) veh[o + 3] = G.vTraffic + breathe(veh[o + 8], gt, 1);
+      if (type === T_WEAVE) {
+        if (fl & COMMIT) {
+          const W = G.weaveSnap, tgt = fl & SIDE ? veh[o + 6] : 0;
+          veh[o + 7] += (W * W * (tgt - veh[o + 1]) - 2 * W * veh[o + 7]) * DT2;
+          veh[o + 1] += veh[o + 7] * DT2;
+        } else {
+          const ph = gt + veh[o + 7];
+          veh[o + 1] = veh[o + 6] * weave(ph);
+          if (veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - G.vTraffic) * G.weaveLock) {
+            const v = weave(ph, 1);
+            fl |= COMMIT | ((v !== 0 ? v > 0 : weave(ph) > 0.5) ? SIDE : 0);
+            veh[o + 7] = veh[o + 6] * v;
+          }
+        }
+      }
+      if (type === T_BLOCK || type === T_WEAVE) {
+        const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL), rel0 = vFull - G.vTraffic;
+        if (type === T_BLOCK) {
+          const tv = gap0 > 0 && gap0 < rel0 * G.blockAt ? G.vTraffic - G.blockSlow : G.vTraffic;
+          veh[o + 3] += clamp2(tv - veh[o + 3], -G.blockDecel * DT2, G.blockDecel * DT2);
+        }
+        if (!(fl & WARNED) && gap0 < rel0 * G.weaveWarn && (type === T_WEAVE || veh[o + 7] === 1)) {
+          fl |= WARNED;
+          if (gt - g.blkEv > 2.5) {
+            g.blkEv = gt;
+            out.push({ k: type === T_WEAVE ? "weave" : "block", lane: veh[o + 1] });
+          }
+        }
+      }
+      veh[o + 2] += (fl & PASSED && veh[o + 3] > inp.vel ? inp.vel : veh[o + 3]) * DT2;
       const dz = veh[o + 2] - gd, reach = veh[o + 4] + CAR_HL;
       if (dz < -G.despawn) {
         veh[o] = 0;
@@ -713,7 +807,6 @@
       }
       const vx = veh[o + 1] * L, dx = Math.abs(px - vx);
       const lat = dx < HALF_W[type] + CAR_HW - 0.12, lon = Math.abs(dz) < reach - 0.2;
-      let fl = veh[o + 5];
       const rel = inp.vel - veh[o + 3], gap = dz - reach;
       if (lat && lon) {
         if (inp.nitro) {
@@ -721,7 +814,7 @@
           g.smash++;
           g.combo++;
           g.score += G.ptsSmash * mult;
-          addHeat(g, type === T_BLOCK ? 1 : G.heatSmash);
+          addHeat(g, type >= T_BLOCK ? 1 : G.heatSmash);
           out.push({ k: "smash", lane: veh[o + 1], dz, type });
           continue;
         }
@@ -753,7 +846,7 @@
           g.combo++;
           g.score += G.ptsPass * mult;
         }
-        if (lat && type !== T_BLOCK && gap > 0 && gap < clamp2(rel * G.draftT, 12, 60)) draft = 1;
+        if (lat && type < T_BLOCK && gap > 0 && gap < clamp2(rel * G.draftT, 12, 60)) draft = 1;
       }
       veh[o + 5] = fl & ~(LAT | LON) | (lat ? LAT : 0) | (lon ? LON : 0);
     }
@@ -825,7 +918,7 @@
       const close = policeClose(g);
       g.polZ += ((close ? -G.polClose : -G.polFar) - g.polZ) * eK(close ? 0.3 : 1.1);
       g.polX += (px - g.polX) * eK(0.3);
-      if (g.star >= 2 && gt >= g.ramNext && gt > G.introT + 4 && g.drT < 0 && !inp.nitro && !taxiPending(g)) {
+      if (g.star >= 2 && gt >= g.ramNext && gt > G.introT + 4 && g.drT < 0 && !inp.nitro && !hazardPending(g, inp.vel)) {
         const l = inp.lane, s = G.ramClear;
         if (laneClear(g, l, inp.vel, G.ramOwn) && (l > -1 && laneClear(g, l - 1, inp.vel, s) || l < 1 && laneClear(g, l + 1, inp.vel, s))) {
           g.polM = P_WARN;
@@ -896,7 +989,7 @@
     }
     if (g.star >= 3) {
       if (g.drT < 0) {
-        if (gt >= g.drNext && g.polM === P_TAIL && !taxiPending(g)) {
+        if (gt >= g.drNext && g.polM === P_TAIL && !hazardPending(g, inp.vel)) {
           const l = inp.lane, s = G.drClear;
           if (l > -1 && laneClear(g, l - 1, inp.vel, s) || l < 1 && laneClear(g, l + 1, inp.vel, s)) {
             g.drT = gt;
@@ -1523,7 +1616,7 @@
   var REVCRASH_PEAK = 3.044;
 
   // js/audio/synth.js
-  var TAU = Math.PI * 2;
+  var TAU2 = Math.PI * 2;
   var TICK_S = Math.round(TICK * SR);
   var mtof = (n) => 440 * Math.pow(2, (n - 69) / 12);
   var cents = (c) => Math.pow(2, c / 1200);
@@ -1636,7 +1729,7 @@
       if (this.ph > 1) this.ph -= 1;
       let a = exp(-t / 0.4);
       if (t < 15e-4) a *= t / 15e-4;
-      const y = tanh(1.7 * (sin(TAU * this.ph) * a + this.r.next() * 0.22 * exp(-t / 2e-3))) * 0.6 * this.v * this.syn.p.kickMul;
+      const y = tanh(1.7 * (sin(TAU2 * this.ph) * a + this.r.next() * 0.22 * exp(-t / 2e-3))) * 0.6 * this.v * this.syn.p.kickMul;
       B.L[i] += y;
       B.R[i] += y;
       B.rev[i] += y * 0.025;
@@ -1660,7 +1753,7 @@
     tick(B, i, t) {
       this.p1 += 186 * (1 + 0.3 * exp(-t / 0.012)) / SR;
       this.p2 += 332 * (1 + 0.2 * exp(-t / 0.01)) / SR;
-      const body = (sin(TAU * this.p1) * 0.65 + sin(TAU * this.p2) * 0.35) * exp(-t / 0.07);
+      const body = (sin(TAU2 * this.p1) * 0.65 + sin(TAU2 * this.p2) * 0.35) * exp(-t / 0.07);
       const nz = this.r.next();
       const n = this.hp.hp(this.bp.bp(nz) * 1.6 + nz * 0.35) * exp(-t / 0.15);
       const y = tanh((body * 0.85 + n) * 1.2) * 0.5 * this.v;
@@ -1768,7 +1861,7 @@
     }
     tick(B, i, t) {
       this.ph += this.f * (1 + 0.6 * exp(-t / 0.05)) / SR;
-      const y = (sin(TAU * this.ph) * exp(-t / 0.3) + this.r.next() * 0.25 * exp(-t / 8e-3)) * 0.5 * this.v;
+      const y = (sin(TAU2 * this.ph) * exp(-t / 0.3) + this.r.next() * 0.25 * exp(-t / 8e-3)) * 0.5 * this.v;
       B.L[i] += y * panL(this.pan) * 1.2;
       B.R[i] += y * panR(this.pan) * 1.2;
       B.gate[i] += y * 0.55;
@@ -1784,7 +1877,7 @@
     }
     tick(B, i, t) {
       this.ph += (30 + 34 * exp(-t / 0.22)) / SR;
-      const y = sin(TAU * this.ph) * exp(-t / 0.85) * Math.min(1, t / 5e-3) * 0.62 * this.v;
+      const y = sin(TAU2 * this.ph) * exp(-t / 0.85) * Math.min(1, t / 5e-3) * 0.62 * this.v;
       B.fxL[i] += y;
       B.fxR[i] += y;
       return t < 3;
@@ -1808,7 +1901,7 @@
       }
       this.ph += (40 + 30 * exp(-t / 0.1)) / SR;
       const a = exp(-t / 0.45) * Math.min(1, t / 2e-3);
-      const th = sin(TAU * this.ph) * exp(-t / 0.35) * 0.5;
+      const th = sin(TAU2 * this.ph) * exp(-t / 0.35) * 0.5;
       const air = (this.fl.lp(this.rl.next()) + this.fr.lp(this.rr.next())) * 0.04 * exp(-t / 0.03);
       const y = (th * 1.2 + air) * a * 0.55 * this.v;
       B.fxL[i] += y;
@@ -1890,7 +1983,7 @@
       }
       this.ph += this.f / SR;
       if (this.ph > 1) this.ph -= 1;
-      const osc = this.a.run(this.f * 0.9966) + this.b.run(this.f * 1.0034) + sin(TAU * this.ph) * 0.4;
+      const osc = this.a.run(this.f * 0.9966) + this.b.run(this.f * 1.0034) + sin(TAU2 * this.ph) * 0.4;
       let e;
       if (t < 3e-3) e = t / 3e-3;
       else if (t < this.d) {
@@ -1975,7 +2068,7 @@
       }
       this.sph += this.sub / SR;
       if (this.sph > 1) this.sph -= 1;
-      const sq = sin(TAU * this.sph) * 0.9;
+      const sq = sin(TAU2 * this.sph) * 0.9;
       const g = e * 0.075 * this.v;
       const yl = this.fl.lp(l) * g + sq * g, yr = this.fr.lp(r) * g + sq * g;
       B.choL[i] += yl * 0.55;
@@ -2000,7 +2093,7 @@
     }
     tick(B, i, t) {
       if ((this.n & 15) === 0) this.lp.set(2400 + 2e3 * exp(-t / 0.14), 1.25);
-      const vib = 1 + 75e-4 * sin(TAU * 5.4 * t) * Math.min(1, Math.max(0, (t - 0.28) / 0.3));
+      const vib = 1 + 75e-4 * sin(TAU2 * 5.4 * t) * Math.min(1, Math.max(0, (t - 0.28) / 0.3));
       const f = this.f * vib;
       const osc = this.a.run(f * 0.997) + this.b.run(f * 1.003) * 0.8;
       let e;
@@ -2072,7 +2165,7 @@
     tick(B, i, t) {
       this.pm += this.f * 3.5 / SR;
       this.pc += this.f / SR;
-      const y = sin(TAU * this.pc + sin(TAU * this.pm) * 2.4 * exp(-t / 0.25)) * exp(-t / 0.9) * Math.min(1, t / 3e-3) * 0.1 * this.v;
+      const y = sin(TAU2 * this.pc + sin(TAU2 * this.pm) * 2.4 * exp(-t / 0.25)) * exp(-t / 0.9) * Math.min(1, t / 3e-3) * 0.1 * this.v;
       B.L[i] += y * panL(this.pan);
       B.R[i] += y * panR(this.pan);
       B.rev[i] += y * 0.45;
@@ -2141,7 +2234,7 @@
       const f = 32 + 85 * (1 - exp(-t / 0.18));
       this.ph += 88 / SR;
       const motor = this.lp.lp(this.saw.run(f)) * Math.min(1, t / 0.05) * exp(-t / 0.5) * 0.18;
-      const clunk = (this.nl.lp(this.r.next()) * exp(-t / 0.018) + sin(TAU * this.ph) * exp(-t / 0.05)) * 0.35;
+      const clunk = (this.nl.lp(this.r.next()) * exp(-t / 0.018) + sin(TAU2 * this.ph) * exp(-t / 0.05)) * 0.35;
       const y = motor + clunk;
       B.sfxL[i] += y;
       B.sfxR[i] += y;
@@ -2169,8 +2262,8 @@
       const cf = 1200 + (k * 40503 >>> 0) % 3800;
       this.ph += cf / SR;
       this.hum += 59.94 / SR;
-      const chirp = chirpOn ? sin(TAU * this.ph) * 0.12 * exp(-(t * 23 - k) * 3) : 0;
-      const hum = sin(TAU * this.hum) * 0.05;
+      const chirp = chirpOn ? sin(TAU2 * this.ph) * 0.12 * exp(-(t * 23 - k) * 3) : 0;
+      const hum = sin(TAU2 * this.hum) * 0.05;
       B.sfxL[i] += (this.hl.hp(this.rl.next()) * 0.11 + chirp + hum) * env;
       B.sfxR[i] += (this.hr.hp(this.rr.next()) * 0.11 + chirp * 0.7 + hum) * env;
       return t < this.d;
@@ -2197,7 +2290,7 @@
       this.last = pw;
       this.ph += 120 / SR;
       if (this.ph > 1) this.ph -= 1;
-      const sq = (this.ph < 0.5 ? 1 : -1) * 0.6 + sin(TAU * this.ph * 2) * 0.4;
+      const sq = (this.ph < 0.5 ? 1 : -1) * 0.6 + sin(TAU2 * this.ph * 2) * 0.4;
       const fade = it < IGN.neonFlicker[1] ? 1 : exp(-(it - IGN.neonFlicker[1]) / 0.35);
       let y = this.bp.bp(sq) * pw * 0.11 * fade;
       if (this.spark >= 0 && t - this.spark < 0.03) y += this.hp.hp(this.r.next()) * exp(-(t - this.spark) / 6e-3) * 0.16;
@@ -2223,7 +2316,7 @@
       const u = t - this.dl;
       if (u < 0) return true;
       this.ph += (this.f1 + (this.f0 - this.f1) * exp(-u / (this.dur * 0.4))) / SR;
-      const y = sin(TAU * this.ph) * exp(-u / this.dur) * Math.min(1, u / 1e-3) * this.amp;
+      const y = sin(TAU2 * this.ph) * exp(-u / this.dur) * Math.min(1, u / 1e-3) * this.amp;
       B.sfxL[i] += y * this.l;
       B.sfxR[i] += y * this.r;
       return u < this.dur * 7;
@@ -2242,7 +2335,7 @@
     }
     tick(B, i, t) {
       this.ph += (this.heavy ? 88 : 150) / SR;
-      let y = this.lp.lp(this.r.next()) * exp(-t / (this.heavy ? 0.014 : 25e-4)) * 0.45 + sin(TAU * this.ph) * exp(-t / (this.heavy ? 0.06 : 0.018)) * 0.3;
+      let y = this.lp.lp(this.r.next()) * exp(-t / (this.heavy ? 0.014 : 25e-4)) * 0.45 + sin(TAU2 * this.ph) * exp(-t / (this.heavy ? 0.06 : 0.018)) * 0.3;
       if (this.heavy && t > 0.028) y += this.lp.lp(this.r.next()) * exp(-(t - 0.028) / 0.01) * 0.3;
       y *= this.amp;
       B.sfxL[i] += y;
@@ -2265,8 +2358,8 @@
       const x = t / this.d, base = this.up ? 1800 + 2600 * x : 4200 - 1600 * x;
       let y = 0;
       [1, 1.5, 2.02].forEach((m, k) => {
-        this.p[k] += base * m * (1 + 0.04 * sin(TAU * 31 * t + k)) / SR;
-        y += sin(TAU * this.p[k]) / (k + 1);
+        this.p[k] += base * m * (1 + 0.04 * sin(TAU2 * 31 * t + k)) / SR;
+        y += sin(TAU2 * this.p[k]) / (k + 1);
       });
       const env = Math.min(1, t / 0.02) * (t < this.d - 0.05 ? 1 : Math.max(0, (this.d - t) / 0.05));
       y = (y * 0.05 + this.hp.hp(this.r.next()) * 0.06) * env;
@@ -2283,7 +2376,7 @@
         return { b: new Float32Array(s), m: s - 1, l, g: Math.pow(10, -3 * l / (SR * rt60)), z: 0 };
       });
       this.w = 0;
-      this.damp = 1 - exp(-TAU * dampHz / SR);
+      this.damp = 1 - exp(-TAU2 * dampHz / SR);
       this.ap = diff.map((l) => ({ b: new Float32Array(l), i: 0 }));
     }
     process(x) {
@@ -2816,7 +2909,7 @@
             const wail = this.sirW < 0.5 ? this.sirW * 2 : 2 - this.sirW * 2;
             this.sirP += (640 + 520 * wail * wail * (3 - 2 * wail)) / SR;
             if (this.sirP >= 1) this.sirP -= 1;
-            const a = this.sirP * TAU, y = (Math.sin(a) + 0.35 * Math.sin(2 * a) + 0.12 * Math.sin(3 * a)) * this.sirG;
+            const a = this.sirP * TAU2, y = (Math.sin(a) + 0.35 * Math.sin(2 * a) + 0.12 * Math.sin(3 * a)) * this.sirG;
             B.sfxL[i] += y * 0.8;
             B.sfxR[i] += y;
           }
@@ -2832,7 +2925,7 @@
             this.heliG += (tgt - this.heliG) * kA;
             this.heliP += 11.5 / SR;
             if (this.heliP >= 1) this.heliP -= 1;
-            const env = Math.pow(0.5 + 0.5 * Math.cos(this.heliP * TAU), 4), y = this.heliF.lp(this.heliR.next()) * (0.25 + env) * this.heliG;
+            const env = Math.pow(0.5 + 0.5 * Math.cos(this.heliP * TAU2), 4), y = this.heliF.lp(this.heliR.next()) * (0.25 + env) * this.heliG;
             B.sfxL[i] += y;
             B.sfxR[i] += y * 0.85;
           }
