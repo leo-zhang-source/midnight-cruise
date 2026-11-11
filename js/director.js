@@ -76,7 +76,7 @@ const POP = {
   shake: () => ['SHOOK THEM OFF · TWO LIVES', 'good'],
   tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'], lock: () => ['SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
-  tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [`CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
+  tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
   draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: () => ['SHOVED THE POLICE BACK', 'hot'],
 };
 function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
@@ -85,7 +85,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const back = stepping ? (1 - sim.gf) * DT : 0;          // the state is from the step after T: step positions back
   const far = (dz) => smooth(lin(dz, G.ahead - 2, G.ahead - 60));
   const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, grap: null, heli: null };
-  if (g.free) { ui.g = { on: 1, free: 1, run: sim.run, gear: g.gear + 1, nstock: sim.g.nstock, tapes: 0, over: 0, overU: 0, paused: sim.paused, rew: 0, pops: [], star: 0, lives: 2, close: 0, pol: 0 }; return out; }
+  if (g.free) { ui.g = { on: 1, free: 1, run: sim.run, gear: g.gear + 1, nstock: sim.g.nstock, tapes: 0, over: 0, overU: 0, paused: sim.paused, rew: 0, pops: [], star: 0, lives: 2, close: 0, hint: 0, pol: 0 }; return out; }
   const veh = g.veh;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
@@ -182,7 +182,9 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const lg = sim.g;                                           // HUD numbers come from the live state
   ui.g = {
     on: 1, free: 0, run: sim.run, score: Math.floor(lg.score), mult: gameMult(lg), combo: lg.combo, cells: lg.cells, gear: lg.gear + 1,
-    star: lg.star, lives: lg.lives, close: !stepping ? 0 : lg.lives < 2 ? 1 : lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0, pol: stepping && policeClose(lg) ? 1 : 0, nstock: lg.nstock, tapes: sim.tapes,
+    star: lg.star, lives: lg.lives, close: stepping && lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0,
+    hint: stepping && lg.lives < 2 ? 1 - smooth((lg.gt - (lg.stG - G.stumbleGrace) - 4) / 0.8) : 0,     // "nitro shakes them off": for four seconds after the hit, then it goes
+ pol: stepping && policeClose(lg) ? 1 : 0, nstock: lg.nstock, tapes: sim.tapes,
     over: sim.over, overU: sim.over ? T - sim.overT : 0, paused: sim.paused, rew, draft: lg.draft, pops,
     stats: { dist: lg.gd, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax },
   };
@@ -243,7 +245,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     ui.start = 1; ui.cassette = 0; ui.controls = 0; ui.replay = 0; ui.skip = 0; ui.ready = 0;
     if (ph.phase === 'home') {            // back from a run: the tape stops, static, then the title screen
       const u = ph.ht;
-      ui.home = 1; ui.replay = 1; ui.start = smooth(lin(u, 0.35, 0.7));
+      ui.home = 1; ui.start = smooth(lin(u, 0.35, 0.7));
       post.tracking = Math.max(post.tracking, 1 - smooth(u / 0.5)); post.trackY = 0.2 + u * 1.4;
       post.noise = Math.max(post.noise, 0.45 * (1 - smooth(u / 0.6))); post.fgA = smooth(lin(u, 0.15, 0.6));
       if (u < 1.4) ui.osd = 'STOP';
@@ -358,7 +360,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     post.rewind = 1 - smooth(lin(u, 0.45, 0.6));
     // the title already left when cruising started, so the rewind runs on an empty sky
     title.visible = false; neon.pow = 0; aux.a = 0;
-    ui.osd = 'REW'; ui.replay = 0; ui.cassette = 1; ui.controls = 1 - smooth(k * 2); ui.skip = 0;
+    ui.osd = 'REW'; ui.replay = 0; ui.cassette = 1; ui.controls = 1 - smooth(k * 2); ui.skip = 1;
     car.z = lerp(carZ0, 9, easeInCubic(k)); car.tail = 0.5; car.flame = 0;
     sunEl = lerp(SUN_EL, -0.13, easeInCubic(k));
     post.tracking = 0.6; post.trackY = 1 - k * 2;

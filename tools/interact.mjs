@@ -112,25 +112,25 @@ const inside = dk2.x >= 0 && dk2.y >= 0 && dk2.x + dk2.width <= W + 1 && dk2.y +
 const clear = !(dk2.x + dk2.width > db.x && dk2.y + dk2.height > db.y);
 ok('deck drag settles inside viewport, clear of drive controls', inside && clear, `deck=${dk2.x.toFixed(0)},${dk2.y.toFixed(0)} ${dk2.width.toFixed(0)}x${dk2.height.toFixed(0)}`);
 await p.screenshot({ path: 'renders/test_cruise.png' });
-// pause menu → home screen → replay the intro → skip
+// pause menu → home screen → START opens with the intro again → skip
 await p.waitForTimeout(6000);
 await p.keyboard.press('KeyP'); await p.waitForTimeout(300);
 ok('P pauses and opens the menu (RESUME, RESTART, HOME)', await p.evaluate(() => !document.getElementById('paused').hidden && document.activeElement.id === 'resume' && !!document.getElementById('restart').offsetParent && !!document.getElementById('home2').offsetParent));
 await p.click('#home2'); await p.waitForTimeout(1200);
-s = await st(); ok('HOME → home screen with START and REPLAY INTRO', s.phase === 'home' && await p.evaluate(() => getComputedStyle(document.getElementById('start-wrap')).visibility === 'visible' && document.getElementById('replay').classList.contains('on') && document.getElementById('paused').hidden && getComputedStyle(document.getElementById('drivebar')).visibility === 'hidden'));
-await p.click('#replay'); await p.waitForTimeout(300);
-s = await st(); ok('REPLAY INTRO → rewind', s.phase === 'rewind');
+s = await st(); ok('HOME → home screen with START, and no separate replay-intro button', s.phase === 'home' && await p.evaluate(() => getComputedStyle(document.getElementById('start-wrap')).visibility === 'visible' && !document.getElementById('replay') && document.getElementById('paused').hidden && getComputedStyle(document.getElementById('drivebar')).visibility === 'hidden'));
+await p.click('#start'); await p.waitForTimeout(300);
+s = await st(); ok('START on the home screen → the tape rewinds', s.phase === 'rewind');
 await p.waitForTimeout(1500);
-s = await st(); ok('rewind → ignition', s.phase === 'ign', `it=${s.it?.toFixed(2)}`);
+s = await st(); ok('… and the intro plays', s.phase === 'ign', `it=${s.it?.toFixed(2)}`);
 await p.keyboard.press('Escape'); await p.waitForTimeout(100);
 s = await st(); ok('SKIP → fast-forward', s.phase === 'ff' || s.phase === 'cruise');
 await p.waitForTimeout(600);
 s = await st(); ok('skip lands in cruise', s.phase === 'cruise');
-// home again, then START goes straight into a new run (no ignition)
+// home again: Enter starts, and S pressed during the rewind skips the intro as it begins
 await p.keyboard.press('Escape'); await p.waitForTimeout(200); await p.keyboard.press('KeyH'); await p.waitForTimeout(1300);
 s = await st(); ok('Esc pauses, H goes home', s.phase === 'home');
-await p.keyboard.press('Enter'); await p.waitForTimeout(900);
-s = await st(); ok('Enter on the home screen starts a run after a 0.4 s fast-forward', s.phase === 'cruise' && s.ct < 1.2, `ct=${s.ct?.toFixed(2)}`);
+await p.keyboard.press('Enter'); await p.waitForTimeout(250); await p.keyboard.press('KeyS'); await p.waitForTimeout(1300);
+s = await st(); ok('Enter on the home screen, then S: the intro is skipped and the run starts', s.phase === 'cruise' && s.ct < 1.6, `ct=${s.ct?.toFixed(2)}`);
 const ign = await p.evaluate(() => { const sg = MC.tl._derive().segs[0]; return sg.end - sg.s; });
 ok('ignition length 10.000 s', Math.abs(ign - 10) < 1e-9, ign.toFixed(6));
 // frame timing (headless GPU)

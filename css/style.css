@@ -83,6 +83,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #turbo .ring-fg { stroke: var(--cyan); }
 #turbo[data-ready="true"] .ring-fg { stroke: var(--acid); filter: drop-shadow(0 0 4px var(--acid)); }
 #turbo[data-ready="true"] { box-shadow: 0 0 0 2px rgba(184, 255, 46, .7), 0 5px 0 #02060a, 0 0 22px rgba(184, 255, 46, .35), inset 0 2px 0 rgba(255,255,255,.12); }
+#turbo[data-shake="1"] { box-shadow: 0 0 0 2px rgba(255, 79, 168, .9), 0 5px 0 #02060a, 0 0 22px rgba(255, 79, 168, .55), inset 0 2px 0 rgba(255,255,255,.12); }
+.gh-tail[data-hint="1"] i { visibility: hidden; }
 #turbo:active, #turbo[data-fire="true"] { transform: translateY(4px); box-shadow: 0 0 0 2px #fff, 0 1px 0 #02060a, 0 0 40px rgba(62, 244, 255, .9); }
 #turbo[aria-disabled="true"] { cursor: default; }
 .b-label { font-weight: 700; letter-spacing: .2em; font-size: calc(var(--u) * 1.0); margin-left: .2em; text-shadow: 0 0 8px currentColor; }

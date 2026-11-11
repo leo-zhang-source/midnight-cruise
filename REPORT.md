@@ -19,6 +19,40 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 24: a quiet hint, nitro cools the heat, the intro on every start, no bridges or lamps
+
+Five requests after Revision 23.
+
+- **The hint that nitro shakes the police off.** ONE LIFE LEFT · NITRO SHAKES THEM OFF used to sit under the stars for as long as you were on your last life. Now:
+  - NITRO SHAKES THEM OFF shows there for four seconds after the hit, then fades. No bar, nothing else.
+  - A canister picked up on the last life says CANISTER · FIRE IT TO SHAKE THEM OFF for the usual second and a half.
+  - While you hold a canister on the last life, the nitro button wears a pink ring instead of its green one. Nothing blinks.
+  - The single heart and the red stars still show the state itself.
+- **Nitro lowers the wanted level.** Firing a canister takes one star off at once. Stars also come from distance (two from 1.5 km, three from 4 km), which would have put the star straight back, so for 20 s after a burst the level your distance has earned counts one lower too, and two lower if you fire again inside that time. Then it returns, with the usual WANTED LEVEL call-out.
+- **Smashing traffic in a burst no longer adds heat.** It used to add a third of a star per vehicle, which would have undone the above within one burst. Ramming a police cruiser still costs a whole star.
+- **The intro is part of every start.** It used to play once, on the first START; later starts from the home screen cut straight to the run, and the home screen carried a separate REPLAY INTRO button. Now every START from the home screen rewinds the tape (0.6 s) and plays the ten-second intro into the run, and the REPLAY INTRO button is gone.
+  - SKIP INTRO (or `S` / `Esc`) still cuts it to a 0.4 s fast-forward, and now also works while the tape is rewinding.
+  - RESTART in the pause menu still starts a new run at once. That is my reading of "every start"; say so if a restart should open with it too.
+- **Overpasses and street lamps are gone.** Reflector posts, roadside signs and the emergency phones stay.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 58/58 (new: nitro takes a star off and the distance level counts lower for 20 s; every start from home rewinds and plays the intro; SKIP during the rewind) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 42/42, 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak | 40 seeds × 300 s without nitro: not one hit. 16 seeds with nitro: not one hit |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+
+The new UI check caught one real fault before release: the hint faded to nothing but its line stayed on screen, because the last fraction of the fade rounded to the same value as "gone". Fixed.
+
+**Limits**
+
+- Not played by me.
+- With nitro now dropping a star for 20 s, a player who keeps a canister flowing spends less time at three stars. If that makes it too easy again, shorten `nitroCool` or let a burst take the star without lowering the distance level.
+- Ten seconds of intro before every run is long for a game this hard. It can be skipped each time, but if you find yourself always skipping, a shorter cut for the second start onwards would be the next step.
+- The pink ring is the only standing reminder. If it is still too much, or not enough, say which.
+
 ## Revision 23: harder again, a distant helicopter, a furnished highway
 
 Four requests after Revision 22: harder still; the helicopter farther off and at a real height; no text when police cruisers block the road; more highway furniture.

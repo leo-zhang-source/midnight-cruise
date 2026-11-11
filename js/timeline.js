@@ -86,7 +86,10 @@ export class Timeline {
             segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
             if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
             opts.free = e.free ? 1 : 0;
-          } else if (cur.home !== undefined && e.t >= cur.home) quick(e.t);   // from the home screen: straight into a run
+          } else if (cur.home !== undefined && e.t >= cur.home) {            // from the home screen: the tape rewinds and the intro plays again — every start opens with it
+            const s = e.t + REWIND;
+            segs.push({ rew: e.t, s, end: s + IGNITION, C: s + IGNITION, skip: null, until: Infinity });
+          }
           break;
         case 'home':                     // back to the home screen (title and START)
           if (cur && e.t >= cur.C && cur.until === Infinity) { cur.until = e.t; cur.home = e.t; }
@@ -103,6 +106,7 @@ export class Timeline {
           break;
         case 'skip':
           if (cur && e.t >= cur.s && e.t < cur.end && cur.skip === null) { cur.skip = e.t; cur.end = e.t; cur.C = e.t + SKIP_FF; }
+          else if (cur && cur.rew !== null && e.t >= cur.rew && e.t < cur.s && cur.skip === null) { cur.skip = cur.s; cur.end = cur.s; cur.C = cur.s + SKIP_FF; }   // pressed while the tape is still rewinding
           break;
         case 'env': if (segs.length) envs.push(e); break;
         case 'music': music.push(e); break;
@@ -396,17 +400,16 @@ export function phaseFrom(segs, T) {
 
 // Canonical interaction script used for inspection renders, replays and the audio reference: the full intro, then
 // a clean drive recorded from tools/bot.mjs (`node tools/bot.mjs --script 68.95 --late`, default seed) with a dab of
-// brake, two nitro canisters picked up and fired, the four presets and a music pause; then the home screen and a
-// replay of the intro.
+// brake, two nitro canisters picked up and fired, the four presets and a music pause; then the home screen and
+// a second start, which opens with the intro again.
 export const CANONICAL = [
   { type: 'start', t: 1 }, { type: 'brk', t: 17, on: true }, { type: 'brk', t: 18.2, on: false }, { type: 'lane', t: 19.2, dir: -1 },
   { type: 'lane', t: 23.3, dir: 1 }, { type: 'lane', t: 24.75, dir: -1 }, { type: 'lane', t: 25.65, dir: 1 }, { type: 'lane', t: 30.15, dir: -1 },
   { type: 'lane', t: 31, dir: 1 }, { type: 'lane', t: 32.05, dir: -1 }, { type: 'turbo', t: 33.25 }, { type: 'env', t: 34, preset: 1 },
   { type: 'lane', t: 36.25, dir: 1 }, { type: 'lane', t: 38.9, dir: 1 }, { type: 'lane', t: 42.45, dir: -1 }, { type: 'env', t: 44, preset: 2 },
-  { type: 'lane', t: 44.15, dir: 1 }, { type: 'lane', t: 49.8, dir: -1 }, { type: 'lane', t: 51.65, dir: -1 }, { type: 'lane', t: 52.8, dir: 1 },
-  { type: 'lane', t: 53.5, dir: -1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 57.45, dir: 1 }, { type: 'lane', t: 58.15, dir: -1 },
-  { type: 'lane', t: 59.15, dir: 1 }, { type: 'turbo', t: 60.45 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 66.6, dir: -1 },
-  { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.05, dir: 1 }, { type: 'lane', t: 72.75, dir: -1 }, { type: 'music', t: 73, on: true },
-  { type: 'lane', t: 74.75, dir: 1 }, { type: 'lane', t: 75.1, dir: 1 }, { type: 'lane', t: 75.9, dir: -1 }, { type: 'lane', t: 77.1, dir: -1 },
-  { type: 'turbo', t: 79.45 }, { type: 'home', t: 80.0 }, { type: 'replay', t: 83.0 },
+  { type: 'lane', t: 44.15, dir: 1 }, { type: 'lane', t: 49.8, dir: -1 }, { type: 'lane', t: 51.65, dir: 1 }, { type: 'env', t: 54, preset: 3 },
+  { type: 'lane', t: 56.65, dir: -1 }, { type: 'lane', t: 58.5, dir: 1 }, { type: 'turbo', t: 60.45 }, { type: 'lane', t: 63.85, dir: -1 },
+  { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 65.55, dir: -1 }, { type: 'lane', t: 67.3, dir: 1 }, { type: 'lane', t: 69.65, dir: -1 },
+  { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.05, dir: 1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 78.85, dir: -1 },
+  { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
 ];

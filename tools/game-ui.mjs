@@ -22,7 +22,7 @@ const gs = (p) => p.evaluate(() => {
     veh: s.game.veh ? s.game.veh.length : 0, cells: s.game.cells ? s.game.cells.length : 0, polDz: s.game.pol ? s.game.pol.dz : null,
     hud: vis('ghud'), hudScore: el('g-score').textContent, gearTxt: el('gear').textContent, nitro: el('turbo').dataset.ready, nitroN: el('turbo').dataset.n, nitroTxt: el('turbo-state').textContent, stars: el('g-stars').dataset.n, tail: vis('g-tail'), lives: el('g-lives').dataset.n, tailTxt: el('g-tail-text').textContent,
     panel: !el('over').hidden, title: el('over-title').textContent, ovScore: el('ov-score').textContent, reviveOff: el('revive').disabled, focus: document.activeElement && document.activeElement.id,
-    police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: el('replay').classList.contains('on'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent, brake: el('brake').getAttribute('aria-pressed') };
+    police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: !!el('replay'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent, brake: el('brake').getAttribute('aria-pressed') };
 });
 // the simulation state, as plain data for the planner
 const sim = (p) => p.evaluate(() => { const st = MC.tl.stateAt(MC.tl.frontier()), g = st.g; return { ...st, g: { ...g, veh: Array.from(g.veh), cel: Array.from(g.cel), itm: Array.from(g.itm) } }; });
@@ -86,9 +86,11 @@ async function wreck(p, touch, once) {
   ok('R does nothing without a tape', (await gs(p)).over >= 1);
   const lastScore = (await gs(p)).ovScore;
   await p.keyboard.press('Enter'); await p.waitForTimeout(1300);
-  s = await gs(p); ok('Enter on HOME → home screen: START, last and best score, REPLAY INTRO; no HUD', s.phase === 'home' && s.start === 'visible' && s.homeScore === lastScore && s.replay && s.hud === 'hidden' && !s.panel && s.police === 'hidden' && s.focus === 'start', JSON.stringify({ phase: s.phase, last: s.homeScore, focus: s.focus }));
+  s = await gs(p); ok('Enter on HOME → home screen: START, last and best score, no replay-intro button; no HUD', s.phase === 'home' && s.start === 'visible' && s.homeScore === lastScore && !s.replay && s.hud === 'hidden' && !s.panel && s.police === 'hidden' && s.focus === 'start', JSON.stringify({ phase: s.phase, last: s.homeScore, focus: s.focus }));
   await p.keyboard.press('Enter'); await p.waitForTimeout(900);
-  s = await gs(p); ok('START from home → run 2 straight away, score reset, police on the bumper again', s.phase === 'cruise' && s.over === 0 && s.run === 2 && s.score < 300 && s.pol === 1 && s.tapes === 0, `run ${s.run}, score ${s.score}, ct ${s.ct.toFixed(2)}`);
+  s = await gs(p); ok('START from home → the intro plays again', s.phase === 'ign' && s.hud === 'hidden', s.phase);
+  await p.keyboard.press('KeyS'); await p.waitForTimeout(900);
+  s = await gs(p); ok('S skips it → run 2, score reset, police on the bumper again', s.phase === 'cruise' && s.over === 0 && s.run === 2 && s.score < 300 && s.pol === 1 && s.tapes === 0, `run ${s.run}, score ${s.score}, ct ${s.ct.toFixed(2)}`);
   st = await drive(p, 3500);
   // pause menu
   await p.keyboard.press('KeyP'); await p.waitForTimeout(300);
@@ -112,16 +114,19 @@ async function wreck(p, touch, once) {
   // a hit takes a life and puts the police on the tail for good → a second hit ends the run
   st = await drive(p, 3200);
   let hit = await wreck(p, false, true);
-  s = await gs(p); ok('a hit: one heart left, second star, the ONE LIFE LEFT notice, pursuit car on the tail, run continues', hit === true && s.lives === '1' && s.stars === '2' && s.tail === 'visible' && /ONE LIFE LEFT/.test(s.tailTxt) && s.close > 0.5 && s.pol === 1 && s.over === 0, JSON.stringify({ hit, lives: s.lives, stars: s.stars, tail: s.tail, txt: s.tailTxt, close: s.close, over: s.over }));
+  s = await gs(p); ok('a hit: one heart left, second star, the NITRO SHAKES THEM OFF hint, pursuit car on the tail, run continues', hit === true && s.lives === '1' && s.stars === '2' && s.tail === 'visible' && /NITRO SHAKES THEM OFF/.test(s.tailTxt) && s.pol === 1 && s.over === 0, JSON.stringify({ hit, lives: s.lives, stars: s.stars, tail: s.tail, txt: s.tailTxt, close: s.close, over: s.over }));
   await p.waitForTimeout(1500);
-  s = await gs(p); ok('… and it stays there', s.over !== 0 || (s.lives === '1' && s.tail === 'visible' && s.pol === 1));
+  s = await gs(p); ok('… and the police stay there', s.over !== 0 || (s.lives === '1' && s.pol === 1));
+  if (!s.over) { for (let i = 0; i < 16 && !s.over && s.tail !== 'hidden'; i++) { await drive(p, 500); s = await gs(p); }     // the hint lasts four seconds of game time
+    ok('the hint is gone a few seconds later; the hearts still show one life', s.over !== 0 || (s.tail === 'hidden' && s.lives === '1' && s.pol === 1), JSON.stringify({ tail: s.tail, txt: s.tailTxt, close: s.close, lives: s.lives, over: s.over })); }
+  else ok('the hint is gone a few seconds later; the hearts still show one life', true, 'skipped: the run ended first');
   await wreck(p);
   s = await gs(p); ok('a second hit ends the run: WRECKED or BUSTED, no hearts left', s.over !== 0 && s.panel && (s.title === 'BUSTED' || s.title === 'WRECKED') && s.lives === '0', JSON.stringify({ over: s.over, title: s.title, lives: s.lives }));
   await p.screenshot({ path: 'renders/test_busted.png' });
   await p.click('#home'); await p.waitForTimeout(1200);
   s = await gs(p); ok('the HOME button → home screen', s.phase === 'home' && s.start === 'visible');
-  await p.click('#replay'); await p.waitForTimeout(400);
-  s = await gs(p); ok('REPLAY INTRO from the home screen rewinds to the intro', s.phase === 'rewind' && s.hud === 'hidden' && !s.panel);
+  await p.click('#start'); await p.waitForTimeout(400);
+  s = await gs(p); ok('START from the home screen rewinds the tape to the intro', s.phase === 'rewind' && s.hud === 'hidden' && !s.panel);
   await p.context().close();
 }
 // ── nitro stock (deterministic: the canonical script picks up two canisters and fires them) ──
@@ -162,8 +167,8 @@ async function wreck(p, touch, once) {
   ok('phone: the pause menu fits and its buttons are touch-sized', await p.evaluate(() => { const r = document.getElementById('paused').getBoundingClientRect(); return !document.getElementById('paused').hidden && r.left >= 0 && r.right <= 390 && ['resume', 'restart', 'home2'].every((id) => document.getElementById(id).getBoundingClientRect().height >= 44); }));
   await p.tap('#home2'); await p.waitForTimeout(1200);
   s = await gs(p); ok('phone: HOME → home screen', s.phase === 'home' && s.start === 'visible');
-  await p.tap('#start'); await p.waitForTimeout(900);
-  s = await gs(p); ok('phone: START → a new run', s.phase === 'cruise' && s.run === 2);
+  await p.tap('#start'); await p.waitForTimeout(900); await p.tap('#skip'); await p.waitForTimeout(900);
+  s = await gs(p); ok('phone: START, then SKIP INTRO → a new run', s.phase === 'cruise' && s.run === 2);
   await p.context().close();
 }
 console.log('console errors/warnings:', logs.length ? '\n  ' + logs.join('\n  ') : 'none');

@@ -12,7 +12,7 @@ export class UI {
     this.app = app;
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
-      skip: $('skip'), replay: $('replay'), drivebar: $('drivebar'), brake: $('brake'), brakeRing: $('brake-ring'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
+      skip: $('skip'), drivebar: $('drivebar'), brake: $('brake'), brakeRing: $('brake-ring'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
       deck: $('deck'), deckBar: $('deck-bar'), deckMin: $('deck-min'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
@@ -52,8 +52,7 @@ export class UI {
   bind() {
     const E = this.el;
     E.start.addEventListener('click', () => this.app.start());
-    E.skip.addEventListener('click', () => { if (this.phase() === 'ign') { this.ev('skip'); } });
-    E.replay.addEventListener('click', () => this.replay());
+    E.skip.addEventListener('click', () => this.skip());
     // BRAKE: hold to slow down (pointer capture so the release is never missed)
     const bDown = (e) => { e.preventDefault(); try { E.brake.setPointerCapture(e.pointerId); } catch (_) {} this.btnBrake = true; this.refreshBrake(); };
     const bUp = () => { if (!this.btnBrake) return; this.btnBrake = false; this.refreshBrake(); };
@@ -112,9 +111,9 @@ export class UI {
       else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); this.lane(1); }
       else if (k === 't' || k === 'T' || k === 'ArrowUp' || k === 'w' || k === 'W') { e.preventDefault(); this.turbo(); }
       else if (k === 'p' || k === 'P') this.pause(!this.isPaused());
-      else if (k === 'Escape') { if (ph === 'ign') this.ev('skip'); else this.pause(!this.isPaused()); }
-      else if (k === 's' || k === 'S') { if (ph === 'ign') this.ev('skip'); }
-      else if (k === 'r' || k === 'R') { if (this.overState()) this.revive(); else if (this.isPaused()) this.restart(); else if (ph === 'home') this.replay(); }
+      else if (k === 'Escape') { if (ph === 'ign' || ph === 'rewind') this.skip(); else this.pause(!this.isPaused()); }
+      else if (k === 's' || k === 'S') this.skip();
+      else if (k === 'r' || k === 'R') { if (this.overState()) this.revive(); else if (this.isPaused()) this.restart(); }
       else if (k === 'h' || k === 'H') this.home();
       else if (k === 'm' || k === 'M') E.mute.click();
       else if (k === 'Enter' && !interactive(document.activeElement)) {
@@ -176,7 +175,7 @@ export class UI {
   home() { const st = this.menu(); if (!st) return; this.commit(st); this.ev('home'); this.sfx('clunk'); }
   // a new run right away — from the pause menu only
   restart() { const st = this.menu(); if (!st || st.over) return; this.commit(st); this.ev('restart'); this.sfx('clunk'); }
-  replay() { if (this.phase() === 'home') { this.ev('replay'); this.sfx('clunk'); } }
+  skip() { const ph = this.phase(); if (ph === 'ign' || ph === 'rewind') this.ev('skip'); }      // the intro opens every start; this cuts it short
   revive() { const st = this.overState(); if (st && st.tapes > 0) this.ev('revive'); }
   // Sounds for what the simulation just derived (close calls, crashes …). Only the picture's timeline announces:
   // it never runs ahead of the visitor's input, so a sound is never played for something that is then avoided.
@@ -290,7 +289,6 @@ export class UI {
     set('homeS', U.home && this.last >= 0 ? this.last + '|' + this.best : '', (v) => { E.homeScore.hidden = !v; if (v) { E.hsLast.textContent = this.last.toLocaleString('en-US'); E.hsBest.textContent = this.best.toLocaleString('en-US'); } });
     set('homeF', U.home && st > 0.9 ? 1 : 0, (v) => { if (v) { try { E.start.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
     set('skip', U.skip, (v) => E.skip.classList.toggle('on', !!v));
-    set('replay', U.replay ? 1 : 0, (v) => E.replay.classList.toggle('on', !!v));
     // drive controls: the brake ring shows how hard the car is braking, the nitro button how many canisters are aboard
     const ca = U.controls;
     set('ctrl', ca.toFixed(3), () => { E.drivebar.style.opacity = ca; E.drivebar.style.visibility = ca > 0.01 ? 'visible' : 'hidden'; E.drivebar.style.transform = `translateY(${(1 - ca) * 28}px)`; E.drivebar.style.pointerEvents = ca > 0.6 ? 'auto' : 'none'; });
@@ -389,9 +387,12 @@ export class UI {
       });
     }
     // the police on the tail: for good once a life is gone (until nitro shakes them off), or for a moment after lingering on the brake
-    const tail = on && !Gm.over ? Gm.close : 0;
-    set('tailText', on && Gm.lives < 2 ? 1 : 0, (v) => { E.gTailText.textContent = v ? 'ONE LIFE LEFT · NITRO SHAKES THEM OFF' : 'POLICE ON YOUR TAIL'; });
-    set('tail', tail.toFixed(3), () => { E.gTail.style.visibility = tail > 0 ? 'visible' : 'hidden'; E.gTailBar.style.transform = `scaleX(${tail.toFixed(3)})`; });
+    // … and, for a few seconds after a hit, what to do about it. After that the hearts and the nitro button carry it.
+    const hint = on && !Gm.over && Gm.hint > 0.01 ? Gm.hint : 0, tail = hint > 0 ? hint : on && !Gm.over && Gm.close > 0.001 ? Gm.close : 0;
+    set('tailText', hint > 0 ? 1 : 0, (v) => { E.gTailText.textContent = v ? 'NITRO SHAKES THEM OFF' : 'POLICE ON YOUR TAIL'; E.gTail.dataset.hint = v; });
+    set('tailA', (hint > 0 ? hint : 1).toFixed(2), (v) => { E.gTail.style.opacity = v; });
+    set('trbS', on && !Gm.over && Gm.lives < 2 && Gm.nstock > 0 ? '1' : '0', (v) => { E.turbo.dataset.shake = v; });       // a canister in stock on the last life: the nitro button wears a pink ring
+    set('tail', tail.toFixed(3), () => { E.gTail.style.visibility = tail > 0 ? 'visible' : 'hidden'; E.gTailBar.style.transform = `scaleX(${(hint > 0 ? 0 : tail).toFixed(3)})`; });
     // police lights at the bottom corners, alternating red and blue: faint while they hang back, strong on the tail
     // (steady when motion is reduced)
     const lvl = !on || Gm.paused || Gm.rew ? 0 : Gm.over === 2 ? 1 : Gm.over ? 0 : Gm.pol ? 0.85 : 0.16 + 0.07 * Gm.star;

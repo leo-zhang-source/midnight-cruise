@@ -49,14 +49,19 @@ let crashT;
   // home → start → a new run
   tl.add('home', crashT + 1.5);
   ok('HOME: back to the home screen, no game running', tl.phaseAt(crashT + 2).phase === 'home' && tl.stateAt(crashT + 2).over === 0 && tl.stateAt(crashT + 4).vel < 7);
+  // every start opens with the intro: the tape rewinds (0.6 s), then the ignition plays; SKIP cuts it short
   tl.add('start', crashT + 5);
-  const p1 = tl.phaseAt(crashT + 5.2).phase, s2 = tl.stateAt(crashT + 5 + 0.4 + 3);
-  ok('START from home: 0.4 s fast-forward, then run 2', p1 === 'ff' && tl.phaseAt(crashT + 5.5).phase === 'cruise' && s2.run === 2 && s2.over === 0 && s2.g.gd > 20 && s2.tapes === GAME.tapesStart, `run ${s2.run}, distance ${s2.g.gd.toFixed(0)}`);
-  tl.add('restart', crashT + 9);
-  const s3 = tl.stateAt(crashT + 9 + 0.4 + 1);
-  ok('RESTART: a new run at once', s3.run === 3 && s3.g.gd < 60 && tl.phaseAt(crashT + 9.2).phase === 'ff');
-  tl.add('home', crashT + 12); tl.add('replay', crashT + 14);
-  ok('REPLAY INTRO from home: rewind, the 10 s ignition, then a run', tl.phaseAt(crashT + 14.3).phase === 'rewind' && tl.phaseAt(crashT + 20).phase === 'ign' && tl.stateAt(crashT + 14.6 + 10 + 2).run === 4);
+  ok('START from home: the tape rewinds and the intro plays again', tl.phaseAt(crashT + 5.3).phase === 'rewind' && tl.phaseAt(crashT + 6).phase === 'ign' && tl.stateAt(crashT + 6).run === 1);
+  tl.add('skip', crashT + 7);
+  const p1 = tl.phaseAt(crashT + 7.2).phase, s2 = tl.stateAt(crashT + 7 + 0.4 + 3);
+  ok('SKIP during it: 0.4 s fast-forward, then run 2', p1 === 'ff' && tl.phaseAt(crashT + 7.5).phase === 'cruise' && s2.run === 2 && s2.over === 0 && s2.g.gd > 20 && s2.g.lives === 2 && s2.tapes === GAME.tapesStart, `run ${s2.run}, distance ${s2.g.gd.toFixed(0)}`);
+  tl.add('restart', crashT + 11);
+  const s3 = tl.stateAt(crashT + 11 + 0.4 + 1);
+  ok('RESTART (from the pause menu): a new run at once, no intro', s3.run === 3 && s3.g.gd < 60 && tl.phaseAt(crashT + 11.2).phase === 'ff');
+  tl.add('home', crashT + 14); tl.add('start', crashT + 16);
+  ok('left alone, the intro runs its full 10 s and then the run starts', tl.phaseAt(crashT + 16.3).phase === 'rewind' && tl.phaseAt(crashT + 22).phase === 'ign' && tl.phaseAt(crashT + 16.6 + 9.9).phase === 'ign' && tl.stateAt(crashT + 16.6 + 10 + 2).run === 4);
+  { const t9 = fresh(); t9.stateAt(C + 12); const oT = t9.stateAt(C + 40).overT; t9.add('home', oT + 1); t9.add('start', oT + 3); t9.add('skip', oT + 3.2);
+    ok('SKIP pressed while the tape is still rewinding takes effect as the intro begins', t9.phaseAt(oT + 3.7).phase === 'ff' && t9.phaseAt(oT + 4.1).phase === 'cruise' && t9.stateAt(oT + 5).run === 2); }
 }
 
 // ── lingering on the brake ──
@@ -107,6 +112,12 @@ let crashT;
   t5.add('turbo', hit.T + 1.05);
   const freed = t5.stateAt(hit.T + 3.2), fev = kinds(t5, hit.T + 1, hit.T + 3.2);
   ok('a nitro burst shakes them off and gives the life back', fev.includes('shake') && freed.g.lives === 2 && (freed.over !== 0 || !policeClose(freed.g)), `events ${fev.filter((k) => k !== 'cell').join(',')}`);
+  const sev = t5.gameEvents(hit.T + 1, hit.T + 3.2).filter((e) => e.k === 'star');
+  ok('… and takes a star off the wanted level', hold.g.star === 2 && sev.length === 1 && sev[0].up === 0 && sev[0].n === 1 && (freed.over !== 0 || freed.g.star === 1), `star ${hold.g.star} → ${freed.g.star}`);
+  // the level earned by distance counts one lower for nitroCool seconds, then comes back
+  { const g = freshGame(5); g.genU = 1e12; const out = [], step = (n, nitro) => { for (let i = 0; i < n; i++) stepGame(g, { dt: 1 / 240, x: 0, lane: 0, vel: 90, brk: 0, nitro }, out); };
+    g.gd = GAME.star3At + 10; step(240, 0); const s0 = g.star; step(240 * 3, 1); const s1 = g.star; step(240 * (GAME.nitroCool - 4), 0); const s2 = g.star; step(240 * 3, 0);
+    ok('past the three-star distance a burst brings it down to two for 20 s, then it is three again', s0 === 3 && s1 === 2 && s2 === 2 && g.star === 3, `${s0} → ${s1} → ${s2} → ${g.star}`); }
   // a second stumble while the police are on the tail → busted
   const t3 = new Timeline(); t3.load(base);
   t3.stateAt(hit.T - 0.004); t3._st.g.lives = 1;                  // one life is already gone (edit the live state)

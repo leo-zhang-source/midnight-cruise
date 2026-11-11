@@ -24,14 +24,14 @@ The car drives flat out by itself. You steer, brake and fire nitro.
 | Action | Mouse / touch | Keyboard |
 |---|---|---|
 | Start (also enables audio) | **START DRIVE** | `Enter` / `Space` |
-| Skip the intro | **SKIP INTRO** (top right) | `Esc` / `S` |
+| Skip the intro (it opens every start) | **SKIP INTRO** (top right) | `Esc` / `S` |
 | Change lane (three lanes) | tap or click the left / right half of the scene | `←` `→` or `A` `D`, one lane per press |
 | Brake (slows to 55 %) | hold **BRAKE** | hold `Space` or `↓` |
 | Nitro, when a canister is aboard | **NITRO** (its pips show how many you carry) | `T`, `↑` or `W` |
 | Pause | the pause key (top right) | `P` or `Esc` |
 | In the pause menu | **RESUME** · **RESTART** · **HOME** | `P` / `Enter` · `R` · `H` |
 | After a crash | **REWIND 3 S** (needs a spare tape) · **HOME** | `R` · `H` |
-| On the home screen | **START DRIVE** · **REPLAY INTRO** (top right) | `Enter` / `Space` · `R` |
+| On the home screen | **START DRIVE** | `Enter` / `Space` |
 | Music play / pause, mute, volume | cassette deck | `M` toggles mute |
 | Colours | cassette deck: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
 | Automatic colour change | cassette deck **AUTO** key (on by default; its bar fills towards the next change) | — |
@@ -59,31 +59,31 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 - You start every run with two lives (the hearts beside the stars).
 - **Any hit takes one**: driving into the back of a vehicle (you plough through it and lose speed), a sideswipe (you bounce back to your lane), the grappler, the helicopter.
 - With one life left the pursuit car sits off your rear quarter **for good**, its grappler runs come sooner, and the next hit ends the run: wrecked if it was a vehicle, busted if it was the police.
-- **A nitro burst shakes it off and gives the life back.** So a canister in stock is your second chance: spend it on points, or keep it.
+- **A nitro burst shakes it off and gives the life back.** So a canister in stock is your second chance: spend it on points, or keep it. The game says so once, quietly: NITRO SHAKES THEM OFF shows under the stars for four seconds after the hit, a canister picked up on the last life says FIRE IT TO SHAKE THEM OFF, and the nitro button wears a pink ring while you hold one.
 - After a hit nothing attacks you for two and a half seconds.
 - Holding the brake for more than about 2 s brings the pursuit car onto your bumper for a moment, without costing a life.
 
-**After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability and both lives. **HOME** goes back to the home screen. A new run always starts from the home screen.
+**After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability and both lives. **HOME** goes back to the home screen. A new run always starts from the home screen, and every start opens the same way: the tape rewinds and the ten-second intro plays, into the run. **SKIP INTRO** cuts it to a 0.4 s fast-forward. **RESTART** in the pause menu is the one way to start again without it.
 
 **Wanted level: three stars**
 
 | Stars | You get there by | What the police do |
 |---|---|---|
 | ★ | every run starts here | One cruiser follows you. |
-| ★★ | a sideswipe or a crash (+1 star), three vehicles smashed with nitro (+⅓ each), or 1.5 km driven | Police appear ahead of you: rolling roadblocks and weaving cruisers. The cruiser behind comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second, you lose speed and a life. |
+| ★★ | a sideswipe or a crash (+1 star), ramming a cruiser with nitro (+1), or 1.5 km driven | Police appear ahead of you: rolling roadblocks and weaving cruisers. The cruiser behind comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second, you lose speed and a life. |
 | ★★★ | more of the same, or 4 km driven | A police helicopter flies in and holds station far ahead and high up (about 130 units out, 38 up), side-on, sweeping the road with its searchlight. Every 3.5 s it turns to face you and the light locks the lane you are in (the beam turns amber, then red, with a target on the lane); 1.2 s later it fires down that lane from its two gun pods. More police ahead. |
 
-Heat cools by one star every 12 s once 10 s pass without an incident, but never below the level your distance has earned.
+Heat cools by one star every 12 s once 10 s pass without an incident, but never below the level your distance has earned. **A nitro burst takes a star off at once**, and for 20 s the level your distance has earned counts one lower as well (two lower if you fire a second canister inside that time).
 
 **Scoring and speed**
 
 - **Distance** scores points all the time.
 - **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per star above the first.
 - **Gears** engage with distance: the base speed rises from 130 MPH in gear 1 to 230 MPH in gear 6, and rows come closer together.
-- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and police cruisers (a cruiser costs a whole star), and shove the pursuit car back if it is in your way. Each vehicle smashed scores points and adds a third of a star.
+- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and police cruisers (a cruiser costs a whole star), and shove the pursuit car back if it is in your way. Each vehicle smashed scores points. Firing it takes a star off the wanted level.
 - **Slipstream**: staying close behind a vehicle before you pull out scores a bonus.
 
-**The road.** One highway into the city for the whole run: megastructure towers on the horizon, a sign gantry over the road every 2,400 units, an overpass half-way between gantries, and a big billboard every 1,600. Along it: sodium street lamps on both sides, reflector posts on the rails, roadside signs on posts, and an orange emergency phone now and then. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 2,900 road units, whichever comes first.
+**The road.** One highway into the city for the whole run: megastructure towers on the horizon, a sign gantry over the road every 2,400 units and a big billboard every 1,600. Along it: reflector posts on the rails, roadside signs on posts, and an orange emergency phone now and then. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 2,900 road units, whichever comes first.
 
 **Fairness.** Every row leaves a lane open within one lane of the previous opening, and rows are spaced for the speed you are really doing, with room for their stagger. The lanes run at different speeds, so each vehicle starts behind or ahead of its place by what its lane will gain or lose, and the speed difference between lanes follows how fast you are closing: a row closes up to its planned stagger when you reach it whether you come in on the brake, at cruising speed or in a nitro burst. A taxi or a crossing cruiser is in its new lane at least 0.8 s before you arrive; a weaving cruiser takes its lane at least 1.2 s before, and the row after it leaves the middle lane open. Warnings are timed for the speed you would be doing flat out, so braking on the way in never shortens one. A grappler run or a searchlight lock only starts when there is a way out: a lane beside you stays clear while the attack lasts, and after it either that lane or your own is open. `tools/bot.mjs` drives 40 different seeds for 5 minutes each without taking a single hit. With nitro, 1 of 16 runs takes a hit (the bar for every change to the numbers is zero hits without nitro): coming out of a burst into dense traffic is the risk you take for the points.
 
@@ -100,7 +100,7 @@ Every frame is a pure function of scene time, the seed, the viewport and the eve
 | Parameter | What it does |
 |---|---|
 | `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
-| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with two nitro canisters picked up and fired, the four presets, a music pause, then the home screen and a replay of the intro |
+| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with two nitro canisters picked up and fired, the four presets, a music pause, then the home screen and a second start, which opens with the intro again |
 | `?seed=7` | Pin the traffic seed (each visit otherwise gets a random one, stored in its start event) |
 | `?free=1` | Free cruise: no traffic, no police and no game over; a nitro canister is refilled 7 s after you use one |
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
@@ -132,7 +132,7 @@ node tools/capture.mjs renders/keyframes 1920x1080 7.0,11.5   # deterministic st
 ```
 
 ```bash
-node tools/interact.mjs          # end-to-end input test in free mode (mouse, keyboard, focus loss, deck drag, replay/skip …)
+node tools/interact.mjs          # end-to-end input test in free mode (mouse, keyboard, focus loss, deck drag, start/skip …)
 ```
 
 ```bash

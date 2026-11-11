@@ -51,7 +51,7 @@ export function freshGame(seed = 1986, free = 0) {
     vt: GAME.trafficK * GAME.gears[0], tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: 0,
     nstock: free ? 1 : 0, nfree: 0,
-    heat: 1, heatGt: -1e9, star: 1,
+    heat: 1, heatGt: -1e9, star: 1, coolT: 0, coolN: 0,                              // nitro has cooled the heat by coolN stars until coolT
     lives: 2, nz: 0,                                                                 // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
     pcl: 0, stG: 0, slow: 0, brkAcc: 0,                                              // tail-close until (lingering on the brake), stumble grace until, slowed until
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
@@ -245,8 +245,12 @@ export function stepGame(g, inp, out) {
     return;
   }
   if (!g.goEv && gt >= G.introHold) { g.goEv = 1; out.push({ k: 'go' }); }
-  // a nitro burst shakes the pursuit car off and gives the lost life back
-  if (inp.nitro && !g.nz && g.lives < 2) { g.lives = 2; g.pcl = 0; out.push({ k: 'shake' }); }
+  // a nitro burst shakes the pursuit car off, gives the lost life back, and takes a star off the wanted level
+  if (inp.nitro && !g.nz) {
+    if (g.lives < 2) { g.lives = 2; g.pcl = 0; out.push({ k: 'shake' }); }
+    g.coolN = Math.min(2, (gt < g.coolT ? g.coolN : 0) + 1); g.coolT = gt + G.nitroCool;
+    g.heat = Math.max(1, Math.floor(g.heat + 1e-9) - 1); g.heatGt = gt;
+  }
   g.nz = inp.nitro ? 1 : 0;
   g.vt += (G.trafficK * gameBase(g) - g.vt) * (1 - Math.exp(-DT / G.trafficEase)); g.tr += g.vt * DT;   // the traffic picks up speed with the road
   const up = gd - g.tr;
@@ -369,12 +373,12 @@ export function stepGame(g, inp, out) {
     if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
       itm[o] = 0;
       if (g.nstock < G.nitroMax) g.nstock++; else g.score += 500 * mult;
-      out.push({ k: 'item', n: g.nstock });
+      out.push({ k: 'item', n: g.nstock, l: g.lives });
     }
   }
 
   // ── police: stars ──
-  const floor = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1;
+  const earned = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1, floor = gt < g.coolT ? Math.max(1, earned - g.coolN) : earned;
   if (g.heat < floor) g.heat = floor;
   else if (g.heat > floor && gt - g.heatGt > G.heatHold) g.heat = Math.max(floor, g.heat - DT / G.heatDecay);
   const star = Math.min(3, Math.floor(g.heat + 1e-9));

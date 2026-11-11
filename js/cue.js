@@ -80,7 +80,9 @@ export const GAME = {
   // it is on your tail ends the run. hitInv: seconds nothing can touch you after ploughing through a vehicle on the first life.
   // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
   star2At: 1500, star3At: 4000,                  // distance floors: the longer you run, the more they send
-  heatSwipe: 1, heatSmash: 0.34, heatHold: 10, heatDecay: 12,
+  // a nitro burst takes a star off, and for nitroCool seconds the level your distance has earned counts one lower too
+  // (two lower after a second burst inside that time). Smashing traffic in a burst no longer adds heat; ramming a cruiser still does.
+  heatSwipe: 1, heatSmash: 0, heatHold: 10, heatDecay: 12, nitroCool: 20,
   stumbleGrace: 1.2, hitInv: 1.0, hitRest: 2.5, polClose: 6.5, polFar: 19, chaseZ: 8.5, chaseX: 2.4, chaseRam: 0.6,   // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
   ramFirst: 4, ramEvery: [3.5, 5.5], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.5, ramOwn: 1.8, clearAfter: 1.3, holdOff: 3,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
   blockP: [0, 0, 0.3, 0.4],                      // share of rows that are police units ahead of you, by star

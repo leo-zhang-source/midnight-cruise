@@ -102,10 +102,13 @@
     star2At: 1500,
     star3At: 4e3,
     // distance floors: the longer you run, the more they send
+    // a nitro burst takes a star off, and for nitroCool seconds the level your distance has earned counts one lower too
+    // (two lower after a second burst inside that time). Smashing traffic in a burst no longer adds heat; ramming a cruiser still does.
     heatSwipe: 1,
-    heatSmash: 0.34,
+    heatSmash: 0,
     heatHold: 10,
     heatDecay: 12,
+    nitroCool: 20,
     stumbleGrace: 1.2,
     hitInv: 1,
     hitRest: 2.5,
@@ -527,6 +530,9 @@
       heat: 1,
       heatGt: -1e9,
       star: 1,
+      coolT: 0,
+      coolN: 0,
+      // nitro has cooled the heat by coolN stars until coolT
       lives: 2,
       nz: 0,
       // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
@@ -807,10 +813,16 @@
       g.goEv = 1;
       out.push({ k: "go" });
     }
-    if (inp.nitro && !g.nz && g.lives < 2) {
-      g.lives = 2;
-      g.pcl = 0;
-      out.push({ k: "shake" });
+    if (inp.nitro && !g.nz) {
+      if (g.lives < 2) {
+        g.lives = 2;
+        g.pcl = 0;
+        out.push({ k: "shake" });
+      }
+      g.coolN = Math.min(2, (gt < g.coolT ? g.coolN : 0) + 1);
+      g.coolT = gt + G.nitroCool;
+      g.heat = Math.max(1, Math.floor(g.heat + 1e-9) - 1);
+      g.heatGt = gt;
     }
     g.nz = inp.nitro ? 1 : 0;
     g.vt += (G.trafficK * gameBase(g) - g.vt) * (1 - Math.exp(-DT2 / G.trafficEase));
@@ -972,10 +984,10 @@
         itm[o] = 0;
         if (g.nstock < G.nitroMax) g.nstock++;
         else g.score += 500 * mult;
-        out.push({ k: "item", n: g.nstock });
+        out.push({ k: "item", n: g.nstock, l: g.lives });
       }
     }
-    const floor = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1;
+    const earned = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1, floor = gt < g.coolT ? Math.max(1, earned - g.coolN) : earned;
     if (g.heat < floor) g.heat = floor;
     else if (g.heat > floor && gt - g.heatGt > G.heatHold) g.heat = Math.max(floor, g.heat - DT2 / G.heatDecay);
     const star = Math.min(3, Math.floor(g.heat + 1e-9));
@@ -1228,7 +1240,10 @@
               segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
               if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
               opts.free = e.free ? 1 : 0;
-            } else if (cur.home !== void 0 && e.t >= cur.home) quick(e.t);
+            } else if (cur.home !== void 0 && e.t >= cur.home) {
+              const s = e.t + REWIND;
+              segs.push({ rew: e.t, s, end: s + IGNITION, C: s + IGNITION, skip: null, until: Infinity });
+            }
             break;
           case "home":
             if (cur && e.t >= cur.C && cur.until === Infinity) {
@@ -1254,6 +1269,10 @@
               cur.skip = e.t;
               cur.end = e.t;
               cur.C = e.t + SKIP_FF;
+            } else if (cur && cur.rew !== null && e.t >= cur.rew && e.t < cur.s && cur.skip === null) {
+              cur.skip = cur.s;
+              cur.end = cur.s;
+              cur.C = cur.s + SKIP_FF;
             }
             break;
           case "env":
