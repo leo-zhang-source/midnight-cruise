@@ -5,7 +5,7 @@
 //   node tools/bot.mjs --script 68.95  print the events of a clean run (used for the canonical script)
 import { Timeline } from '../js/timeline.js';
 import { ROAD, TURBO, GAME } from '../js/cue.js';
-import { NV, VF, NI, IF, T_TAXI, T_BLOCK, T_WEAVE, HALF_W, CAR_HL, CAR_HW, POL_HL, P_TAIL, P_WARN, P_CHARGE, COMMIT, SIDE, weave, breathe, gameBase, laneV, laneRate, crossing } from '../js/game.js';
+import { NV, VF, NI, IF, T_TAXI, T_BLOCK, T_WEAVE, HALF_W, CAR_HL, CAR_HW, POL_HL, P_TAIL, P_WARN, P_CHARGE, COMMIT, SIDE, STEADY, weave, breathe, gameBase, laneV, laneRate, crossing } from '../js/game.js';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
@@ -31,7 +31,7 @@ export function plan(st, opt, want) {
     const dz = g.veh[o + 2] - g.gd - (ease ? breathe(g.veh[o + 8], g.gt) : 0), reach = g.veh[o + 4] + CAR_HL + 0.6 + drift;
     if (vSlow - v <= 0 || dz < -reach) continue;
     let t0 = soonest(dz - reach, v), t1 = (dz + reach) / Math.max(1, vSlow - (ease ? g.vt + lv * laneRate(g, vSlow) : v));
-    if (type === T_BLOCK && dz > reach) {               // step through its braking: it is reached sooner than its speed now suggests
+    if (type === T_BLOCK && dz > reach && !(g.veh[o + 5] & STEADY)) {               // step through its braking: it is reached sooner than its speed now suggests
       let z = dz, vb = v, t = 0; const h = 0.01, vL = g.vt + lv * laneRate(g, vFast), relT = Math.max(1, vFast - g.vt);
       for (; t < horizon + 1 && z > reach; t += h) {
         const gap = z - (reach - 0.6), tv = vL - (gap > 0 && gap < relT * GAME.blockAt ? GAME.blockSlow : 0);
@@ -66,8 +66,9 @@ export function plan(st, opt, want) {
     // for the whole pass, the lane it leaves only until its move is over
     const cr = crossing(g.veh, o); let kEnd = K;
     if (cr) {
-      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (vFast - g.vt) * GAME.taxiAt) / Math.max(1, vFast - v));
-      kEnd = Math.ceil((tSig + GAME.taxiBlink + GAME.taxiMove + 0.1) / STEP);
+      let gs = g.gear; while (gs < 5 && g.gd + 2 * st.vel >= GAME.gearAt[gs + 1]) gs++;                  // the warning is timed for the gear two seconds on, as in the sim
+      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, GAME.gears[gs]) - g.vt) * GAME.taxiAt) / Math.max(1, vFast - v));
+      kEnd = Math.ceil((tSig + GAME.taxiBlink + GAME.taxiMove * 0.6 + 0.05) / STEP);                     // it is clear of the lane it leaves a little past half-way across
       for (let k = k0; k <= k1; k++) { blocked[cr[1] + 1][k] = 1; if (k <= kEnd) blocked[cr[0] + 1][k] = 1; }
       continue;
     }

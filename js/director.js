@@ -74,6 +74,7 @@ const POP = {
   star: (e) => (e.up ? [`WANTED LEVEL ${e.n}`, 'bad'] : [`HEAT DOWN · LEVEL ${e.n}`, 'good']),
   stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : e.by === 'crash' ? 'CRASH' : 'SIDESWIPE') + ' · ONE LIFE LEFT', 'bad'],
   shake: () => ['SHOOK THEM OFF · TWO LIVES', 'good'],
+  nuse: (e) => [`NITRO ${e.n}/${GAME.nitroClear} TO CLEAR THE HEAT`, 'info'], clear: () => ['HEAT CLEARED', 'good'],
   tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'], lock: () => ['SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
@@ -136,7 +137,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   { const u = g.gt - g.polT, m = g.polM;                 // the fork folds out during the warning and back in as the cruiser drops away
     const k = m === P_WARN ? smooth(u / 0.4) : m === P_CHARGE || m === P_HOOK ? 1 : m === P_BACK ? 1 - smooth(u / 0.35) : 0;
     if (k > 0) out.grap = { k, hook: m === P_HOOK ? 1 : 0 }; }
-  if (g.ha > 0.01) { const u = g.drT >= 0 ? g.gt - g.drT : -1; out.heli = { x: g.hx, sx: g.sx, sk: g.sk, a: g.ha, bank: g.hb, gt: g.gt, lane: g.drLane, warn: u < 0 ? 0 : sat(u / G.drWarn), strike: u >= G.drWarn ? sat((u - G.drWarn) / G.drStrike) : -1 }; }
+  if (g.ha > 0.01) { const u = g.drT >= 0 ? g.gt - g.drT : -1; out.heli = { x: g.hx, sx: g.sx, sk: g.sk, a: g.ha, on: g.hOn, side: g.hOn ? g.hSide : -g.hSide, bank: g.hb, gt: g.gt, lane: g.drLane, warn: u < 0 ? 0 : sat(u / G.drWarn), strike: u >= G.drWarn ? sat((u - G.drWarn) / G.drStrike) : -1 }; }
   const pops = [];
   for (const e of tl.gameEvents(T - 1.9, T)) {
     const age = T - e.t;

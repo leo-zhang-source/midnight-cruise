@@ -116,7 +116,7 @@ async function wreck(p, touch, once) {
   // a hit takes a life and puts the police on the tail for good → a second hit ends the run
   st = await drive(p, 3200);
   let hit = await wreck(p, false, true);
-  s = await gs(p); ok('a hit: one heart left, second star, the NITRO SHAKES THEM OFF hint, pursuit car on the tail, run continues', hit === true && s.lives === '1' && s.stars === '2' && s.tail === 'visible' && /NITRO SHAKES THEM OFF/.test(s.tailTxt) && s.pol === 1 && s.over === 0, JSON.stringify({ hit, lives: s.lives, stars: s.stars, tail: s.tail, txt: s.tailTxt, close: s.close, over: s.over }));
+  s = await gs(p); ok('a hit: one heart left, the NITRO SHAKES THEM OFF hint, pursuit car on the tail, run continues', hit === true && s.lives === '1' && s.tail === 'visible' && /NITRO SHAKES THEM OFF/.test(s.tailTxt) && s.pol === 1 && s.over === 0, JSON.stringify({ hit, lives: s.lives, stars: s.stars, tail: s.tail, txt: s.tailTxt, close: s.close, over: s.over }));
   await p.waitForTimeout(1500);
   s = await gs(p); ok('… and the police stay there', s.over !== 0 || (s.lives === '1' && s.pol === 1));
   if (!s.over) { for (let i = 0; i < 16 && !s.over && s.tail !== 'hidden'; i++) { await drive(p, 500); s = await gs(p); }     // the hint lasts four seconds of game time

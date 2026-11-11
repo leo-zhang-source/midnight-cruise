@@ -285,6 +285,11 @@ const GA_SPAN = 4800, GA = [1500, 3900];                                        
 const SG_SPAN = 4800, SG = [{ z0: 1100, side: 1, k: 0 }, { z0: 3250, side: 1, k: 1 }, { z0: 4450, side: -1, k: 2 }];   // roadside signs
 const POST_S = 30, SOS_S = 640;                                                                       // reflector posts on the rails, emergency phones
 const mod = (a, n) => ((a % n) + n) % n, V1 = new THREE.Vector3();
+// where each body's tail lamps are (tx = 0: one bar across; else a lamp each side), and how much road it lights
+const BODY = {
+  car: { tz: 2.56, ty: 0.82, tx: 0, w: 1.35 }, coupe: { tz: 2.44, ty: 0.74, tx: 0, w: 1.35 }, suv: { tz: 2.6, ty: 1.24, tx: 1.0, w: 1.4 },
+  van: { tz: 2.86, ty: 1.36, tx: 1.02, w: 1.45 }, pickup: { tz: 2.92, ty: 0.96, tx: 0, w: 1.45 }, bus: { tz: 6.05, ty: 1.45, tx: 1.2, w: 1.7 },
+};
 
 export class GameView {
   constructor() {
@@ -392,22 +397,25 @@ export class GameView {
         const yaw = v.yaw, cs = Math.cos(yaw), sn = Math.sin(yaw), at = (lx, lz) => [x + cs * lx + sn * lz, z - sn * lx + cs * lz];   // a point of the car's plan, in the world
         // tail lamps streak the road behind a moving car: as long as it is fast, laid along the way it came
         const trail = (lz, w, k) => { const [px, pz] = at(0, lz), len = v.v * 0.3; this.glow(px - v.vx * 0.15, 0.045, pz + len / 2, w, 0, 0, v.vx * 0.15, 0, -len / 2, TAIL, 8, k * f); };
-        if (v.type === T_CAR || v.type === T_TAXI) {
-          const taxi = v.type === T_TAXI, col = taxi ? TAXI : PAINT[id % PAINT.length];
-          this.veh.add('car', x, 0, z, yaw, 1.06, col, f, taxi ? 1 : 0, 1, 1, 1, 0, v.roll, v.pitch);
-          const [tx, tz] = at(0, 2.56), [hx, hz] = at(0, -4.6);
-          this.sprite(tx, 0.82, tz, far, TAIL, 0.3 * f); trail(2.3, 1.15, 0.55);
-          this.glow(x, 0.03, z, 1.35, 0, 0, 0, 0, 2.9, col, 2, 0.3 * f); this.glow(hx, 0.03, hz, 1.2, 0, 0, 0, 0, 2.2, LAMP, 2, 0.16 * f);   // paint glow on the road, headlamp pool ahead
+        if (v.type === T_CAR || v.type === T_TAXI || v.type === T_VAN) {
+          // which body it is: saloon, coupe or estate for a car; van or pickup for a van; a taxi is always a saloon
+          const taxi = v.type === T_TAXI, van = v.type === T_VAN, style = taxi ? 'car' : van ? (id % 2 ? 'pickup' : 'van') : ['car', 'coupe', 'suv'][id % 3], B = BODY[style];
+          const col = taxi ? TAXI : PAINT[(van ? id * 3 + 2 : id) % PAINT.length], neon = taxi ? [1, 0.8, 0.1] : col;
+          this.veh.add(style, x, 0, z, yaw, 1.06, col, f, taxi ? 1 : 0, 1, taxi ? 1 : 0, taxi ? 1 : 0, 0, v.roll, v.pitch);
+          for (const sx of B.tx ? [-1, 1] : [0]) { const [tx, tz] = at(sx * B.tx, B.tz); this.sprite(tx, B.ty, tz, far * (B.tx ? 0.8 : 1), TAIL, (B.tx ? 0.26 : 0.3) * f); }
+          trail(B.tz - 0.26, B.w - 0.2, 0.55);
+          const [hx, hz] = at(0, -B.tz - 2.0);
+          this.glow(x, 0.03, z, B.w, 0, 0, 0, 0, B.tz + 0.4, neon, 2, 0.5 * f); this.glow(hx, 0.03, hz, 1.2, 0, 0, 0, 0, 2.2, LAMP, 2, 0.16 * f);   // its neon on the road under it, headlamp pool ahead
           if (taxi && v.sig) {
             if (Math.floor(T * 3.2) % 2 === 0) { const [bx, bz] = at(v.sig * 0.98, 2.52); this.box(bx, 0.84, bz, 0.2, 0.14, 0.06, AMBER, 1, f, 1.2, 0, yaw); this.sprite(bx, 0.84, bz + 0.08, far, AMBER, 0.6 * f); }
             this.glow(x + v.sig * 2.6, 2.4, z, v.sig * 1.6, 0, 0, 0, 0.6, 0, AMBER, 7, 1.2 * f);
           }
-        } else if (v.type === T_VAN) {
-          const col = PAINT[(id * 3 + 2) % PAINT.length];
-          this.veh.add('van', x, 0, z, yaw, 1.06, col, f, 0, 1, 0, 0, 0, v.roll, v.pitch);
-          for (const sx of [-1, 1]) { const [tx, tz] = at(sx * 1.02, 2.86); this.sprite(tx, 1.36, tz, far * 0.8, TAIL, 0.26 * f); }
-          trail(2.6, 1.25, 0.5);
-          this.glow(x, 0.03, z, 1.45, 0, 0, 0, 0, 3.2, col, 2, 0.3 * f); this.glow(x, 0.03, z - 5, 1.3, 0, 0, 0, 0, 2.2, LAMP, 2, 0.16 * f);
+        } else if (v.type === T_TRUCK && id % 3 === 0) {                                // one long vehicle in three is a coach
+          const col = PAINT[(id * 5 + 1) % PAINT.length], B = BODY.bus;
+          this.veh.add('bus', x, 0, z, 0, 1.0, col, f);
+          for (const sx of [-1, 1]) this.sprite(x + sx * B.tx, B.ty, z + B.tz, far * 0.9, TAIL, 0.3 * f);
+          trail(B.tz - 0.3, B.w - 0.2, 0.5);
+          this.glow(x, 0.03, z, B.w, 0, 0, 0, 0, B.tz + 0.5, col, 2, 0.45 * f); this.glow(x, 0.03, z - B.tz - 2.2, 1.4, 0, 0, 0, 0, 2.4, LAMP, 2, 0.16 * f);
         } else if (v.type === T_TRUCK) {
           const c = id % 2 ? edge : edge2, zt = z + 1.7;                              // a 9-long trailer behind a 3.2 cab
           this.veh.add('cab', x, 0, z - 4.6, 0, 1.0, PAINT[(id * 5 + 1) % PAINT.length], f);
@@ -474,13 +482,14 @@ export class GameView {
       const h = G.heli;
       if (h) {
         // The helicopter holds station well ahead of us and high up, nose towards us: three-quarter on while its searchlight hunts,
-        // squared up to us once it has our lane, then it fires down the beam. It flies in from higher and farther still.
+        // squared up to us once it has our lane, then it fires down the beam. It comes and goes: in from high on one side, and after
+        // its attacks it turns away and climbs out on the other.
         const e = 1 - h.a, e2 = e * e, sk = h.sk, fire = h.strike >= 0, f = smooth(h.a * 3);
-        const hx = h.x * lerp(2.4, 1, sk) + 70 * e2, hy = 38 + Math.sin(T * 0.6) * 0.6 + 45 * e2, hz = cz - 130 - 190 * e2;
-        const yaw = Math.PI + lerp(0.8 * Math.tanh(2.5 * Math.cos(h.gt * 0.37)), Math.atan2(s.car.x - hx, cz - hz), sk) - 0.9 * e;
+        const hx = h.x * lerp(2.4, 1, sk) + h.side * 80 * e2, hy = 38 + Math.sin(T * 0.6) * 0.6 + 45 * e2, hz = cz - 130 - 190 * e2;
+        const yaw = Math.PI + lerp(0.8 * Math.tanh(2.5 * Math.cos(h.gt * 0.37)), Math.atan2(s.car.x - hx, cz - hz), sk) - h.side * (h.on ? 0.9 : 2.2) * e;
         const hot = sk > 0.5 && (fire || Math.floor(T * (4 + 8 * h.warn)) % 2 === 0);
         const c = fire ? [1.0, 0.16, 0.14] : sk > 0.5 ? (hot ? [1.0, 0.3, 0.12] : [1.0, 0.75, 0.2]) : [0.9, 0.95, 1.0];
-        this.heli.place(hx, hy, hz, yaw, -0.05 + 0.2 * sk - 0.25 * e + (fire ? 0.012 * Math.sin(T * 95) : 0), 0.3 * e - h.bank, 2.0, f, T, c);
+        this.heli.place(hx, hy, hz, yaw, -0.05 + 0.2 * sk - 0.25 * e + (fire ? 0.012 * Math.sin(T * 95) : 0), h.side * (h.on ? 0.3 : -0.4) * e - h.bank, 2.0, f, T, c);
         const at = (k) => { this.heli.at(HELI[k], V1); return [V1.x, V1.y, V1.z]; };
         const [nlx, nly, nlz] = at('navL'), [nrx, nry, nrz] = at('navR'), [stx, sty, stz] = at('strobe'), [bx, by, bz] = at('beacon');
         this.sprite(nlx, nly, nlz, 1.0, [1, 0.1, 0.15], 1.3 * f); this.sprite(nrx, nry, nrz, 1.0, [0.2, 1, 0.3], 1.1 * f);        // red to port, green to starboard

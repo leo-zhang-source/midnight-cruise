@@ -71,7 +71,7 @@ export const GAME = {
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
   rowGap: [1.1, 0.72],                            // seconds between rows at the gear's closing speed (gear 1 → 6)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
-  taxiAt: 2.4, taxiBlink: 0.7, taxiMove: 0.9,    // a taxi signals 2.4 s before you reach it, then steers across one lane
+  taxiAt: 1.8, taxiBlink: 0.45, taxiMove: 0.85,  // a taxi (or a crossing cruiser) signals 1.8 s before you reach it, then steers across one lane: in place 0.5 s ahead of you
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
   swipeInv: 0.5, swipeKick: 9, reviveInv: 2.0,
   // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
@@ -79,21 +79,25 @@ export const GAME = {
   // closes in and stays on your tail until you fire a nitro canister, which shakes it off and gives the life back. A hit while
   // it is on your tail ends the run. hitInv: seconds nothing can touch you after ploughing through a vehicle on the first life.
   // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
-  star2At: 1500, star3At: 4000,                  // distance floors: the longer you run, the more they send
-  // a nitro burst takes a star off, and for nitroCool seconds the level your distance has earned counts one lower too
-  // (two lower after a second burst inside that time). Smashing traffic in a burst no longer adds heat; ramming a cruiser still does.
-  heatSwipe: 1, heatSmash: 0, heatHold: 10, heatDecay: 12, nitroCool: 20,
+  // Wanted level. Stars come slowly: two after star2At of road, three after star3At, counted from the last time the heat was
+  // cleared; a hit adds half a star (so does ramming a cruiser in a nitro burst). The third nitro burst clears the heat: back to
+  // one star, and the road count starts again. Heat from hits cools by a star every heatDecay s once heatHold s pass quietly.
+  star2At: 3000, star3At: 7500, nitroClear: 3,
+  heatSwipe: 0.5, heatSmash: 0, heatCruiser: 0.5, heatHold: 10, heatDecay: 12,
   stumbleGrace: 1.2, hitInv: 1.0, hitRest: 2.5, polClose: 6.5, polFar: 19, chaseZ: 8.5, chaseX: 2.4, chaseRam: 0.6,   // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
   ramFirst: 4, ramEvery: [3.5, 5.5], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.5, ramOwn: 1.8, clearAfter: 1.3, holdOff: 3,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-  blockP: [0, 0, 0.3, 0.4],                      // share of rows that are police units ahead of you, by star
+  blockP: [0, 0, 0.12, 0.18],                      // share of rows that are police units ahead of you, by star
   // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
   // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
   // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
   // stagger: nobody drives exactly abreast: vehicles of one row sit this far ahead of or behind the row's line (police: echelon).
   // shiftP: share of rolling roadblocks (of those with a cruiser in the middle lane), by star, in which that cruiser steers across into
   // the open side lane as you close in, timed like a taxi: the middle lane becomes the way through
-  stagger: [3.5, 6.5], echelon: [3, 5], shiftP: [0, 0, 0.7, 0.9],
+  stagger: [3.5, 6.5], echelon: [3, 5], shiftP: [0, 0, 0.5, 0.6],
   blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.4, 0.5], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
+  // the helicopter comes and goes: it flies in, settles for heliSettle s, makes heliPasses attacks drEvery s apart, flies off,
+  // and is back heliAway s later
+  heliPasses: 2, heliSettle: 2.5, heliAway: [14, 22],
   drEvery: 3.5, drWarn: 1.2, drStrike: 0.45, drClear: 2.1,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,

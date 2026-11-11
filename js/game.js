@@ -21,7 +21,7 @@ export const P_TAIL = 0, P_WARN = 1, P_CHARGE = 2, P_BACK = 3, P_HOOK = 4;
 export const HOOK_Z = POL_HL + CAR_HL + 1.25, HOOK_W = 1.7;
 const LAT = 1, LON = 2, THREAT = 4, NEAR = 8, PASSED = 16, WARNED = 32;
 export const COMMIT = 64, SIDE = 128;      // a weaving cruiser has picked its lane (SIDE: the side lane, else the middle)
-const ANN = 256;                           // the cruiser of a rolling roadblock that announces it
+const ANN = 256; export const STEADY = 2048;            // the cruiser of a rolling roadblock that announces it · a roadblock that does not brake (one of its cruisers is crossing over)
 // A vehicle that will steer across one lane as we close in (a taxi; a cruiser of a rolling roadblock): a = which way,
 // b = when it began to signal (0: not yet; negative: when it finished), and the lane it starts from is kept in its flags.
 export const fromLane = (fl) => ((fl >> 9) & 3) - 1;
@@ -51,11 +51,12 @@ export function freshGame(seed = 1986, free = 0) {
     vt: GAME.trafficK * GAME.gears[0], tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: 0,
     nstock: free ? 1 : 0, nfree: 0,
-    heat: 1, heatGt: -1e9, star: 1, coolT: 0, coolN: 0,                              // nitro has cooled the heat by coolN stars until coolT
+    heat: 1, heatGt: -1e9, star: 1, nUse: 0, wd0: 0,                                 // nitro bursts since the heat was last cleared, and the road position where it was
     lives: 2, nz: 0,                                                                 // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
     pcl: 0, stG: 0, slow: 0, brkAcc: 0,                                              // tail-close until (lingering on the brake), stumble grace until, slowed until
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
     drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
+    hOn: 0, hNext: 0, hLeft: 0, hSide: 1,                                            // helicopter visits: on station, when it is next due, attacks left this visit, which side it flies in from
     hx: 0, sx: 0, sk: 0, ha: 0, hb: 0,                                               // helicopter x, searchlight spot x, how locked the light is (0..1), how far it has arrived (0..1), its bank
     inv: 0, draft: 0, draftEv: -1e9, goEv: 0, blkEv: -1e9, over: 0,
   };
@@ -119,7 +120,7 @@ function genRow(g) {
   // nobody drives exactly abreast: each vehicle of a row sits a little ahead of or behind the row's line, alternately
   const off = (range) => { sgn = -sgn; return sgn * (range[0] + rnd(g) * (range[1] - range[0])); };
   const put = (lane, cross = 0) => {
-    if (block) { const k = spawn(g, T_BLOCK, lane, u + off(G.echelon), cross, 0); if (first && k >= 0) g.veh[k * VF + 5] |= ANN; first = 0; return; }
+    if (block) { const k = spawn(g, T_BLOCK, lane, u + off(G.echelon), cross, 0); if (k >= 0) g.veh[k * VF + 5] |= (first ? ANN : 0) | (crossRow ? STEADY : 0); first = 0; return; }
     const r = rnd(g), type = r < 0.46 ? T_CAR : r < 0.72 ? T_VAN : T_TRUCK;
     if (type === T_TRUCK) len = 12.4;
     spawn(g, type, lane, u + off(G.stagger));
@@ -139,6 +140,7 @@ function genRow(g) {
   else if ((x -= wGate) < 0) pat = 4;
   else if ((x -= wTaxi) < 0) pat = 5;
   else pat = 0;
+  let crossRow = 0;
   const mid = g.mid, shift = block && !mid && rnd(g) < G.shiftP[g.star];   // a rolling roadblock in which one cruiser crosses into the open lane
   if (g.mid) { g.mid = 0; pat = block || r < 0.5 ? 4 : 3; }   // after a weaving cruiser we may be in any lane: this row leaves the middle open
   if ((pat === 3 || pat === 4 || pat === 0) && (g.lastPat === 3 || g.lastPat === 4 || g.lastPat === 0)) pat = block ? 2 : 1;   // never two rows in a row that need no move
@@ -148,13 +150,13 @@ function genRow(g) {
     f = adj(p); put(p);
   } else if (pat === 2) {                // two side by side, one lane left
     f = adj(p);
-    if (shift && p === 0) { put(p, f - p); put(third(p, f)); f = p; }   // … until the middle cruiser crosses into it and leaves the middle lane free (one move from anywhere)
+    if (shift && p === 0) { crossRow = 1; put(p, f - p); put(third(p, f)); f = p; }   // … until the middle cruiser crosses into it and leaves the middle lane free (one move from anywhere)
     else { put(p); put(third(p, f)); }
   } else if (pat === 3) {                // a vehicle in another lane
     put(p === 0 ? side() : (rnd(g) < 0.5 ? 0 : -p));
   } else if (pat === 4) {                // both other lanes blocked
     const a = p === 0 ? -1 : 0, b = p === 0 ? 1 : -p;
-    if (shift && p !== 0) { put(0, p); put(-p); f = 0; }   // the middle cruiser crosses into the open side lane: the middle is the way through
+    if (shift && p !== 0) { crossRow = 1; put(0, p); put(-p); f = 0; }   // the middle cruiser crosses into the open side lane: the middle is the way through
     else { put(a); put(b); }
   } else if (pat === 5) {                // a taxi in the middle lane that cuts to one side as you close in
     const d = side();
@@ -245,11 +247,11 @@ export function stepGame(g, inp, out) {
     return;
   }
   if (!g.goEv && gt >= G.introHold) { g.goEv = 1; out.push({ k: 'go' }); }
-  // a nitro burst shakes the pursuit car off, gives the lost life back, and takes a star off the wanted level
+  // a nitro burst shakes the pursuit car off and gives the lost life back; the third one clears the heat
   if (inp.nitro && !g.nz) {
     if (g.lives < 2) { g.lives = 2; g.pcl = 0; out.push({ k: 'shake' }); }
-    g.coolN = Math.min(2, (gt < g.coolT ? g.coolN : 0) + 1); g.coolT = gt + G.nitroCool;
-    g.heat = Math.max(1, Math.floor(g.heat + 1e-9) - 1); g.heatGt = gt;
+    if (++g.nUse >= G.nitroClear) { g.nUse = 0; g.heat = 1; g.heatGt = gt; g.wd0 = gd; out.push({ k: 'clear' }); }
+    else out.push({ k: 'nuse', n: g.nUse });
   }
   g.nz = inp.nitro ? 1 : 0;
   g.vt += (G.trafficK * gameBase(g) - g.vt) * (1 - Math.exp(-DT / G.trafficEase)); g.tr += g.vt * DT;   // the traffic picks up speed with the road
@@ -259,7 +261,9 @@ export function stepGame(g, inp, out) {
 
   // ── vehicles ──
   // Warnings are timed for the speed we would be doing flat out, so easing off the brake never shortens one.
-  const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g)), lr = laneRate(g, inp.vel); let draft = 0;
+  // (… and for the gear we will be in two seconds on, so a gear change on the way in does not shorten one either)
+  let gearSoon = g.gear; while (gearSoon < 5 && gd + 2 * inp.vel >= G.gearAt[gearSoon + 1]) gearSoon++;
+  const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g), G.gears[gearSoon]), lr = laneRate(g, inp.vel); let draft = 0;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     if (crosses(veh, o)) {                            // a taxi, or a cruiser of a rolling roadblock, that steers across one lane as we close in
@@ -290,7 +294,7 @@ export function stepGame(g, inp, out) {
     if (type === T_BLOCK || type === T_WEAVE) {
       const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL), rel0 = vFull - g.vt;
       if (type === T_BLOCK) {                          // a rolling roadblock brakes as we come up to it
-        const tv = g.vt + laneV(veh[o + 1]) * lr - (gap0 > 0 && gap0 < rel0 * G.blockAt ? G.blockSlow : 0);
+        const tv = g.vt + laneV(veh[o + 1]) * lr - (!(fl & STEADY) && gap0 > 0 && gap0 < rel0 * G.blockAt ? G.blockSlow : 0);
         veh[o + 3] += clamp(tv - veh[o + 3], -G.blockDecel * DT, G.blockDecel * DT);
       }
       if (!(fl & WARNED) && gap0 < rel0 * G.weaveWarn && (type === T_WEAVE || (fl & ANN))) {
@@ -306,7 +310,7 @@ export function stepGame(g, inp, out) {
     if (lat && lon) {
       if (inp.nitro) {
         veh[o] = 0; g.smash++; g.combo++; g.score += G.ptsSmash * mult;
-        addHeat(g, type >= T_BLOCK ? 1 : G.heatSmash);
+        addHeat(g, type >= T_BLOCK ? G.heatCruiser : G.heatSmash);
         out.push({ k: 'smash', lane: veh[o + 1], dz, type });
         continue;
       }
@@ -378,7 +382,7 @@ export function stepGame(g, inp, out) {
   }
 
   // ── police: stars ──
-  const earned = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1, floor = gt < g.coolT ? Math.max(1, earned - g.coolN) : earned;
+  const wd = gd - g.wd0, floor = wd >= G.star3At ? 3 : wd >= G.star2At ? 2 : 1;
   if (g.heat < floor) g.heat = floor;
   else if (g.heat > floor && gt - g.heatGt > G.heatHold) g.heat = Math.max(floor, g.heat - DT / G.heatDecay);
   const star = Math.min(3, Math.floor(g.heat + 1e-9));
@@ -440,8 +444,12 @@ export function stepGame(g, inp, out) {
     g.polF = lat ? LAT : 0;
   }
 
-  // ── police: the helicopter, from three stars. Its searchlight locks the lane we are in, then it fires down the beam ──
+  // ── police: the helicopter, at three stars. It comes and goes: flies in, settles, attacks a few times, flies off, and is
+  //    back a while later. Its searchlight locks the lane we are in, then it fires down the beam ──
   if (g.star >= 3) {
+    if (!g.hOn && g.drT < 0 && gt >= g.hNext) { g.hOn = 1; g.hLeft = G.heliPasses; g.hSide = -g.hSide; g.drNext = gt + G.heliSettle; }
+  } else if (g.hOn) { g.hOn = 0; g.hNext = gt + 4; }
+  if (g.star >= 3 && (g.hOn || g.drT >= 0)) {
     if (g.drT < 0) {
       if (gt >= g.drNext && g.polM === P_TAIL && !hazardPending(g, inp.vel)) {
         const l = inp.lane;
@@ -456,14 +464,17 @@ export function stepGame(g, inp, out) {
         g.drAcc += DT;
         if (g.drAcc >= 0.1 && !g.drHit) { g.drHit = 1; g.slow = gt + G.ramSlow; g.inv = gt + G.swipeInv; stumble(g, out, 'heli'); }
       }
-      if (u >= G.drWarn + G.drStrike) { g.drT = -1; g.drNext = gt + G.drEvery; }
+      if (u >= G.drWarn + G.drStrike) {
+        g.drT = -1; g.drNext = gt + G.drEvery;
+        if (--g.hLeft <= 0) { g.hOn = 0; g.hNext = gt + G.heliAway[0] + rnd(g) * (G.heliAway[1] - G.heliAway[0]); }   // done for now: it flies off
+      }
     }
   } else { g.drT = -1; g.drNext = gt + 3; }
   // where the helicopter hangs and where its searchlight falls: wandering while it searches, on the lane once locked
   const lk = g.drT >= 0, hT = lk ? g.drLane * L : Math.sin(gt * 0.37) * 6;
   g.hb += (clamp((hT - g.hx) * 0.045, -0.3, 0.3) - g.hb) * eK(0.2);          // it banks into its sideways moves
   g.hx += (hT - g.hx) * eK(lk ? 0.3 : 0.9);
-  g.ha += ((g.star >= 3 ? 1 : 0) - g.ha) * eK(g.star >= 3 ? 0.8 : 0.5);      // it flies in at three stars and climbs away when the heat drops
+  g.ha += (g.hOn - g.ha) * eK(g.hOn ? 0.8 : 1.0);                            // flying in, or flying off
   g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
   g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
 

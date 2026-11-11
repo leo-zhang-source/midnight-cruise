@@ -82,10 +82,10 @@
     nearT: 0.32,
     draftT: 0.9,
     // close-call and slipstream windows, in seconds of closing time
-    taxiAt: 2.4,
-    taxiBlink: 0.7,
-    taxiMove: 0.9,
-    // a taxi signals 2.4 s before you reach it, then steers across one lane
+    taxiAt: 1.8,
+    taxiBlink: 0.45,
+    taxiMove: 0.85,
+    // a taxi (or a crossing cruiser) signals 1.8 s before you reach it, then steers across one lane: in place 0.5 s ahead of you
     introT: 2.8,
     introHold: 1.1,
     introClose: 1.7,
@@ -99,16 +99,17 @@
     // closes in and stays on your tail until you fire a nitro canister, which shakes it off and gives the life back. A hit while
     // it is on your tail ends the run. hitInv: seconds nothing can touch you after ploughing through a vehicle on the first life.
     // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
-    star2At: 1500,
-    star3At: 4e3,
-    // distance floors: the longer you run, the more they send
-    // a nitro burst takes a star off, and for nitroCool seconds the level your distance has earned counts one lower too
-    // (two lower after a second burst inside that time). Smashing traffic in a burst no longer adds heat; ramming a cruiser still does.
-    heatSwipe: 1,
+    // Wanted level. Stars come slowly: two after star2At of road, three after star3At, counted from the last time the heat was
+    // cleared; a hit adds half a star (so does ramming a cruiser in a nitro burst). The third nitro burst clears the heat: back to
+    // one star, and the road count starts again. Heat from hits cools by a star every heatDecay s once heatHold s pass quietly.
+    star2At: 3e3,
+    star3At: 7500,
+    nitroClear: 3,
+    heatSwipe: 0.5,
     heatSmash: 0,
+    heatCruiser: 0.5,
     heatHold: 10,
     heatDecay: 12,
-    nitroCool: 20,
     stumbleGrace: 1.2,
     hitInv: 1,
     hitRest: 2.5,
@@ -130,7 +131,7 @@
     clearAfter: 1.3,
     holdOff: 3,
     // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-    blockP: [0, 0, 0.3, 0.4],
+    blockP: [0, 0, 0.12, 0.18],
     // share of rows that are police units ahead of you, by star
     // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
     // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
@@ -140,7 +141,7 @@
     // the open side lane as you close in, timed like a taxi: the middle lane becomes the way through
     stagger: [3.5, 6.5],
     echelon: [3, 5],
-    shiftP: [0, 0, 0.7, 0.9],
+    shiftP: [0, 0, 0.5, 0.6],
     blockAt: 1.3,
     blockSlow: 9,
     blockDecel: 14,
@@ -150,6 +151,11 @@
     weaveLock: 1.25,
     weaveSnap: 8,
     weaveWarn: 3,
+    // the helicopter comes and goes: it flies in, settles for heliSettle s, makes heliPasses attacks drEvery s apart, flies off,
+    // and is back heliAway s later
+    heliPasses: 2,
+    heliSettle: 2.5,
+    heliAway: [14, 22],
     drEvery: 3.5,
     drWarn: 1.2,
     drStrike: 0.45,
@@ -473,6 +479,7 @@
   var COMMIT = 64;
   var SIDE = 128;
   var ANN = 256;
+  var STEADY = 2048;
   var fromLane = (fl) => (fl >> 9 & 3) - 1;
   var crosses = (veh, o) => (veh[o] === T_TAXI || veh[o] === T_BLOCK) && veh[o + 6] !== 0;
   var crossing = (veh, o) => crosses(veh, o) ? [fromLane(veh[o + 5]), fromLane(veh[o + 5]) + veh[o + 6]] : null;
@@ -530,9 +537,9 @@
       heat: 1,
       heatGt: -1e9,
       star: 1,
-      coolT: 0,
-      coolN: 0,
-      // nitro has cooled the heat by coolN stars until coolT
+      nUse: 0,
+      wd0: 0,
+      // nitro bursts since the heat was last cleared, and the road position where it was
       lives: 2,
       nz: 0,
       // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
@@ -555,6 +562,11 @@
       drAcc: 0,
       drNext: 0,
       // helicopter: lock time (−1 = searching), locked lane, …
+      hOn: 0,
+      hNext: 0,
+      hLeft: 0,
+      hSide: 1,
+      // helicopter visits: on station, when it is next due, attacks left this visit, which side it flies in from
       hx: 0,
       sx: 0,
       sk: 0,
@@ -651,7 +663,7 @@
     const put = (lane, cross = 0) => {
       if (block) {
         const k = spawn(g, T_BLOCK, lane, u + off(G.echelon), cross, 0);
-        if (first && k >= 0) g.veh[k * VF + 5] |= ANN;
+        if (k >= 0) g.veh[k * VF + 5] |= (first ? ANN : 0) | (crossRow ? STEADY : 0);
         first = 0;
         return;
       }
@@ -673,6 +685,7 @@
     else if ((x -= wGate) < 0) pat = 4;
     else if ((x -= wTaxi) < 0) pat = 5;
     else pat = 0;
+    let crossRow = 0;
     const mid = g.mid, shift = block && !mid && rnd(g) < G.shiftP[g.star];
     if (g.mid) {
       g.mid = 0;
@@ -686,6 +699,7 @@
     } else if (pat === 2) {
       f = adj(p);
       if (shift && p === 0) {
+        crossRow = 1;
         put(p, f - p);
         put(third(p, f));
         f = p;
@@ -698,6 +712,7 @@
     } else if (pat === 4) {
       const a = p === 0 ? -1 : 0, b = p === 0 ? 1 : -p;
       if (shift && p !== 0) {
+        crossRow = 1;
         put(0, p);
         put(-p);
         f = 0;
@@ -819,10 +834,13 @@
         g.pcl = 0;
         out.push({ k: "shake" });
       }
-      g.coolN = Math.min(2, (gt < g.coolT ? g.coolN : 0) + 1);
-      g.coolT = gt + G.nitroCool;
-      g.heat = Math.max(1, Math.floor(g.heat + 1e-9) - 1);
-      g.heatGt = gt;
+      if (++g.nUse >= G.nitroClear) {
+        g.nUse = 0;
+        g.heat = 1;
+        g.heatGt = gt;
+        g.wd0 = gd;
+        out.push({ k: "clear" });
+      } else out.push({ k: "nuse", n: g.nUse });
     }
     g.nz = inp.nitro ? 1 : 0;
     g.vt += (G.trafficK * gameBase(g) - g.vt) * (1 - Math.exp(-DT2 / G.trafficEase));
@@ -830,7 +848,9 @@
     const up = gd - g.tr;
     for (let n = 0; g.genU < up + G.ahead && n < 6; n++) genRow(g);
     let mult = gameMult(g);
-    const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g)), lr = laneRate(g, inp.vel);
+    let gearSoon = g.gear;
+    while (gearSoon < 5 && gd + 2 * inp.vel >= G.gearAt[gearSoon + 1]) gearSoon++;
+    const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g), G.gears[gearSoon]), lr = laneRate(g, inp.vel);
     let draft = 0;
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
@@ -869,7 +889,7 @@
       if (type === T_BLOCK || type === T_WEAVE) {
         const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL), rel0 = vFull - g.vt;
         if (type === T_BLOCK) {
-          const tv = g.vt + laneV(veh[o + 1]) * lr - (gap0 > 0 && gap0 < rel0 * G.blockAt ? G.blockSlow : 0);
+          const tv = g.vt + laneV(veh[o + 1]) * lr - (!(fl & STEADY) && gap0 > 0 && gap0 < rel0 * G.blockAt ? G.blockSlow : 0);
           veh[o + 3] += clamp2(tv - veh[o + 3], -G.blockDecel * DT2, G.blockDecel * DT2);
         }
         if (!(fl & WARNED) && gap0 < rel0 * G.weaveWarn && (type === T_WEAVE || fl & ANN)) {
@@ -895,7 +915,7 @@
           g.smash++;
           g.combo++;
           g.score += G.ptsSmash * mult;
-          addHeat(g, type >= T_BLOCK ? 1 : G.heatSmash);
+          addHeat(g, type >= T_BLOCK ? G.heatCruiser : G.heatSmash);
           out.push({ k: "smash", lane: veh[o + 1], dz, type });
           continue;
         }
@@ -987,7 +1007,7 @@
         out.push({ k: "item", n: g.nstock, l: g.lives });
       }
     }
-    const earned = gd >= G.star3At ? 3 : gd >= G.star2At ? 2 : 1, floor = gt < g.coolT ? Math.max(1, earned - g.coolN) : earned;
+    const wd = gd - g.wd0, floor = wd >= G.star3At ? 3 : wd >= G.star2At ? 2 : 1;
     if (g.heat < floor) g.heat = floor;
     else if (g.heat > floor && gt - g.heatGt > G.heatHold) g.heat = Math.max(floor, g.heat - DT2 / G.heatDecay);
     const star = Math.min(3, Math.floor(g.heat + 1e-9));
@@ -1078,6 +1098,17 @@
       g.polF = lat ? LAT : 0;
     }
     if (g.star >= 3) {
+      if (!g.hOn && g.drT < 0 && gt >= g.hNext) {
+        g.hOn = 1;
+        g.hLeft = G.heliPasses;
+        g.hSide = -g.hSide;
+        g.drNext = gt + G.heliSettle;
+      }
+    } else if (g.hOn) {
+      g.hOn = 0;
+      g.hNext = gt + 4;
+    }
+    if (g.star >= 3 && (g.hOn || g.drT >= 0)) {
       if (g.drT < 0) {
         if (gt >= g.drNext && g.polM === P_TAIL && !hazardPending(g, inp.vel)) {
           const l = inp.lane;
@@ -1108,6 +1139,10 @@
         if (u >= G.drWarn + G.drStrike) {
           g.drT = -1;
           g.drNext = gt + G.drEvery;
+          if (--g.hLeft <= 0) {
+            g.hOn = 0;
+            g.hNext = gt + G.heliAway[0] + rnd(g) * (G.heliAway[1] - G.heliAway[0]);
+          }
         }
       }
     } else {
@@ -1117,7 +1152,7 @@
     const lk = g.drT >= 0, hT = lk ? g.drLane * L : Math.sin(gt * 0.37) * 6;
     g.hb += (clamp2((hT - g.hx) * 0.045, -0.3, 0.3) - g.hb) * eK(0.2);
     g.hx += (hT - g.hx) * eK(lk ? 0.3 : 0.9);
-    g.ha += ((g.star >= 3 ? 1 : 0) - g.ha) * eK(g.star >= 3 ? 0.8 : 0.5);
+    g.ha += (g.hOn - g.ha) * eK(g.hOn ? 0.8 : 1);
     g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
     g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
     g.score += inp.vel * DT2 * G.ptsDist * mult;
@@ -3011,8 +3046,8 @@
         }
       }
       {
-        const st = this._st, g = st.g, on = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.star >= 3;
-        const tgt = on ? 0.05 + 0.03 * g.sk : 0;
+        const st = this._st, g = st.g, on = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.ha > 0.02;
+        const tgt = on ? (0.05 + 0.03 * g.sk) * g.ha : 0;
         if (tgt > 0 || this.heliG > 1e-5) {
           const kA = 1 - exp(-1 / (0.6 * SR));
           this.heliF.set(190, 0.8);

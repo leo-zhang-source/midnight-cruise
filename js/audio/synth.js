@@ -707,8 +707,8 @@ export class Synth {
     }
     // the helicopter at three stars: rotor chop (noise through a low filter, pulsed at the blade rate)
     {
-      const st = this._st, g = st.g, on = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.star >= 3;
-      const tgt = on ? 0.05 + 0.03 * g.sk : 0;
+      const st = this._st, g = st.g, on = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.ha > 0.02;
+      const tgt = on ? (0.05 + 0.03 * g.sk) * g.ha : 0;       // louder as it comes in, gone when it has flown off
       if (tgt > 0 || this.heliG > 1e-5) {
         const kA = 1 - exp(-1 / (0.6 * SR)); this.heliF.set(190, 0.8);
         for (let i = 0; i < N; i++) {

@@ -1,6 +1,7 @@
-// Vehicle bodies for traffic and the police. Each body style is ONE lofted shell — rings of a cross-section from
+// Vehicle bodies for traffic and the police (saloon, coupe, estate, van, pickup, coach, truck cab). Each body style is ONE lofted shell — rings of a cross-section from
 // the rear bumper to the nose, with the glasshouse as part of the same surface — plus wheels, lamps, mirrors and a
-// roof bar, merged into one geometry and drawn instanced.
+// roof bar, merged into one geometry and drawn instanced. The look is night-city: dark mirror-like metal, each vehicle
+// edged in one neon colour (two lines of light down each side, a strip between the head lamps, rings of light for wheels).
 // Every face carries a part id (paint, glass, lamp …), so windows, pillars and the roof are real panels of the body.
 // Per instance: position, heading, lean and dive of the body on its springs, scale, paint colour, fade, livery,
 // and the state of its lights. The wheels stay on the road and their hubs show turning spokes.
@@ -10,7 +11,7 @@ const lerp = (a, b, t) => a + (b - a) * t, sat = (x) => Math.max(0, Math.min(1, 
 const pl = (keys, x) => { if (x <= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (x <= keys[i][0]) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; return va + (vb - va) * (x - a) / (b - a); } return keys[keys.length - 1][1]; };
 const inAny = (ranges, x) => ranges.some(([a, b]) => x >= a && x <= b);
 
-// parts: 0 paint · 1 glass · 2 tail lamp · 3 dark trim, tyres · 4, 5 roof bar left / right · 6 head lamp · 7 wheel hub
+// parts: 0 paint · 1 glass · 2 tail lamp · 3 dark trim, tyres · 4, 5 roof bar left / right · 6 head lamp · 7 wheel hub · 8 neon line
 // s runs from the rear bumper (0) to the nose (L).
 //  hw(s)   half width
 //  belt    beltline height along s (the top of the doors, bonnet and boot)
@@ -31,6 +32,34 @@ const STYLES = {
     belt: [[0, 1.08], [0.08, 1.15], [4.3, 1.15], [4.8, 1.06], [5.2, 0.96], [5.3, 0.84]],
     roof: [[0, 0.82], [0.14, 0.9], [3.85, 0.9], [4.52, 0]],
     side: [[3.1, 3.82]], screen: [[3.85, 4.52]], tail: 'posts', mirror: 3.9, doors: true,
+  },
+  coupe: {   // a low two-door fastback
+    L: 4.5, bot: 0.22, inset: 0.24, wheel: [0.34, [0.82, 3.55]],
+    hw: (s) => 1.0 - 0.1 * Math.max(0, (s - 3.8) / 0.7) ** 1.6 - 0.06 * Math.max(0, (0.3 - s) / 0.3) ** 1.4,
+    belt: [[0, 0.72], [0.1, 0.82], [1.0, 0.85], [3.0, 0.8], [4.0, 0.7], [4.42, 0.62], [4.5, 0.56]],
+    roof: [[0.4, 0], [1.6, 0.36], [2.3, 0.38], [3.1, 0]],
+    side: [[1.45, 2.25]], screen: [[0.4, 1.6], [2.3, 3.1]], tail: 'bar', mirror: 2.75,
+  },
+  suv: {   // a tall estate: the roof runs all the way back
+    L: 4.8, bot: 0.34, inset: 0.1, wheel: [0.4, [0.9, 3.85]],
+    hw: (s) => 1.05 - 0.07 * Math.max(0, (s - 4.2) / 0.6) ** 1.6 - 0.03 * Math.max(0, (0.15 - s) / 0.15),
+    belt: [[0, 1.0], [0.08, 1.08], [3.3, 1.05], [4.3, 0.98], [4.72, 0.86], [4.8, 0.76]],
+    roof: [[0, 0.56], [0.25, 0.68], [2.6, 0.7], [3.4, 0]],
+    side: [[0.45, 1.2], [1.32, 2.0], [2.12, 2.6]], screen: [[2.6, 3.4]], tail: 'posts', mirror: 3.05, doors: false, hatch: true,
+  },
+  pickup: {   // a pickup truck: a cab in the middle, a covered bed behind it
+    L: 5.4, bot: 0.34, inset: 0.08, wheel: [0.4, [1.0, 4.35]],
+    hw: (s) => 1.08 - 0.07 * Math.max(0, (s - 4.7) / 0.7) ** 1.5 - 0.03 * Math.max(0, (0.15 - s) / 0.15),
+    belt: [[0, 0.98], [0.08, 1.05], [4.0, 1.04], [4.9, 0.98], [5.32, 0.86], [5.4, 0.76]],
+    roof: [[2.0, 0], [2.28, 0.6], [3.3, 0.64], [3.95, 0]],
+    side: [[2.42, 3.25]], screen: [[2.0, 2.28], [3.3, 3.95]], tail: 'bar', mirror: 3.35,
+  },
+  bus: {   // a coach, as long as a truck and trailer
+    L: 12.0, bot: 0.42, inset: 0.05, wheel: [0.5, [2.0, 9.7]],
+    hw: (s) => 1.3 - 0.06 * Math.max(0, (s - 11.5) / 0.5) ** 1.5 - 0.03 * Math.max(0, (0.15 - s) / 0.15),
+    belt: [[0, 1.3], [11.6, 1.3], [12.0, 1.2]],
+    roof: [[0, 1.66], [0.25, 1.8], [11.4, 1.8], [11.95, 0.06]],
+    side: [[0.6, 1.9], [2.1, 3.4], [3.6, 4.9], [5.1, 6.4], [6.6, 7.9], [8.1, 9.4], [9.6, 10.9]], screen: [[11.4, 11.95]], tail: 'posts', mirror: 11.3, hatch: true, nose: true,
   },
   cab: {   // a cab-over truck tractor (the trailer is drawn separately)
     L: 3.2, bot: 0.5, inset: 0.05, wheel: [0.5, [0.7, 2.5]],
@@ -76,6 +105,7 @@ function shell(st) {
   // which panel is strip k (0 underside … 4 shoulder, 5 glasshouse side, 6 roof edge, 7 roof) between two rings?
   const panel = (k, s) => {
     if (k === 0) return 3;
+    if (k === 2 || k === 4) return 8;                        // two lines of light run the length of the body: along the sill and along the shoulder
     const glass = roofH(s) > 0.16;
     if (k === 5) return glass && inAny(st.side, s) ? 1 : 0;
     if (k >= 6) return roofH(s) > 0.05 && inAny(st.screen, s) ? 1 : 0;
@@ -105,14 +135,18 @@ function shell(st) {
   const rz = L / 2, fz = -L / 2, hw0 = st.hw(0.05), hwL = st.hw(L), beltR = pl(st.belt, 0), beltF = pl(st.belt, L);
   // rear: lamps, bumper, number plate recess
   if (st.tail === 'bar') { box(0, beltR - 0.14, rz + 0.012, hw0 * 1.78, 0.1, 0.04, 2); box(0, st.bot + 0.11, rz + 0.01, hw0 * 1.86, 0.16, 0.08, 3); box(0, beltR - 0.36, rz + 0.008, 0.52, 0.14, 0.03, 3); }
-  else if (st.tail === 'posts') { for (const sx of [-1, 1]) box(sx * (hw0 - 0.1), 1.28, rz + 0.012, 0.15, 0.72, 0.04, 2); box(0, st.bot + 0.13, rz + 0.01, hw0 * 1.9, 0.18, 0.08, 3); }
+  else if (st.tail === 'posts') { for (const sx of [-1, 1]) box(sx * (hw0 - 0.1), beltR + 0.13, rz + 0.012, 0.15, 0.72, 0.04, 2); box(0, st.bot + 0.13, rz + 0.01, hw0 * 1.9, 0.18, 0.08, 3); }
   if (st.doors) { box(0, 1.12, rz + 0.006, 0.035, 1.45, 0.02, 3); for (const sx of [-1, 1]) box(sx * 0.5, 1.72, rz + 0.008, 0.72, 0.4, 0.02, 1); }   // van: two rear doors with windows
+  if (st.hatch) box(0, beltR + roofH(0.1) * 0.55, rz + 0.008, hw0 * 1.5, roofH(0.1) * 0.6, 0.02, 1);                                                // estate, coach: one rear window
+  // the tail is edged in the car's neon too: a line under the lamps and an upright at each corner
+  if (st.tail !== 'none') { box(0, st.bot + 0.27, rz + 0.014, hw0 * 1.7, 0.03, 0.03, 8); for (const sx of [-1, 1]) box(sx * (hw0 - 0.03), (st.bot + beltR) / 2 + 0.1, rz + 0.014, 0.03, (beltR - st.bot) * 0.45, 0.03, 8); }
+  if (st.nose) box(0, beltF + roofH(L - 0.7) * 0.5, fz - 0.01, hwL * 1.7, roofH(L - 0.7) * 0.62, 0.02, 1);            // coach: an upright windscreen
   // front: head lamps, grille, bumper
   const hy = st.grille ? 0.88 : lerp(st.bot, beltF, 0.68);
   for (const sx of [-1, 1]) box(sx * (hwL - 0.3), hy, fz - 0.012, 0.4, st.grille ? 0.16 : 0.1, 0.04, 6);
   box(0, st.bot + 0.1, fz - 0.01, hwL * 1.9, 0.16, 0.08, 3);
   if (st.grille) { box(0, 1.22, fz - 0.008, hwL * 1.3, 0.62, 0.03, 3); for (let k = 0; k < 4; k++) box(0, 1.0 + k * 0.15, fz - 0.02, hwL * 1.24, 0.03, 0.02, 7); }
-  else box(0, hy, fz - 0.008, (hwL - 0.55) * 2, 0.09, 0.03, 3);
+  else { box(0, hy, fz - 0.008, (hwL - 0.55) * 2, 0.09, 0.03, 3); box(0, hy, fz - 0.014, (hwL - 0.6) * 2, 0.025, 0.02, 8); }   // a light strip between the head lamps
   // door mirrors
   for (const sx of [-1, 1]) box(sx * (st.hw(st.mirror) + 0.07), pl(st.belt, st.mirror) + 0.1, zOf(st.mirror), 0.17, 0.1, 0.1, st.grille ? 3 : 0);
   // roof bar: left and right halves (taxi sign / police lights), collapsed for plain cars
@@ -176,29 +210,31 @@ function makeStyle(style, uniforms) {
         float nv = max(dot(N, V), 0.0), fr = 0.04 + 0.96 * pow(1.0 - nv, 5.0), dist = length(vW - cameraPosition);
         float rim = pow(1.0 - nv, 3.0);
         vec3 col;
-        if (vPart < 0.5) {            // paint: lit from the sky and the road, clear-coat reflection, a rim of horizon light
-          vec3 base = vC;
-          if (vS.w > 1.5) base = (vL.z > -0.72 && vL.z < 1.22 && vL.y > 0.3) ? vec3(0.86, 0.88, 0.94) : vec3(0.045, 0.06, 0.15);    // police: white doors and roof, dark bonnet and boot
-          else if (vS.w > 0.5 && abs(N.y) < 0.5 && abs(vL.y - 0.72) < 0.07) base = mod(floor(vL.z / 0.14) + floor((vL.y - 0.65) / 0.07), 2.0) < 0.5 ? vec3(0.02) : vec3(0.95);   // taxi: chequered stripe
-          float light = 0.5 + 0.5 * max(N.y, 0.0) + 0.18 * max(N.z, 0.0);
-          col = base * light * mix(0.62, 1.0, smoothstep(0.2, 0.75, vL.y)) + env(R) * (0.06 + 0.94 * fr) * 0.8;
-          col += cGrid * 0.2 * smoothstep(0.7, 0.25, vL.y) * max(0.5 - N.y, 0.0) + (cHor * 0.5 + base * 0.35) * rim * 0.55;
-        } else if (vPart < 1.5) col = vec3(0.035, 0.04, 0.075) + cSky * 0.4 + env(R) * (0.1 + 0.9 * fr) * 1.1 + cHor * rim * 0.2;     // glass: tinted, reflecting the sky
-        else if (vPart < 2.5) col = vec3(1.9, 0.1, 0.18) * (0.55 + 1.3 * vLi.w) * vLi.x * mix(1.0, 0.3, smoothstep(50.0, 170.0, dist));   // tail lamps (a soft sprite takes over far away)
-        else if (vPart < 3.5) col = vec3(0.014, 0.012, 0.022) + env(R) * 0.05 + cHor * rim * 0.06;
+        // every vehicle carries one neon colour: its own paint colour at full strength (taxis amber, the police blue)
+        vec3 acc = vS.w > 1.5 ? vec3(0.08, 0.3, 1.0) : vS.w > 0.5 ? vec3(1.0, 0.8, 0.1) : vC / max(max(vC.r, vC.g), max(vC.b, 0.25));
+        if (vPart < 0.5) {            // body: dark metal with a tint of the colour, mirror-like, edged in its neon
+          vec3 base = mix(vec3(0.02, 0.024, 0.045), vC, 0.26);
+          if (vS.w > 1.5) base = (vL.z > -0.72 && vL.z < 1.22 && vL.y > 0.3) ? vec3(0.7, 0.74, 0.84) : vec3(0.03, 0.04, 0.11);    // police: pale doors and roof, dark bonnet and boot
+          else if (vS.w > 0.5) base = abs(N.y) < 0.5 && abs(vL.y - 0.62) < 0.07 ? (mod(floor(vL.z / 0.14) + floor((vL.y - 0.55) / 0.07), 2.0) < 0.5 ? vec3(0.02) : vec3(0.95)) : vC * 0.62;   // taxi: yellow, chequered stripe
+          float light = 0.4 + 0.5 * max(N.y, 0.0) + 0.16 * max(N.z, 0.0);
+          col = base * light * mix(0.62, 1.0, smoothstep(0.2, 0.75, vL.y)) + env(R) * (0.08 + 0.62 * fr);
+          col += cGrid * 0.2 * smoothstep(0.7, 0.25, vL.y) * max(0.5 - N.y, 0.0) + (cHor * 0.3 + acc * 0.55) * rim * 0.6 + acc * 0.025;
+        } else if (vPart < 1.5) col = vec3(0.02, 0.025, 0.05) + cSky * 0.3 + acc * 0.05 + env(R) * (0.1 + 0.9 * fr) * 1.1 + cHor * rim * 0.2;     // glass: near black, reflecting the sky
+        else if (vPart < 2.5) col = vec3(2.1, 0.1, 0.2) * (0.6 + 1.3 * vLi.w) * vLi.x * mix(1.0, 0.3, smoothstep(50.0, 170.0, dist));   // tail lamps (a soft sprite takes over far away)
+        else if (vPart < 3.5) col = vec3(0.012, 0.012, 0.02) + env(R) * 0.05 + cHor * rim * 0.06;
         else if (vPart < 5.5) {
           float on = vPart < 4.5 ? vLi.y : vLi.z;
           vec3 lc = vS.w > 1.5 ? (vPart < 4.5 ? vec3(4.0, 0.15, 0.3) : vec3(0.2, 0.6, 4.5)) : vec3(2.2, 1.7, 0.25);
           col = lc * on + vec3(0.03);
-        } else if (vPart < 6.5) col = vec3(1.5, 1.4, 1.15) * mix(1.0, 0.35, smoothstep(50.0, 170.0, dist));                             // head lamps
-        else {
-          col = vec3(0.2, 0.2, 0.24) + env(R) * 0.5;                                                                                 // hubs, grille bars
-          if (vWheel.z > 0.01) {                                                                                                     // a turning wheel: five spokes, blurred by their speed
-            vec2 q = vec2(vL.z - vWheel.x, vL.y - vWheel.y) / vWheel.z;
-            float spoke = smoothstep(0.15, 0.8, abs(fract((atan(q.y, q.x) - uT * 13.0) * 0.7958) - 0.5) * 2.0);
-            col = mix(vec3(0.025, 0.025, 0.04), col * 1.5 + cHor * 0.15, (0.3 + 0.7 * spoke) * smoothstep(0.12, 0.2, length(q)));
+        } else if (vPart < 6.5) col = vec3(1.1, 1.45, 1.7) * mix(1.0, 0.35, smoothstep(50.0, 170.0, dist));                             // head lamps: cold white
+        else if (vPart < 7.5) {
+          col = vec3(0.16, 0.17, 0.22) + env(R) * 0.5;                                                                               // grille bars; wheel hubs
+          if (vWheel.z > 0.01) {                                                                                                     // a turning wheel: a ring of light with three marks going round
+            vec2 q = vec2(vL.z - vWheel.x, vL.y - vWheel.y) / vWheel.z; float r = length(q);
+            float mark = smoothstep(0.75, 0.95, abs(fract((atan(q.y, q.x) - uT * 13.0) * 0.4775) - 0.5) * 2.0) * step(r, 0.5);
+            col = vec3(0.015, 0.015, 0.03) + acc * (smoothstep(0.09, 0.03, abs(r - 0.52)) * 2.0 + mark * 0.9);
           }
-        }
+        } else col = acc * 2.2 * mix(1.0, 0.7, smoothstep(80.0, 260.0, dist));                                                         // neon lines
         // far away the car comes out of the haze (no flicker), and the usual distance fog
         col = mix(cFog, col, vS.z);
         col = mix(col, cFog, (1.0 - exp(-dist / 900.0)) * 0.6);
@@ -222,7 +258,7 @@ export class Vehicles {
     u.cSky.value.set(...P.skyMid); u.cTop.value.set(...P.skyTop); u.cHor.value.set(...P.horizon); u.cSun.value.set(...P.sunMid); u.cGrid.value.set(...P.grid); u.cFog.value.set(...P.fog);
     for (const k in this.m) this.m[k].userData.n = 0;
   }
-  // style: 'car' | 'van' | 'cab' · livery: 0 plain, 1 taxi, 2 police · tail / roofL / roofR: light levels · brake: 0..1
+  // style: 'car' | 'coupe' | 'suv' | 'van' | 'pickup' | 'bus' | 'cab' · livery: 0 plain, 1 taxi, 2 police · tail / roofL / roofR: light levels · brake: 0..1
   // roll: the body leans (+ = its roof towards −x) · pitch: + = nose up
   add(style, x, y, z, yaw, scale, col, fade = 1, livery = 0, tail = 1, roofL = 0, roofR = 0, brake = 0, roll = 0, pitch = 0) {
     const d = this.m[style].userData, i = d.n; if (i >= MAX) return; d.n++;

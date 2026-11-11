@@ -19,6 +19,64 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 25: fewer police, a helicopter that comes and goes, slower stars, neon traffic
+
+Five requests after Revision 24.
+
+### Fewer police cruisers
+
+| | Before | Now |
+|---|---|---|
+| Share of rows that are police, at ★★ / ★★★ | 30 % / 40 % | 12 % / 18 % |
+| Rolling roadblocks where the middle cruiser crosses over | 70 % / 90 % | 50 % / 60 % |
+
+A roadblock with a crossing cruiser no longer brakes as well: one thing at a time.
+
+### The helicopter comes and goes
+
+It used to arrive at three stars and stay. Now it makes visits: it flies in from one side, settles for 2.5 s, makes two attacks 3.5 s apart, then turns away and climbs out on the other side. It is back 14 to 22 s later, from the side it left by. The rotor sound comes and goes with it. If the wanted level drops below three it leaves at once.
+
+### Stars
+
+- **Three nitro bursts clear the heat.** The third one takes the wanted level back to one star, whatever it was. The call-out for each burst counts them: NITRO 1/3 TO CLEAR THE HEAT, 2/3, then HEAT CLEARED. This replaces "each burst takes one star off for 20 s".
+- **Stars come more slowly.** Two stars after 3 km of road and three after 7.5 km (before: 1.5 km and 4 km), counted from the last time the heat was cleared, so clearing it buys that whole stretch again.
+- A hit adds half a star instead of a whole one. So does ramming a cruiser in a nitro burst.
+
+### Lane changes are signalled later
+
+| | Before | Now |
+|---|---|---|
+| A taxi or crossing cruiser starts to signal | 2.4 s before you reach it | 1.8 s |
+| Signals for, then steers across in | 0.7 s, 0.9 s | 0.45 s, 0.85 s |
+| In its new lane | 0.8 s ahead of you | about 0.5 s (0.42 s at the least in the test run) |
+
+The warning is also timed for the gear you will be in two seconds on, so a gear change on the way in cannot shorten it.
+
+### Traffic: neon, and more of it
+
+- **The look.** Every vehicle is dark mirror-like metal with a tint of its colour, edged in one neon colour: two lines of light down each side (sill and shoulder), a strip between cold-white head lamps, a line under the tail lamps with an upright at each corner, and rings of light for wheels with three marks going round. Its neon also lights the road under it. Taxis are amber with their chequered stripe, the police pale and navy with blue neon.
+- **More kinds.** Car-sized: saloon, coupe (a low fastback), estate. Van-sized: panel van, pickup. Long: truck with trailer, coach. Before there were three bodies; now seven. Which one a vehicle is does not change how much lane it blocks.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 61/61 (new: three bursts clear the heat and the stars come back after another 3 km; a roadblock with a crossing cruiser holds its speed) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 43/43, 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak, no nitro | 40 seeds × 300 s: not one hit (1–7 grappler runs and 4–10 helicopter strikes dodged per run) |
+| The same with nitro | 16 seeds: 2 runs take a hit |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+| Turntable (`tools/vehicle-preview.html`) | all seven bodies and the taxi and police liveries looked at from six sides |
+
+**Limits**
+
+- Not played by me.
+- Much of this revision was already in the working tree from a session that was cut off; I reviewed it line by line and tested it before building on it.
+- The new bodies come from the same outline description as the old ones, so they are variations in proportion (low coupe, tall estate, pickup with a bed, long coach), not new kinds of machine. No motorbikes or hover vehicles: a narrow one would not match the lane it blocks.
+- In the scene the dark bodies pick up a lot of the pink and violet of the sky; against a bright preset they read lighter than on the turntable.
+- With half a star per hit and 3 km to the second star, a clean driver sees no police ahead for almost a minute. If that is too quiet, the thresholds are the knob.
+- A taxi now leaves you about half a second. The bot copes; I have not tried it on people.
+
 ## Revision 24: a quiet hint, nitro cools the heat, the intro on every start, no bridges or lamps
 
 Five requests after Revision 23.

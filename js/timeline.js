@@ -405,8 +405,8 @@ export const CANONICAL = [
   { type: 'lane', t: 31, dir: 1 }, { type: 'lane', t: 32.05, dir: -1 }, { type: 'turbo', t: 33.25 }, { type: 'env', t: 34, preset: 1 },
   { type: 'lane', t: 36.25, dir: 1 }, { type: 'lane', t: 38.9, dir: 1 }, { type: 'lane', t: 42.45, dir: -1 }, { type: 'env', t: 44, preset: 2 },
   { type: 'lane', t: 44.15, dir: 1 }, { type: 'lane', t: 49.8, dir: -1 }, { type: 'lane', t: 51.65, dir: 1 }, { type: 'env', t: 54, preset: 3 },
-  { type: 'lane', t: 56.65, dir: -1 }, { type: 'lane', t: 58.5, dir: 1 }, { type: 'turbo', t: 60.45 }, { type: 'lane', t: 63.85, dir: -1 },
-  { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 65.55, dir: -1 }, { type: 'lane', t: 67.3, dir: 1 }, { type: 'lane', t: 69.65, dir: -1 },
-  { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.05, dir: 1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 78.85, dir: -1 },
-  { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
+  { type: 'lane', t: 57.7, dir: -1 }, { type: 'lane', t: 58.5, dir: 1 }, { type: 'turbo', t: 60.45 }, { type: 'env', t: 64, preset: 0 },
+  { type: 'lane', t: 66.25, dir: -1 }, { type: 'lane', t: 68.1, dir: -1 }, { type: 'lane', t: 69.55, dir: 1 }, { type: 'music', t: 70, on: false },
+  { type: 'lane', t: 72.2, dir: -1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 74.05, dir: 1 }, { type: 'lane', t: 76.4, dir: -1 },
+  { type: 'lane', t: 79, dir: 1 }, { type: 'lane', t: 79.35, dir: 1 }, { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
 ];
