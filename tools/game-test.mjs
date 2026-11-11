@@ -5,7 +5,7 @@
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
 import { GAME } from '../js/cue.js';
-import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, CAR_HL, freshGame, stepGame, breathe } from '../js/game.js';
+import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, CAR_HL, freshGame, stepGame, laneV, laneRate } from '../js/game.js';
 import { play } from './bot.mjs';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
 const C = 1.9;   // cruise start of the test timelines (start 1.0, skip 1.5, 0.4 s fast-forward)
@@ -40,7 +40,10 @@ let crashT;
   ok('the brake slows to 55 %, releasing it returns to full speed', Math.abs(c.vel / GAME.gears[0] - GAME.brakeMul) < 0.04 && d.vel > GAME.gears[0] * 0.93, `${c.vel.toFixed(1)} → ${d.vel.toFixed(1)} u/s`);
   const st = tl.stateAt(C + 16);
   crashT = st.overT;
-  ok('driving straight on crashes into the first vehicle', st.over === 1 && kinds(tl, 0, C + 16).includes('crash') && Math.abs(st.vel) < 0.5, `crash ${(st.overT - C).toFixed(2)} s into the run`);
+  const evs = tl.gameEvents(0, C + 30), hit1 = evs.find((e) => e.k === 'stumble'), end = evs.find((e) => e.k === 'over'), mid = tl.stateAt(hit1.t + 0.3);
+  ok('driving straight on: the first vehicle costs a life (ploughed through, slowed, police on the tail)', hit1.by === 'crash' && evs.some((e) => e.k === 'wreck' && e.t === hit1.t) && mid.over === 0 && mid.g.lives === 1 && policeClose(mid.g) && mid.vel < GAME.gears[0] * 0.9, `at ${(hit1.t - C).toFixed(2)} s, ${mid.vel.toFixed(0)} u/s just after`);
+  ok('… and the next hit ends the run', st.over !== 0 && end.t > hit1.t + GAME.stumbleGrace && Math.abs(st.vel) < 0.5, `${(end.t - hit1.t).toFixed(2)} s later (${st.over === 1 ? 'wrecked' : 'busted'})`);
+  ok('no attack starts in the three seconds after a hit', !evs.some((e) => (e.k === 'ramwarn' || e.k === 'lock') && e.t >= hit1.t && e.t < hit1.t + GAME.hitRest - 0.01));
   tl.add('lane', crashT + 0.3, { dir: 1 });
   ok('inputs are ignored while the run is over', tl.stateAt(crashT + 0.6).lane === 0);
   // home → start → a new run
@@ -78,7 +81,7 @@ let crashT;
   ok('rewind: resumes about 3 s before the crash, invulnerable, road position restored', st.over === 0 && st.g.gd < gdCrash - 100 && Math.abs(st.g.gd - before.gd) < 90 && Math.abs(st.pos - before.pos) < 90 && st.g.inv > st.g.gt && st.vel > 40, `distance ${st.g.gd.toFixed(0)} (3 s before: ${before.gd.toFixed(0)}, crash: ${gdCrash.toFixed(0)}), ${st.vel.toFixed(0)} u/s`);
   ok('rewind: the score is the one from the restore point', Math.abs(st.g.score - before.score) < 700);
   const st2 = tl.stateAt(overT + 30);
-  if (st2.over) { tl.add('revive', st2.overT + 1.0); ok('no tape left: a second rewind is refused', tl.stateAt(st2.overT + 2.5).over === 1); }
+  if (st2.over) { tl.add('revive', st2.overT + 1.0); ok('no tape left: a second rewind is refused', tl.stateAt(st2.overT + 2.5).over !== 0); }
   else ok('no tape left: a second rewind is refused', true, 'skipped: still alive');
 }
 
@@ -96,15 +99,20 @@ let crashT;
   const t2 = new Timeline(); t2.load(base); t2.add('lane', hit.T, { dir: hit.dir });
   const st = t2.stateAt(hit.T + 0.8), ev = kinds(t2, hit.T, hit.T + 0.8);
   ok('sideswipe: bounces back to the lane we came from', ev.includes('swipe') && !st.over && st.lane === hit.lane && Math.abs(st.x - hit.lane * 5) < 0.8, `events ${ev.join(',')}`);
-  ok('sideswipe = a stumble: +1 star, combo reset, police on the tail for 6 s', ev.includes('stumble:swipe') && st.g.star === 2 && st.g.combo <= 3 && policeClose(st.g) && st.g.polZ > -9, `police ${(-st.g.polZ).toFixed(1)} behind`);
-  const later = t2.stateAt(hit.T + GAME.closeT + 0.6);
-  ok('the police drop back when you stay clean for 6 s', later.over !== 0 || !policeClose(later.g));
+  ok('sideswipe = a life lost: +1 star, combo reset, police on the tail', ev.includes('stumble:swipe') && st.g.lives === 1 && st.g.star === 2 && st.g.combo <= 3 && policeClose(st.g) && st.g.polZ > -9, `police ${(-st.g.polZ).toFixed(1)} behind`);
+  // the police stay there for good … until a nitro burst shakes them off and gives the life back
+  const t5 = new Timeline(); t5.load(base); t5.add('lane', hit.T, { dir: hit.dir });
+  const hold = t5.stateAt(hit.T + 1.0); t5._st.g.nstock = 1;      // hand it a canister (edit the live state)
+  ok('the police stay on the tail', hold.g.lives === 1 && policeClose(hold.g) && (() => { for (let T = hit.T + 1; T < hit.T + 14; T += 0.5) { const s = t2.stateAt(T); if (s.over) return true; if (!policeClose(s.g)) return false; } return true; })());
+  t5.add('turbo', hit.T + 1.05);
+  const freed = t5.stateAt(hit.T + 3.2), fev = kinds(t5, hit.T + 1, hit.T + 3.2);
+  ok('a nitro burst shakes them off and gives the life back', fev.includes('shake') && freed.g.lives === 2 && (freed.over !== 0 || !policeClose(freed.g)), `events ${fev.filter((k) => k !== 'cell').join(',')}`);
   // a second stumble while the police are on the tail → busted
   const t3 = new Timeline(); t3.load(base);
-  t3.stateAt(hit.T - 0.004); t3._st.g.pcl = t3._st.g.gt + 4;      // the police are already on the tail (edit the live state)
+  t3.stateAt(hit.T - 0.004); t3._st.g.lives = 1;                  // one life is already gone (edit the live state)
   t3.add('lane', hit.T, { dir: hit.dir });
   const b = t3.stateAt(hit.T + 0.8), bev = kinds(t3, hit.T, hit.T + 0.8);
-  ok('a second stumble while the police are on the tail = busted', b.over === 2 && bev.includes('bust:swipe'), `events ${bev.join(',')}`);
+  ok('a hit with one life left = busted', b.over === 2 && bev.includes('bust:swipe'), `events ${bev.join(',')}`);
 }
 
 // ── stars, the grappler, helicopter fire ──
@@ -129,11 +137,11 @@ let crashT;
   for (const l of ev.filter((e) => e.k === 'lock')) {
     const t3 = new Timeline(); t3.load(r.ev.filter((e) => e.t < l.t));
     e3 = kinds(t3, l.t, l.t + GAME.drWarn + GAME.drStrike + 0.1);
-    if (!e3.includes('crash')) { lock = l; break; }
+    if (!e3.includes('crash') && !e3.includes('wreck') && !e3.includes('stumble:swipe')) { lock = l; break; }
   }
   const sT = lock.t + GAME.drWarn + GAME.drStrike + 0.1;
   ok('ignoring the searchlight lock: fired on = a stumble', e3.includes('strike') && e3.includes('stumble:heli'), e3.filter((k) => k !== 'cell').join(','));
-  ok('the bust rule applies to police hits too', (() => { const t4 = new Timeline(); t4.load(r.ev.filter((e) => e.t < lock.t)); t4.stateAt(lock.t + 0.2); t4._st.g.pcl = t4._st.g.gt + 5; return t4.stateAt(sT).over === 2; })());
+  ok('the bust rule applies to police hits too', (() => { const t4 = new Timeline(); t4.load(r.ev.filter((e) => e.t < lock.t)); t4.stateAt(lock.t + 0.2); t4._st.g.lives = 1; return t4.stateAt(sT).over === 2; })());
 }
 
 // ── nitro canisters ──
@@ -176,17 +184,37 @@ let crashT;
 // ── traffic that drives: steering curves, the rolling roadblock, the weaving cruiser ──
 {
   const r = play(31337, 200), tl = new Timeline(); tl.load(r.ev);
-  const H = 0.02, log = new Map();                       // every vehicle's track, sampled 50 times a second
+  const H = 0.02;
+  const record = (tl, log = new Map()) => {              // every vehicle's track, sampled 50 times a second
   for (let T = C + 4; T < C + 200; T += H) {
-    const g = tl.stateAt(T).g;
-    for (let i = 0; i < NV; i++) { const o = i * VF; if (!g.veh[o]) continue; const id = g.veh[o + 8]; if (!log.has(id)) log.set(id, []); log.get(id).push({ T, id, type: g.veh[o], lane: g.veh[o + 1], dz: g.veh[o + 2] - g.gd, u: g.veh[o + 2] - GAME.vTraffic * g.gt - breathe(id, g.gt), v: g.veh[o + 3], hl: g.veh[o + 4], fl: g.veh[o + 5], a: g.veh[o + 6], b: g.veh[o + 7] }); }
+    const st = tl.stateAt(T), g = st.g, lr = laneRate(g, st.vel); if (st.over) break;
+    for (let i = 0; i < NV; i++) { const o = i * VF; if (!g.veh[o]) continue; const id = g.veh[o + 8]; if (!log.has(id)) log.set(id, []); log.get(id).push({ T, id, type: g.veh[o], lane: g.veh[o + 1], dz: g.veh[o + 2] - g.gd, vt: g.vt, lr, base: GAME.gears[g.gear], v: g.veh[o + 3], hl: g.veh[o + 4], fl: g.veh[o + 5], a: g.veh[o + 6], b: g.veh[o + 7] }); }
   }
-  const tracks = [...log.values()], of = (type) => tracks.filter((t) => t[0].type === type && t[0].dz > 200 && t[t.length - 1].dz < 0);
+  return [...log.values()]; };
+  const tracks = record(tl), of = (type) => tracks.filter((t) => t[0].type === type && t[0].dz > 200 && t[t.length - 1].dz < 0);
   const cars = tracks.filter((t) => t[0].type < T_TAXI && t.length > 50);
-  const spread = cars.map((t) => { const a = t.filter((q) => q.dz > 0), vs = a.map((q) => q.v); return { lo: Math.min(...vs), hi: Math.max(...vs), slip: Math.max(...a.map((q) => Math.abs(q.u - a[0].u))) }; });
-  ok('traffic drives at 26 u/s (62 on the speedometer), each vehicle easing ahead of and behind its place in the row by at most 1.5',
-    cars.length > 100 && spread.every((x) => x.lo > GAME.vTraffic - 1.6 && x.hi < GAME.vTraffic + 1.6 && x.slip < 0.05) && spread.some((x) => x.hi - x.lo > 1),
-    `${cars.length} vehicles tracked, speeds ${Math.min(...spread.map((x) => x.lo)).toFixed(1)} … ${Math.max(...spread.map((x) => x.hi)).toFixed(1)} u/s`);
+  const ahead = cars.flatMap((t) => t.filter((q) => q.dz > 0)), mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+  const byLane = [-1, 0, 1].map((l) => mean(ahead.filter((q) => q.lane === l).map((q) => q.v - q.vt)));
+  ok('traffic keeps pace with the road: 46 % of our cruising speed, each vehicle within 1.6 of its lane\'s speed',
+    cars.length > 100 && ahead.every((q) => Math.abs(q.v - q.vt - laneV(q.lane) * q.lr) < 1.6 && Math.abs(q.vt - GAME.trafficK * q.base) < GAME.trafficK * 10),
+    `${cars.length} vehicles tracked, ${Math.min(...ahead.map((q) => q.v)).toFixed(1)} … ${Math.max(...ahead.map((q) => q.v)).toFixed(1)} u/s over the run`);
+  ok('each lane has its own speed: the left lane overtakes the middle, the middle overtakes the right', Math.abs(byLane[0] - GAME.laneDv) < 0.3 && Math.abs(byLane[1]) < 0.3 && Math.abs(byLane[2] + GAME.laneDv) < 0.3, `left ${byLane[0].toFixed(2)}, middle ${byLane[1].toFixed(2)}, right ${byLane[2].toFixed(2)} u/s against the middle lane`);
+  // … and still every row is lined up when we reach it: two vehicles spawned as one row pass us within a car's length of each other
+  const lineUp = (cars) => {
+    const rowsOf = new Map(); for (const t of cars) { const k = t[0].T.toFixed(2); if (!rowsOf.has(k)) rowsOf.set(k, []); rowsOf.get(k).push(t); }
+    const pairs = [...rowsOf.values()].filter((r) => r.length === 2 && r[0][0].lane !== r[1][0].lane && r.every((t) => t[0].dz > 200 && t[t.length - 1].dz < 0 && t[0].type < 3));
+    const gaps = pairs.map(([a, b]) => { const q = a.find((x) => x.dz < 0), w = b.find((x) => x.T === q.T); return Math.abs(q.dz - w.dz); });
+    return { n: pairs.length, gap: Math.max(...gaps), min: Math.min(...gaps), early: mean(pairs.map(([a, b]) => Math.abs(a[0].dz - b[0].dz))) };
+  };
+  const lu = lineUp(cars);
+  const span = 2 * GAME.stagger[1] + 2 * GAME.breathe + 0.5, least = 2 * GAME.stagger[0] - 2 * GAME.breathe - 1.5;
+  ok('rows of mixed lanes close up as we reach them, but nobody drives abreast: the two are staggered by 2.5 to 16.5 units', lu.n >= 8 && lu.gap < span && lu.min > least && lu.early > 8, `${lu.n} two-vehicle rows: ${lu.early.toFixed(0)} apart on average when they appear, ${lu.min.toFixed(1)} to ${lu.gap.toFixed(1)} as we pass`);
+  // … whatever we do with our speed on the way: the same drive with the brake held for two seconds out of every five, and a run with nitro bursts
+  const dabs = []; for (let T = C + 8; T < C + 110; T += 5) dabs.push({ type: 'brk', t: T, on: true }, { type: 'brk', t: T + 2, on: false });
+  const rb = play(31337, 120, { extra: dabs }), tb = new Timeline(); tb.load(rb.ev);
+  const lb = lineUp(record(tb).filter((t) => t[0].type < T_TAXI && t.length > 50)), rn = play(2024, 150, { nitro: true, seek: true }), tn = new Timeline(); tn.load(rn.ev);
+  const ln = lineUp(record(tn).filter((t) => t[0].type < T_TAXI && t.length > 20));
+  ok('the same holds when we brake on the way in, or arrive early in a nitro burst', lb.n >= 3 && lb.gap < span + 1 && ln.n >= 5 && ln.gap < span + 2.5, `braking: ${lb.n} rows, ${lb.gap.toFixed(1)} apart at most · nitro: ${ln.n} rows, ${ln.gap.toFixed(1)} at most`);
   // a taxi steers across: a sine ramp, so it leaves and arrives with no sideways speed, and it is across before we get there
   const taxis = of(T_TAXI).map((t) => { const m = t.filter((q, i) => i > 0 && q.lane !== t[i - 1].lane), sp = m.map((q) => Math.abs(q.lane - t[t.indexOf(q) - 1].lane) / H); return { t, m, sp, end: m[m.length - 1], hit: t.find((q) => q.dz < q.hl + CAR_HL) }; }).filter((x) => x.m.length);
   ok('a taxi steers across its lane: no sideways speed at either end, never faster than 2 lanes ÷ the move, across before we arrive',
@@ -195,8 +223,8 @@ let crashT;
   // a rolling roadblock: cruisers that drive with the traffic and brake as we come up
   const blocks = of(T_BLOCK), ev = tl.gameEvents(0, C + 200);
   ok('a rolling roadblock drives with the traffic and brakes as we come up to it',
-    blocks.length >= 4 && blocks.every((t) => t.filter((q) => q.dz > 150).every((q) => q.v === GAME.vTraffic) && Math.abs(Math.min(...t.filter((q) => q.dz > 0).map((q) => q.v)) - (GAME.vTraffic - GAME.blockSlow)) < 0.3) && ev.some((e) => e.k === 'block'),
-    `${blocks.length} cruisers, slowest ${Math.min(...blocks.flatMap((t) => t.map((q) => q.v))).toFixed(1)} u/s`);
+    blocks.length >= 4 && blocks.every((t) => t.filter((q) => q.dz > 150).every((q) => Math.abs(q.v - q.vt - laneV(q.lane) * q.lr) < 1) && Math.abs(Math.min(...t.filter((q) => q.dz > 0).map((q) => q.v - q.vt - laneV(q.lane) * q.lr)) + GAME.blockSlow) < 0.3) && ev.some((e) => e.k === 'block'),
+    `${blocks.length} cruisers, each down to ${GAME.blockSlow} u/s under its lane's speed`);
   // a weaving cruiser: swings between two lanes, then takes one in good time and stays in it
   const weavers = of(T_WEAVE).map((t) => { const i = t.findIndex((q) => q.fl & COMMIT), hit = t.find((q) => q.dz < q.hl + CAR_HL); const pre = t.slice(0, i), post = t.filter((q) => q.T > t[i].T + 0.7 && q.dz > -5); return { pre, post, lead: hit.T - t[i].T, range: Math.max(...pre.map((q) => Math.abs(q.lane))) - Math.min(...pre.map((q) => Math.abs(q.lane))), jump: Math.max(...t.map((q, k) => (k ? Math.abs(q.lane - t[k - 1].lane) : 0))) }; });
   ok('a weaving cruiser swings across two lanes, then takes one at least a second before we reach it and stays there',
@@ -205,7 +233,7 @@ let crashT;
   ok('the bot gets past all of it without a touch', r.stats.stumbles === 0 && !r.stats.over);
   // the warning is timed for full speed: a taxi signals at the same distance whether we come up flat out or on the brake
   const sigGap = (vel) => {
-    const g = freshGame(5); g.genU = 1e12; g.veh.set([T_TAXI, 0, 120, GAME.vTraffic, 2.4, 0, 1, 0, 1], 0);   // close enough to be reached in first gear either way
+    const g = freshGame(5); g.genU = 1e12; g.veh.set([T_TAXI, 0, 120, g.vt, 2.4, 0, 1, 0, 1], 0);   // close enough to be reached in first gear either way
     for (let i = 0, out = []; i < 240 * 120; i++) { stepGame(g, { dt: 1 / 240, x: -5, lane: -1, vel, brk: 0, nitro: 0 }, out); if (g.veh[7] > 0) return g.veh[2] - g.gd; }
     return -1;
   };

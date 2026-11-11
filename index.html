@@ -49,15 +49,16 @@
     <span class="h-key"><kbd class="k-only">T</kbd><kbd class="t-only">NITRO</kbd> <span>BOOST · NEEDS A CANISTER</span></span>
   </div>
 
-  <!-- game HUD: score and multiplier, wanted stars, cells, spare tapes, and the police-on-your-tail timer -->
+  <!-- game HUD: score and multiplier, wanted stars, lives, cells, spare tapes, and the police-on-your-tail notice -->
   <div id="ghud" aria-hidden="true">
     <div class="gh-main"><span class="gh-score" id="g-score">0</span><span class="gh-mult" id="g-mult">×1.0</span></div>
     <div class="gh-sub">
       <span class="gh-stars" id="g-stars" data-n="1"><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg></span>
+      <span class="gh-lives" id="g-lives" data-n="2"><svg viewBox="0 0 24 24"><path d="M12 21 3.5 12.6a5.2 5.2 0 0 1 7.4-7.4L12 6.3l1.1-1.1a5.2 5.2 0 0 1 7.4 7.4Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 21 3.5 12.6a5.2 5.2 0 0 1 7.4-7.4L12 6.3l1.1-1.1a5.2 5.2 0 0 1 7.4 7.4Z"/></svg></span>
       <span class="gh-cells"><i></i><b id="g-cells">0</b></span>
       <span class="gh-tapes" id="g-tapes" data-n="0"><i></i><i></i><i></i></span>
     </div>
-    <div class="gh-tail" id="g-tail"><span>POLICE ON YOUR TAIL</span><i><b id="g-tail-bar"></b></i></div>
+    <div class="gh-tail" id="g-tail"><span id="g-tail-text">POLICE ON YOUR TAIL</span><i><b id="g-tail-bar"></b></i></div>
   </div>
   <div id="gpops" aria-hidden="true"><p></p><p></p><p></p></div>
   <div id="police" aria-hidden="true"><i class="pl"></i><i class="pr"></i></div>

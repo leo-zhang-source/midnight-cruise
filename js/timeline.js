@@ -239,7 +239,7 @@ export class Timeline {
     }
     st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;
     const g = st.g;
-    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.brkAcc = 0;
+    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.brkAcc = 0; g.lives = 2;
     g.polM = P_TAIL; g.polZ = Math.min(g.polZ, -GAME.polFar + 2); g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
     st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
     this._endNitro(T);
@@ -399,13 +399,14 @@ export function phaseFrom(segs, T) {
 // brake, two nitro canisters picked up and fired, the four presets and a music pause; then the home screen and a
 // replay of the intro.
 export const CANONICAL = [
-  { type: 'start', t: 1 }, { type: 'brk', t: 17, on: true }, { type: 'brk', t: 18.2, on: false }, { type: 'lane', t: 19.75, dir: 1 },
-  { type: 'lane', t: 25.2, dir: -1 }, { type: 'lane', t: 25.5, dir: -1 }, { type: 'lane', t: 27.1, dir: 1 }, { type: 'lane', t: 28.1, dir: -1 },
-  { type: 'lane', t: 30.9, dir: 1 }, { type: 'lane', t: 33.35, dir: -1 }, { type: 'env', t: 34, preset: 1 }, { type: 'turbo', t: 35.4 },
-  { type: 'lane', t: 41.05, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 44.85, dir: 1 }, { type: 'lane', t: 53.15, dir: -1 },
-  { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 54.7, dir: -1 }, { type: 'lane', t: 56, dir: 1 }, { type: 'lane', t: 57.55, dir: 1 },
-  { type: 'lane', t: 61.55, dir: -1 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 64.75, dir: 1 }, { type: 'lane', t: 66.95, dir: -1 },
-  { type: 'turbo', t: 69.1 }, { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.85, dir: -1 }, { type: 'music', t: 73, on: true },
-  { type: 'lane', t: 74.4, dir: 1 }, { type: 'lane', t: 75.8, dir: 1 }, { type: 'lane', t: 79.15, dir: -1 }, { type: 'home', t: 80.0 },
-  { type: 'replay', t: 83.0 },
+  { type: 'start', t: 1 }, { type: 'brk', t: 17, on: true }, { type: 'brk', t: 18.2, on: false }, { type: 'lane', t: 19.2, dir: -1 },
+  { type: 'lane', t: 22.85, dir: 1 }, { type: 'lane', t: 23.15, dir: 1 }, { type: 'lane', t: 27.65, dir: -1 }, { type: 'lane', t: 28.75, dir: 1 },
+  { type: 'lane', t: 30.2, dir: -1 }, { type: 'lane', t: 31.05, dir: 1 }, { type: 'turbo', t: 33.15 }, { type: 'env', t: 34, preset: 1 },
+  { type: 'lane', t: 40.6, dir: -1 }, { type: 'lane', t: 42.15, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 46.05, dir: -1 },
+  { type: 'lane', t: 46.85, dir: 1 }, { type: 'lane', t: 51.1, dir: -1 }, { type: 'lane', t: 51.45, dir: -1 }, { type: 'env', t: 54, preset: 3 },
+  { type: 'lane', t: 55.05, dir: 1 }, { type: 'lane', t: 58.2, dir: 1 }, { type: 'lane', t: 63.55, dir: -1 }, { type: 'env', t: 64, preset: 0 },
+  { type: 'lane', t: 65.15, dir: -1 }, { type: 'lane', t: 66.8, dir: 1 }, { type: 'lane', t: 68.75, dir: -1 }, { type: 'music', t: 70, on: false },
+  { type: 'lane', t: 70.1, dir: 1 }, { type: 'lane', t: 71, dir: 1 }, { type: 'lane', t: 71.9, dir: -1 }, { type: 'music', t: 73, on: true },
+  { type: 'lane', t: 73.85, dir: -1 }, { type: 'lane', t: 74.65, dir: 1 }, { type: 'lane', t: 76.45, dir: 1 }, { type: 'turbo', t: 78.55 },
+  { type: 'home', t: 80.0 }, { type: 'replay', t: 83.0 },
 ];

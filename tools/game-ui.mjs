@@ -20,7 +20,7 @@ const gs = (p) => p.evaluate(() => {
   const s = MC.state(), g = s.ui.g || {}, el = (id) => document.getElementById(id), vis = (id) => getComputedStyle(el(id)).visibility;
   return { phase: s.phase, ct: s.ct, on: g.on, over: g.over, score: g.score, gear: g.gear, tapes: g.tapes, run: g.run, star: g.star, close: g.close, pol: g.pol, rew: g.rew, nstock: g.nstock, vel: s.road.vel,
     veh: s.game.veh ? s.game.veh.length : 0, cells: s.game.cells ? s.game.cells.length : 0, polDz: s.game.pol ? s.game.pol.dz : null,
-    hud: vis('ghud'), hudScore: el('g-score').textContent, gearTxt: el('gear').textContent, nitro: el('turbo').dataset.ready, nitroN: el('turbo').dataset.n, nitroTxt: el('turbo-state').textContent, stars: el('g-stars').dataset.n, tail: vis('g-tail'),
+    hud: vis('ghud'), hudScore: el('g-score').textContent, gearTxt: el('gear').textContent, nitro: el('turbo').dataset.ready, nitroN: el('turbo').dataset.n, nitroTxt: el('turbo-state').textContent, stars: el('g-stars').dataset.n, tail: vis('g-tail'), lives: el('g-lives').dataset.n, tailTxt: el('g-tail-text').textContent,
     panel: !el('over').hidden, title: el('over-title').textContent, ovScore: el('ov-score').textContent, reviveOff: el('revive').disabled, focus: document.activeElement && document.activeElement.id,
     police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: el('replay').classList.contains('on'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent, brake: el('brake').getAttribute('aria-pressed') };
 });
@@ -39,29 +39,16 @@ async function drive(p, ms, { until, touch } = {}) {
   return st;
 }
 // steer into the back of the nearest vehicle ahead until the run ends
-async function wreck(p, touch) {
+// steers into the nearest vehicle ahead until the run is over — or, with `once`, until the first life is gone
+async function wreck(p, touch, once) {
   for (let i = 0; i < 400; i++) {
-    const st = await sim(p); if (st.over) break;
+    const st = await sim(p); if (st.over) break; if (once && st.g.lives < 2) return true;
     let best = null, bd = 1e9;
     for (let k = 0; k < st.g.veh.length / 9; k++) { const o = k * 9; if (!st.g.veh[o]) continue; const dz = st.g.veh[o + 2] - st.g.gd; if (dz > 22 && dz < bd) { bd = dz; best = Math.round(st.g.veh[o + 1]); } }
     if (best !== null && best !== st.lane && bd < 140) await steer(p, best > st.lane ? 1 : -1, touch);
     await p.waitForTimeout(120);
   }
   await p.waitForTimeout(1000);   // the panel appears 0.7 s after the crash
-}
-// clip a vehicle that is alongside in the next lane (a sideswipe); returns true once it happened
-async function swipe(p, ms = 40000) {
-  const t0 = Date.now(), n0 = await p.evaluate(() => MC.tl.gameEvents(0, 1e9).filter((e) => e.k === 'stumble').length);
-  let last = 0;
-  while (Date.now() - t0 < ms) {
-    const st = await sim(p); if (st.over) return false;
-    let side = 0;
-    for (let k = 0; k < st.g.veh.length / 9; k++) { const o = k * 9, type = st.g.veh[o]; if (!type || type > 4) continue; const dz = st.g.veh[o + 2] - st.g.gd, dl = st.g.veh[o + 1] - st.lane; if (Math.abs(dz) < st.g.veh[o + 4] - 0.4 && Math.abs(dl) === 1) side = dl; }
-    if (side && Math.abs(st.x - st.lane * 5) < 0.3) { await steer(p, side); await p.waitForTimeout(450); if (await p.evaluate((n) => MC.tl.gameEvents(0, 1e9).filter((e) => e.k === 'stumble').length > n, n0)) return true; continue; }
-    if (Date.now() - last > 280) { const r = plan(st, {}); if (r.moves.length && r.moves[0].k === 0) { await steer(p, r.moves[0].d); last = Date.now(); } }
-    await p.waitForTimeout(25);
-  }
-  return false;
 }
 
 // ── desktop ──
@@ -122,13 +109,14 @@ async function swipe(p, ms = 40000) {
   st = await drive(p, 1200);
   await p.click('#pause'); await p.waitForTimeout(300); await p.click('#restart'); await p.waitForTimeout(900);
   s = await gs(p); ok('pause key, then RESTART → run 3 from the top', s.phase === 'cruise' && s.run === 3 && s.score < 300 && !s.paused && (await pz()).paused === 0, `run ${s.run}, score ${s.score}`);
-  // sideswipe → police on the tail → a second one while they are there → busted
+  // a hit takes a life and puts the police on the tail for good → a second hit ends the run
   st = await drive(p, 3200);
-  let hit = await swipe(p);
-  s = await gs(p); ok('sideswipe: second star, POLICE ON YOUR TAIL timer, pursuit car closes in, run continues', hit && s.stars === '2' && s.tail === 'visible' && s.close > 0.5 && s.over === 0, JSON.stringify({ hit, stars: s.stars, tail: s.tail, close: s.close, over: s.over }));
-  hit = await swipe(p, 5000);
-  await p.waitForTimeout(1100);
-  s = await gs(p); ok('a second sideswipe while they are on the tail: BUSTED', hit === false && s.over === 2 && s.panel && s.title === 'BUSTED', JSON.stringify({ over: s.over, title: s.title }));
+  let hit = await wreck(p, false, true);
+  s = await gs(p); ok('a hit: one heart left, second star, the ONE LIFE LEFT notice, pursuit car on the tail, run continues', hit === true && s.lives === '1' && s.stars === '2' && s.tail === 'visible' && /ONE LIFE LEFT/.test(s.tailTxt) && s.close > 0.5 && s.pol === 1 && s.over === 0, JSON.stringify({ hit, lives: s.lives, stars: s.stars, tail: s.tail, txt: s.tailTxt, close: s.close, over: s.over }));
+  await p.waitForTimeout(1500);
+  s = await gs(p); ok('… and it stays there', s.over !== 0 || (s.lives === '1' && s.tail === 'visible' && s.pol === 1));
+  await wreck(p);
+  s = await gs(p); ok('a second hit ends the run: WRECKED or BUSTED, no hearts left', s.over !== 0 && s.panel && (s.title === 'BUSTED' || s.title === 'WRECKED') && s.lives === '0', JSON.stringify({ over: s.over, title: s.title, lives: s.lives }));
   await p.screenshot({ path: 'renders/test_busted.png' });
   await p.click('#home'); await p.waitForTimeout(1200);
   s = await gs(p); ok('the HOME button → home screen', s.phase === 'home' && s.start === 'visible');

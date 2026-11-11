@@ -16,7 +16,7 @@ export class UI {
       deck: $('deck'), deckBar: $('deck-bar'), deckMin: $('deck-min'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
-      ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTapes: $('g-tapes'), gear: $('gear'),
+      ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
       homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'),
       gpops: $('gpops'), pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), revive: $('revive'), live: $('g-live'),
       ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovDist: $('ov-dist'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovNear: $('ov-near'), ovTapes: $('ov-tapes'),
@@ -188,7 +188,8 @@ export class UI {
       const k = e.k;
       if (k === 'cell') { if (!cell) { cell = true; this.sfx('cell'); } }
       else if (k === 'near') this.sfx('near');
-      else if (k === 'smash') this.sfx('smash');
+      else if (k === 'smash' || k === 'wreck') this.sfx('smash');
+      else if (k === 'shake') this.sfx('chime');
       else if (k === 'swipe') this.sfx('swipe');
       else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = (e.kind === 2 ? 'Busted.' : 'Crashed.') + ' Press R to rewind the tape, or H for the home screen.'; }
       else if (k === 'gear') this.sfx('gear');
@@ -369,8 +370,9 @@ export class UI {
       set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
       set('gMult', Gm.mult.toFixed(1), (v) => { E.gMult.textContent = '×' + v; });
       set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
-      set('gStars', Gm.star + (Gm.close > 0 ? 'h' : ''), () => { E.gStars.dataset.n = Gm.star; E.gStars.dataset.hot = Gm.close > 0 ? '1' : '0'; });
+      set('gStars', Gm.star + (Gm.lives < 2 ? 'h' : ''), () => { E.gStars.dataset.n = Gm.star; E.gStars.dataset.hot = Gm.lives < 2 ? '1' : '0'; });
       set('gTapes', Gm.tapes, (v) => { E.gTapes.dataset.n = v; });
+      set('gLives', Gm.over ? 0 : Gm.lives, (v) => { E.gLives.dataset.n = v; });
     }
     // callouts: the three most recent, newest on top; they rise and fade with their age
     set('popLow', on && s.phase === 'cruise' && s.ct < GAME.introT ? 1 : 0, (v) => E.gpops.classList.toggle('low', !!v));   // below the title while it leaves
@@ -386,8 +388,9 @@ export class UI {
         el.style.transform = `translate(-50%, ${(i * 1.6).toFixed(2)}em) scale(${sc.toFixed(3)})`;   // newest on top, older ones below it
       });
     }
-    // the police on the tail: a timer bar that drains while a second mistake would mean being busted
+    // the police on the tail: for good once a life is gone (until nitro shakes them off), or for a moment after lingering on the brake
     const tail = on && !Gm.over ? Gm.close : 0;
+    set('tailText', on && Gm.lives < 2 ? 1 : 0, (v) => { E.gTailText.textContent = v ? 'ONE LIFE LEFT · NITRO SHAKES THEM OFF' : 'POLICE ON YOUR TAIL'; });
     set('tail', tail.toFixed(3), () => { E.gTail.style.visibility = tail > 0 ? 'visible' : 'hidden'; E.gTailBar.style.transform = `scaleX(${tail.toFixed(3)})`; });
     // police lights at the bottom corners, alternating red and blue: faint while they hang back, strong on the tail
     // (steady when motion is reduced)

@@ -5,7 +5,7 @@
 //   node tools/bot.mjs --script 68.95  print the events of a clean run (used for the canonical script)
 import { Timeline } from '../js/timeline.js';
 import { ROAD, TURBO, GAME } from '../js/cue.js';
-import { NV, VF, NI, IF, T_TAXI, T_BLOCK, T_WEAVE, HALF_W, CAR_HL, CAR_HW, POL_HL, P_TAIL, P_WARN, P_CHARGE, COMMIT, SIDE, weave, breathe, gameBase } from '../js/game.js';
+import { NV, VF, NI, IF, T_TAXI, T_BLOCK, T_WEAVE, HALF_W, CAR_HL, CAR_HW, POL_HL, P_TAIL, P_WARN, P_CHARGE, COMMIT, SIDE, weave, breathe, gameBase, laneV, laneRate, crossing } from '../js/game.js';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
@@ -27,24 +27,24 @@ export function plan(st, opt, want) {
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = g.veh[o]; if (!type) continue;
     // ordinary traffic eases a little ahead of and behind its place in the row: plan with that place and allow for the drift
-    const ease = type < T_TAXI, drift = ease ? GAME.breathe : 0, v = ease ? GAME.vTraffic : g.veh[o + 3];
+    const ease = type < T_TAXI, drift = ease ? GAME.breathe : 0, lv = laneV(g.veh[o + 1]), v = ease ? g.vt + lv * laneRate(g, vFast) : g.veh[o + 3];
     const dz = g.veh[o + 2] - g.gd - (ease ? breathe(g.veh[o + 8], g.gt) : 0), reach = g.veh[o + 4] + CAR_HL + 0.6 + drift;
     if (vSlow - v <= 0 || dz < -reach) continue;
-    let t0 = soonest(dz - reach, v), t1 = (dz + reach) / Math.max(1, vSlow - v);
+    let t0 = soonest(dz - reach, v), t1 = (dz + reach) / Math.max(1, vSlow - (ease ? g.vt + lv * laneRate(g, vSlow) : v));
     if (type === T_BLOCK && dz > reach) {               // step through its braking: it is reached sooner than its speed now suggests
-      let z = dz, vb = v, t = 0, hit = -1; const h = 0.01, relT = Math.max(1, vFast - GAME.vTraffic);
+      let z = dz, vb = v, t = 0; const h = 0.01, vL = g.vt + lv * laneRate(g, vFast), relT = Math.max(1, vFast - g.vt);
       for (; t < horizon + 1 && z > reach; t += h) {
-        const gap = z - (reach - 0.6), tv = gap > 0 && gap < relT * GAME.blockAt ? GAME.vTraffic - GAME.blockSlow : GAME.vTraffic;
+        const gap = z - (reach - 0.6), tv = vL - (gap > 0 && gap < relT * GAME.blockAt ? GAME.blockSlow : 0);
         vb += Math.max(-GAME.blockDecel * h, Math.min(GAME.blockDecel * h, tv - vb)); z -= (vFast - vb) * h;
       }
-      t0 = Math.min(t0, t); t1 = Math.max(t1, t + 2 * reach / Math.max(1, vSlow - GAME.vTraffic));
+      t0 = Math.min(t0, t); t1 = Math.max(t1, t + 2 * reach / Math.max(1, vSlow - vL));
     }
     if (t0 > horizon) continue;
     const k0 = Math.max(0, Math.floor(t0 / STEP)), k1 = Math.min(K, Math.ceil(t1 / STEP));
     if (type === T_WEAVE) {
       // follow it step by step, as the simulation moves it: weaving until we are weaveLock from it, then onto the lane it picked
       let x = g.veh[o + 1], xv = g.veh[o + 7], fl = g.veh[o + 5], z = dz;
-      const a = g.veh[o + 6], W = GAME.weaveSnap, h = 0.01, hl = g.veh[o + 4] + CAR_HL, relT = Math.max(1, vFast - GAME.vTraffic), n = Math.round(STEP / h);
+      const a = g.veh[o + 6], W = GAME.weaveSnap, h = 0.01, hl = g.veh[o + 4] + CAR_HL, relT = Math.max(1, vFast - g.vt), n = Math.round(STEP / h);
       for (let k = 0; k <= k1; k++) {
         if (k >= k0 - 1) for (let l = -1; l <= 1; l++) if (Math.abs(x - l) * ROAD.lane < HALF_W[type] + CAR_HW + 0.3) { blocked[l + 1][k] = 1; if (k > 0) blocked[l + 1][k - 1] = 1; if (k < K) blocked[l + 1][k + 1] = 1; }
         for (let j = 0; j < n; j++) {
@@ -62,7 +62,15 @@ export function plan(st, opt, want) {
     const cover = [];
     const lf = g.veh[o + 1];
     for (let l = -1; l <= 1; l++) if (Math.abs(lf - l) * ROAD.lane < HALF_W[type] + CAR_HW + 0.3) cover.push(l);
-    if (type === T_TAXI && g.veh[o + 6] !== 0) { for (const l of [0, g.veh[o + 6]]) if (!cover.includes(l)) cover.push(l); }
+    // a vehicle that will steer across a lane (a taxi, a cruiser of a rolling roadblock): the lane it is heading for is taken
+    // for the whole pass, the lane it leaves only until its move is over
+    const cr = crossing(g.veh, o); let kEnd = K;
+    if (cr) {
+      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (vFast - g.vt) * GAME.taxiAt) / Math.max(1, vFast - v));
+      kEnd = Math.ceil((tSig + GAME.taxiBlink + GAME.taxiMove + 0.1) / STEP);
+      for (let k = k0; k <= k1; k++) { blocked[cr[1] + 1][k] = 1; if (k <= kEnd) blocked[cr[0] + 1][k] = 1; }
+      continue;
+    }
     for (const l of cover) for (let k = k0; k <= k1; k++) blocked[l + 1][k] = 1;
   }
   // the police: a ramming pursuit car takes its lane from the end of the warning until it has dropped back;
@@ -128,6 +136,7 @@ export function play(seed, seconds, opt = {}) {
     if (st.over) { stats.over = st.over; stats.overT = T - C; break; }
     if (st.g.nstock > 0) { if (gotT < 0) gotT = T; } else gotT = -1;                       // opt.nitroHold: carry a canister this long before firing it
     if (opt.nitro && st.g.nstock > 0 && T - gotT >= (opt.nitroHold || 0) && T > nextNitro && (!opt.nitroAfter || T > opt.nitroAfter)) { add('turbo', T); nextNitro = T + 6; }
+    if (opt.idle && T >= opt.idle[0] && T < opt.idle[1]) continue;      // opt.idle: hands off the wheel for a while (to take a hit on purpose)
     const tb = tl.turboAt(T);
     if ((tb && tb.u < TURBO.sustain - 0.3) || T - last < 0.28) continue;   // smash through during the strong part of a nitro burst
     let want;

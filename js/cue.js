@@ -55,33 +55,43 @@ export const AUTO_ENV = { time: 40, dist: 2900 };
 // generated stays passable. The car always drives flat out; the brake buys reaction time but lets the police close in.
 export const GAME = {
   mph: 2.4,                                      // speedometer: road units per second → MPH
-  vTraffic: 26,                                  // everyone else drives at this speed (62 on the speedometer), so a row of traffic stays a row;
+  // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (60 MPH in gear 1, 106 in gear 6), and
+  // each lane has its own speed — the left lane laneDv faster than the middle, the right lane laneDv slower — so cars
+  // overtake each other all the time. A vehicle starts behind or ahead of its row by what its lane will gain or lose, and the
+  // lanes' speed difference follows how fast you are closing, so every row is lined up when you reach it — on the brake,
+  // at cruising speed or in a nitro burst alike.
+  trafficK: 0.46, laneDv: 3, trafficEase: 2,
   breathe: 1.5,                                  // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
   gears: [54, 61, 69, 78, 87, 96],               // cruising speed per gear
   gearAt: [0, 1000, 2500, 4500, 7000, 10000],    // run distance at which each gear engages
   creep: [1000, 20],                             // past the last gear: +1 u/s per 1000 units, up to +20
   brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
-  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 520, nitroEvery: [820, 1420], nitroFree: 7,   // (distances measured against the traffic: the first after about 17 s)
+  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [720, 1240], nitroFree: 7,   // (distances measured against the traffic: the first after about 17 s)
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-  rowGap: [1.5, 0.9],                            // seconds between rows at the gear's closing speed (gear 1 → 6)
+  rowGap: [1.3, 0.8],                            // seconds between rows at the gear's closing speed (gear 1 → 6)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
   taxiAt: 2.4, taxiBlink: 0.7, taxiMove: 0.9,    // a taxi signals 2.4 s before you reach it, then steers across one lane
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
   swipeInv: 0.5, swipeKick: 9, reviveInv: 2.0,
   // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
-  // A stumble (sideswipe, hooked, hit from the air) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+  // You have two lives. Any hit (driving into a vehicle, a sideswipe, the grappler, the helicopter) takes one: the pursuit car
+  // closes in and stays on your tail until you fire a nitro canister, which shakes it off and gives the life back. A hit while
+  // it is on your tail ends the run. hitInv: seconds nothing can touch you after ploughing through a vehicle on the first life.
   // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
-  star2At: 3500, star3At: 8000,                  // distance floors: the longer you run, the more they send
+  star2At: 2500, star3At: 6000,                  // distance floors: the longer you run, the more they send
   heatSwipe: 1, heatSmash: 0.34, heatHold: 10, heatDecay: 12,
-  closeT: 6, stumbleGrace: 0.9, polClose: 6.5, polFar: 19,
-  ramFirst: 6, ramEvery: [6, 9], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.7, ramOwn: 1.8,   // a ram only starts when a lane beside you stays clear for ramClear s
-  blockP: [0, 0, 0.2, 0.3],                      // share of rows that are police units ahead of you, by star
+  stumbleGrace: 1.2, hitInv: 1.0, hitRest: 3, polClose: 6.5, polFar: 19, chaseZ: 8.5, chaseX: 2.4, chaseRam: 0.7,   // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
+  ramFirst: 5, ramEvery: [5, 7.5], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.5, ramOwn: 1.8, clearAfter: 1.3, holdOff: 3.5,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
+  blockP: [0, 0, 0.24, 0.34],                      // share of rows that are police units ahead of you, by star
   // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
   // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
   // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
+  // stagger: nobody drives exactly abreast: vehicles of one row sit this far ahead of or behind the row's line (police: echelon).
+  // shiftP: share of rolling roadblocks, by star, in which one cruiser steers across into the open lane as you close in (timed like a taxi)
+  stagger: [3.5, 6.5], echelon: [3, 5], shiftP: [0, 0, 0.5, 0.7],
   blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.35, 0.45], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
-  drEvery: 6, drWarn: 1.2, drStrike: 0.45, drClear: 2.7,
+  drEvery: 5, drWarn: 1.2, drStrike: 0.45, drClear: 2.1,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
   tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash

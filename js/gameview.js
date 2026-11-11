@@ -384,7 +384,8 @@ export class GameView {
             this.glow(mx, 0.035, z + 1, L * 0.5 + 2.3, 0, 0, 0, 0, 7.5, ph ? [1, 0.1, 0.2] : [0.15, 0.4, 1], 2, 0.4 * f);
             if (dir) this.glow(mx, 3.0, z, dir * (L * 0.5 + 1.6), 0, 0, 0, 0.62, 0, c, 7, 1.5 * f);
             else this.glow(x, 3.0, z, 1.0, 0, 0, 0, 1.0, 0, c, 5, 1.5 * f);
-          } else if (v.took) this.glow(v.took - 100, 3.0, z, 1.0, 0, 0, 0, 1.0, 0, c, 5, (Math.floor(T * 8) % 2 ? 2.2 : 1.1) * f);   // it has picked this lane: a warning sign over it
+          } else if (v.sig) this.glow(x + v.sig * 2.6, 3.0, z, v.sig * 1.9, 0, 0, 0, 0.62, 0, c, 7, 1.7 * f);                                         // a roadblock cruiser crossing into the open lane: chevrons the way it goes
+          else if (v.took) this.glow(v.took - 100, 3.0, z, 1.0, 0, 0, 0, 1.0, 0, c, 5, (Math.floor(T * 8) % 2 ? 2.2 : 1.1) * f);   // it has picked this lane: a warning sign over it
           else if (v.type === T_BLOCK && v.dz > 12) this.glow(x, 3.0, z, 0.8, 0, 0, 0, 0.8, 0, c, 5, 1.2 * f);                              // a rolling roadblock: a sign over each cruiser
         }
       }

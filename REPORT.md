@@ -19,6 +19,72 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 22: two lives, a harder road, and nobody abreast
+
+Two messages after Revision 21: the traffic still read as close to static, with every row perfectly abreast and the police standing still while they intercept; and the game was too easy, to be changed to two lives with a permanent chase after the first is lost, then made harder.
+
+### Two lives
+
+| Rule | How it works now |
+|---|---|
+| Two lives | Every run starts with two (the hearts beside the stars). |
+| Every hit takes one | Driving into a vehicle, a sideswipe, the grappler, the helicopter. Driving into the back of a vehicle used to end the run at once; on the first life you now plough through it and lose speed for a second. |
+| After the first is gone | The pursuit car closes in and stays, off your rear quarter where you can see it. Before, it dropped back after 6 s. Its grappler runs come 30 % sooner. |
+| Until | You fire a nitro canister, which shakes it off and gives the life back, or you take a second hit, which ends the run (wrecked by a vehicle, busted by the police). |
+| A breather | Nothing attacks for 3 s after a hit. Without that the grappler came in the same second as a crash. |
+| Rewind | A spare tape still rewinds three seconds, and now hands back both lives. |
+
+A canister is therefore your second chance as well as your score: burn it on a line of traffic and you have nothing to shake the police with.
+
+### Harder
+
+| What | Before | Now |
+|---|---|---|
+| Seconds between rows, gear 1 → 6 | 1.5 → 0.9 | 1.3 → 0.8 |
+| Two stars / three stars by distance | 3.5 km / 8 km | 2.5 km / 6 km |
+| Grappler runs | first after 6 s, then every 6–9 s | 5 s, then every 5–7.5 s (30 % sooner on the last life) |
+| Searchlight locks | every 6 s | every 5 s |
+| Share of rows that are police, at ★★ / ★★★ | 20 % / 30 % | 24 % / 34 % |
+| Rolling roadblocks whose open lane moves | none | 50 % / 70 % |
+
+Attacks actually carried out per five minutes went from 2–6 grappler runs and 4–9 strikes to 2–7 and 4–10; most of the rise in difficulty is in the road itself.
+
+### Nobody abreast, and police that move
+
+- **Lanes at different speeds.** At cruising speed the left lane is 3 units a second (about 7 MPH) faster than the middle, the right lane 3 slower, so cars overtake each other all the time you can see them. A row appears strung out over about 35 units and closes up as you reach it.
+- **Rows arrive staggered.** The vehicles of a row sit 3.5 to 6.5 units ahead of or behind the row's line, alternately, so two of them pass you 2.5 to 16 units apart, never side by side. Police pairs drive in echelon the same way.
+- **Traffic keeps pace with you.** It drives at 46 % of your cruising speed in every gear (60 MPH in gear 1, 106 in gear 6) and picks the speed up after each gear change. In Revision 21 it was 62 MPH throughout, barely a quarter of your top speed.
+- **A cruiser holding a lane snakes across it** (three quarters of a unit each way, about three times in four seconds) and its nose follows.
+- **A rolling roadblock can close the door.** In half of them at two stars, and 70 % at three, the cruiser beside the open lane signals with chevrons, then steers across into it, timed like a taxi. Its own lane is the open one from then on, and the energy cells already mark that lane.
+- **The chasing cruiser is a moving thing now too**: it stays in the picture for as long as you are on your last life.
+
+### What keeps it fair
+
+- Each vehicle starts behind or ahead of its place by what its lane will gain or lose, and the speed difference between lanes follows how fast you are closing. So the row closes up exactly as you arrive, on the brake or in a nitro burst as well. With fixed lane speeds the bot's nitro runs went from 2 crashes in 16 to 5; tied to closing speed they did not.
+- Rows are spaced for the speed you are really doing (past gear 6 the old spacing shrank in time) plus room for the stagger.
+- An attack only starts when there is a way out: a lane beside you clear while it lasts, and afterwards either that lane or your own open. The old rule only asked for a lane beside you; with rows this close that could box you in two lanes from the next opening.
+- The grappler and the helicopter hold off while a taxi, a crossing cruiser or a weaver is within 3.5 s.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| `tools/game-test.mjs` | 54/54 (new: a hit costs a life and the police stay, nitro gives it back, the breather after a hit, lane speeds, staggered rows that close up on time under braking and nitro) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 40/40, 46/46, 9/9, 8/8 |
+| `tools/bot.mjs` fairness soak, no nitro | 40 seeds × 300 s: not one hit (2–7 grappler runs and 4–10 helicopter strikes dodged per run) |
+| The same with nitro | 16 seeds: 1 run takes a hit (Revision 21: 2 of 16 crashed) |
+| `tools/perf.mjs`, 1920×1080 | traffic 6.1 ms median, 9.0 ms 95th percentile per frame |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+
+**Limits**
+
+- Judged from numbers and frame strips again, not by playing. "Still static?" and "hard enough?" are both yours to answer.
+- The bot never takes a hit in 40 runs, so it cannot tell me how hard this is for a person. `tools/vary.mjs` reruns the soak with any constant changed, which is how the numbers above were chosen; there is room to go further (rows at 1.2 → 0.75 s, for one).
+- Driving into a vehicle on the first life removes that vehicle. It is the simplest way not to leave your car inside it.
+- On the brake the lanes run at almost the same speed, and in a nitro burst they pull apart about two and a half times as fast. That is the price of rows that always close up on time.
+- Traffic at 106 MPH in top gear is fast for traffic; the ratio to your speed is what the eye reads.
+- Still no sound for a car passed, and your own car is still untouched.
+
 ## Revision 21: traffic that drives, police that move
 
 Your three points after playing Revision 20.

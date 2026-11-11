@@ -45,8 +45,14 @@
   var GAME = {
     mph: 2.4,
     // speedometer: road units per second → MPH
-    vTraffic: 26,
-    // everyone else drives at this speed (62 on the speedometer), so a row of traffic stays a row;
+    // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (60 MPH in gear 1, 106 in gear 6), and
+    // each lane has its own speed — the left lane laneDv faster than the middle, the right lane laneDv slower — so cars
+    // overtake each other all the time. A vehicle starts behind or ahead of its row by what its lane will gain or lose, and the
+    // lanes' speed difference follows how fast you are closing, so every row is lined up when you reach it — on the brake,
+    // at cruising speed or in a nitro burst alike.
+    trafficK: 0.46,
+    laneDv: 3,
+    trafficEase: 2,
     breathe: 1.5,
     // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
     gears: [54, 61, 69, 78, 87, 96],
@@ -63,15 +69,15 @@
     nitroTail: 0.55,
     nitroGrace: 0.7,
     nitroMax: 3,
-    nitroFirst: 520,
-    nitroEvery: [820, 1420],
+    nitroFirst: 480,
+    nitroEvery: [720, 1240],
     nitroFree: 7,
     // (distances measured against the traffic: the first after about 17 s)
     ahead: 340,
     firstRow: 175,
     despawn: 30,
     // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-    rowGap: [1.5, 0.9],
+    rowGap: [1.3, 0.8],
     // seconds between rows at the gear's closing speed (gear 1 → 6)
     nearT: 0.32,
     draftT: 0.9,
@@ -89,34 +95,48 @@
     swipeKick: 9,
     reviveInv: 2,
     // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
-    // A stumble (sideswipe, hooked, hit from the air) puts the pursuit car on your tail for closeT seconds; a second one then = busted.
+    // You have two lives. Any hit (driving into a vehicle, a sideswipe, the grappler, the helicopter) takes one: the pursuit car
+    // closes in and stays on your tail until you fire a nitro canister, which shakes it off and gives the life back. A hit while
+    // it is on your tail ends the run. hitInv: seconds nothing can touch you after ploughing through a vehicle on the first life.
     // (ram… = the grappler run: warning, lunge speed, drop-back speed, how long a hook slows us; dr… = the helicopter lock and strike)
-    star2At: 3500,
-    star3At: 8e3,
+    star2At: 2500,
+    star3At: 6e3,
     // distance floors: the longer you run, the more they send
     heatSwipe: 1,
     heatSmash: 0.34,
     heatHold: 10,
     heatDecay: 12,
-    closeT: 6,
-    stumbleGrace: 0.9,
+    stumbleGrace: 1.2,
+    hitInv: 1,
+    hitRest: 3,
     polClose: 6.5,
     polFar: 19,
-    ramFirst: 6,
-    ramEvery: [6, 9],
+    chaseZ: 8.5,
+    chaseX: 2.4,
+    chaseRam: 0.7,
+    // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
+    ramFirst: 5,
+    ramEvery: [5, 7.5],
     ramWarn: 1.1,
     ramV: 26,
     ramBack: 34,
     ramSlow: 1,
     ramSlowMul: 0.7,
-    ramClear: 2.7,
+    ramClear: 2.5,
     ramOwn: 1.8,
-    // a ram only starts when a lane beside you stays clear for ramClear s
-    blockP: [0, 0, 0.2, 0.3],
+    clearAfter: 1.3,
+    holdOff: 3.5,
+    // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
+    blockP: [0, 0, 0.24, 0.34],
     // share of rows that are police units ahead of you, by star
     // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
     // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
     // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
+    // stagger: nobody drives exactly abreast: vehicles of one row sit this far ahead of or behind the row's line (police: echelon).
+    // shiftP: share of rolling roadblocks, by star, in which one cruiser steers across into the open lane as you close in (timed like a taxi)
+    stagger: [3.5, 6.5],
+    echelon: [3, 5],
+    shiftP: [0, 0, 0.5, 0.7],
     blockAt: 1.3,
     blockSlow: 9,
     blockDecel: 14,
@@ -126,10 +146,10 @@
     weaveLock: 1.25,
     weaveSnap: 8,
     weaveWarn: 3,
-    drEvery: 6,
+    drEvery: 5,
     drWarn: 1.2,
     drStrike: 0.45,
-    drClear: 2.7,
+    drClear: 2.1,
     ptsDist: 1,
     ptsNear: 150,
     ptsPass: 25,
@@ -448,6 +468,10 @@
   var WARNED = 32;
   var COMMIT = 64;
   var SIDE = 128;
+  var ANN = 256;
+  var fromLane = (fl) => (fl >> 9 & 3) - 1;
+  var crosses = (veh, o) => (veh[o] === T_TAXI || veh[o] === T_BLOCK) && veh[o + 6] !== 0;
+  var crossing = (veh, o) => crosses(veh, o) ? [fromLane(veh[o + 5]), fromLane(veh[o + 5]) + veh[o + 6]] : null;
   var TAU = Math.PI * 2;
   var sCurve = (m) => m <= 0 ? 0 : m >= 1 ? 1 : m - Math.sin(TAU * m) / TAU;
   var sCurveD = (m) => m <= 0 || m >= 1 ? 0 : 1 - Math.cos(TAU * m);
@@ -484,6 +508,9 @@
       lastPat: 0,
       mid: 0,
       itmNext: GAME.nitroFirst,
+      vt: GAME.trafficK * GAME.gears[0],
+      tr: 0,
+      // the traffic's speed now, and how far it has carried the rows
       score: 0,
       cells: 0,
       combo: 0,
@@ -499,11 +526,14 @@
       heat: 1,
       heatGt: -1e9,
       star: 1,
+      lives: 2,
+      nz: 0,
+      // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
       pcl: 0,
       stG: 0,
       slow: 0,
       brkAcc: 0,
-      // tail-close until, stumble grace until, slowed until
+      // tail-close until (lingering on the brake), stumble grace until, slowed until
       polM: P_TAIL,
       polT: 0,
       polLane: 0,
@@ -541,7 +571,7 @@
   }
   var gameMult = (g) => (1 + Math.min(g.combo, GAME.comboCap) * GAME.comboStep) * (1 + GAME.starBonus * (g.star - 1));
   var gameBase = (g) => GAME.gears[g.gear] + Math.min(GAME.creep[1], Math.max(0, g.gd - GAME.gearAt[5]) / GAME.creep[0]);
-  var policeClose = (g) => g.gt < GAME.introClose || g.gt < g.pcl;
+  var policeClose = (g) => g.gt < GAME.introClose || g.gt < g.pcl || g.lives < 2;
   function rnd(g) {
     let t = g.rs = g.rs + 1831565813 | 0;
     t = Math.imul(t ^ t >>> 15, t | 1);
@@ -552,17 +582,19 @@
     const w = 0.6 + 0.07 * (id % 7), p = w * gt + id * 2.4;
     return GAME.breathe * (k ? w * Math.cos(p) : Math.sin(p));
   }
-  function spawn(g, type, lane, u, a = 0, b = 0) {
-    const veh = g.veh;
+  var laneV = (lane) => -lane * GAME.laneDv;
+  var laneRate = (g, vel) => clamp2((vel - g.vt) / Math.max(1, gameBase(g) - g.vt), 0, 3);
+  function spawn(g, type, lane, u, a = 0, b = 0, lm = lane) {
+    const veh = g.veh, eta = Math.max(0, (u + g.tr - g.gd) / Math.max(1, gameBase(g) - g.vt));
     for (let i = 0; i < NV; i++) {
       const o = i * VF;
       if (veh[o]) continue;
       veh[o] = type;
       veh[o + 1] = lane;
-      veh[o + 2] = u + GAME.vTraffic * g.gt;
-      veh[o + 3] = GAME.vTraffic;
+      veh[o + 2] = u + g.tr - laneV(lm) * eta;
+      veh[o + 3] = g.vt + laneV(lane);
       veh[o + 4] = HALF_L[type];
-      veh[o + 5] = 0;
+      veh[o + 5] = Math.round(lane) + 1 << 9;
       veh[o + 6] = a;
       veh[o + 7] = b;
       veh[o + 8] = g.nid++;
@@ -578,7 +610,7 @@
       if (cel[o]) continue;
       cel[o] = n;
       cel[o + 1] = lane;
-      cel[o + 2] = u0 + GAME.vTraffic * g.gt;
+      cel[o + 2] = u0 + g.tr;
       cel[o + 3] = sp;
       cel[o + 4] = 0;
       return;
@@ -591,29 +623,34 @@
       if (itm[o]) continue;
       itm[o] = 1;
       itm[o + 1] = lane;
-      itm[o + 2] = u + GAME.vTraffic * g.gt;
+      itm[o + 2] = u + g.tr;
       return;
     }
   }
   function genRow(g) {
     const G = GAME, gear = g.gear, u = g.genU, p = g.path, i = g.genI++;
-    const w = G.gears[gear] - G.vTraffic;
+    const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];
     const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * (gear / 5);
     const side = () => rnd(g) < 0.5 ? -1 : 1;
     const adj = (l) => l === 0 ? side() : 0;
     const third = (a, b) => -(a + b);
     const block = i >= 3 && rnd(g) < G.blockP[g.star];
     const weaver = block && rnd(g) < G.weaveP[g.star];
-    let len = 5, first = 1;
-    const put = (lane) => {
+    let len = 5, first = 1, sgn = side();
+    const off = (range) => {
+      sgn = -sgn;
+      return sgn * (range[0] + rnd(g) * (range[1] - range[0]));
+    };
+    const put = (lane, cross = 0) => {
       if (block) {
-        spawn(g, T_BLOCK, lane, u, 0, first ? 1 : 0);
+        const k = spawn(g, T_BLOCK, lane, u + off(G.echelon), cross, 0);
+        if (first && k >= 0) g.veh[k * VF + 5] |= ANN;
         first = 0;
         return;
       }
       const r2 = rnd(g), type = r2 < 0.46 ? T_CAR : r2 < 0.72 ? T_VAN : T_TRUCK;
       if (type === T_TRUCK) len = 12.4;
-      spawn(g, type, lane, u);
+      spawn(g, type, lane, u + off(G.stagger));
     };
     let f = p, pat;
     const r = rnd(g);
@@ -629,6 +666,7 @@
     else if ((x -= wGate) < 0) pat = 4;
     else if ((x -= wTaxi) < 0) pat = 5;
     else pat = 0;
+    const mid = g.mid, shift = block && !mid && rnd(g) < G.shiftP[g.star];
     if (g.mid) {
       g.mid = 0;
       pat = block || r < 0.5 ? 4 : 3;
@@ -640,28 +678,41 @@
       put(p);
     } else if (pat === 2) {
       f = adj(p);
-      put(p);
-      put(third(p, f));
+      if (shift) {
+        put(p, f - p);
+        put(third(p, f));
+        f = p;
+      } else {
+        put(p);
+        put(third(p, f));
+      }
     } else if (pat === 3) {
       put(p === 0 ? side() : rnd(g) < 0.5 ? 0 : -p);
     } else if (pat === 4) {
       const a = p === 0 ? -1 : 0, b = p === 0 ? 1 : -p;
-      put(a);
-      put(b);
+      if (shift) {
+        const m = p === 0 ? side() : 0;
+        put(m, p - m);
+        put(m === a ? b : a);
+        f = m;
+      } else {
+        put(a);
+        put(b);
+      }
     } else if (pat === 5) {
       const d = side();
-      spawn(g, T_TAXI, 0, u, d, 0);
+      spawn(g, T_TAXI, 0, u + off(G.stagger) * 0.5, d, 0);
       cellLine(g, p === 0 ? -d : p, u - 26, 4, 6);
       g.path = 0;
-      g.genU = u + 5 + w * tg * 1.25;
+      g.genU = u + 5 + room + w * tg * 1.25;
       return;
     } else if (pat === 6) {
       const d = p !== 0 ? p : side();
-      spawn(g, T_WEAVE, 0, u, d, rnd(g) * 2 * (G.weaveHold + G.weaveMove));
-      if (g.star >= 3 && rnd(g) < 0.5) spawn(g, T_BLOCK, -d, u);
+      spawn(g, T_WEAVE, 0, u, d, rnd(g) * 2 * (G.weaveHold + G.weaveMove), d * 0.5);
+      if (g.star >= 3 && rnd(g) < 0.5) spawn(g, T_BLOCK, -d, u + off(G.echelon));
       g.path = 0;
       g.mid = 1;
-      g.genU = u + 5 + w * tg * 1.25;
+      g.genU = u + 5 + room + w * tg * 1.25;
       return;
     } else {
       const l2 = adj(p);
@@ -672,7 +723,7 @@
       return;
     }
     cellLine(g, f, u - 12, 5, 6);
-    const next = u + len + w * tg * (0.9 + 0.3 * rnd(g));
+    const next = u + len + room + w * tg * (0.9 + 0.3 * rnd(g));
     if (u >= g.itmNext) {
       g.itmNext = u + G.nitroEvery[0] + rnd(g) * (G.nitroEvery[1] - G.nitroEvery[0]);
       canister(g, f === 0 ? side() : rnd(g) < 0.5 ? f : 0, (u + len * 0.5 + next) * 0.5);
@@ -688,13 +739,15 @@
     const gt = g.gt;
     if (gt < g.stG) return false;
     g.combo = 0;
-    if (gt < g.pcl) {
-      g.over = 2;
-      out.push({ k: "bust", by });
+    if (g.lives < 2) {
+      g.over = by === "crash" ? 1 : 2;
+      out.push({ k: by === "crash" ? "crash" : "bust", by });
       return true;
     }
-    g.pcl = gt + GAME.closeT;
+    g.lives = 1;
     g.stG = gt + GAME.stumbleGrace;
+    g.ramNext = Math.max(g.ramNext, gt + GAME.hitRest);
+    g.drNext = Math.max(g.drNext, gt + GAME.hitRest);
     out.push({ k: "stumble", by });
     return true;
   }
@@ -703,21 +756,28 @@
     for (let i = 0; i < NV; i++) {
       const o = i * VF, dz = veh[o + 2] - g.gd;
       if (dz <= -6) continue;
-      if (veh[o] === T_TAXI && veh[o + 6] !== 0) return true;
-      if (veh[o] === T_WEAVE && dz < Math.max(1, vel - veh[o + 3]) * 3) return true;
+      if ((crosses(veh, o) || veh[o] === T_WEAVE) && dz < Math.max(1, vel - veh[o + 3]) * GAME.holdOff) return true;
     }
     return false;
   }
-  function laneClear(g, l, vel, secs) {
+  function laneClear(g, l, vel, secs, t0 = 0) {
     const veh = g.veh, L = ROAD.lane;
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
       if (!type) continue;
-      if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !((type === T_WEAVE || type === T_TAXI && veh[o + 6] !== 0) && (l === 0 || l === veh[o + 6]))) continue;
+      const cr = crossing(veh, o);
+      if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !(type === T_WEAVE && (l === 0 || l === veh[o + 6])) && !(cr && (l === cr[0] || l === cr[1]))) continue;
       const dz = veh[o + 2] - g.gd, reach = veh[o + 4] + CAR_HL + 1.5, rel = Math.max(1, vel * 1.12 - veh[o + 3]);
-      if (dz > -reach && dz < reach + rel * secs) return false;
+      if (dz > -reach + Math.max(1, vel - veh[o + 3]) * t0 && dz < reach + rel * (t0 + secs)) return false;
     }
     return true;
+  }
+  function wayOut(g, l, vel, during, after) {
+    for (const e of [l - 1, l + 1]) {
+      if (e < -1 || e > 1 || !laneClear(g, e, vel, during)) continue;
+      if (laneClear(g, e, vel, during + after) || laneClear(g, l, vel, after, during)) return true;
+    }
+    return false;
   }
   function stepGame(g, inp, out) {
     const DT2 = inp.dt, G = GAME, L = ROAD.lane;
@@ -747,29 +807,38 @@
       g.goEv = 1;
       out.push({ k: "go" });
     }
-    const up = gd - G.vTraffic * gt;
+    if (inp.nitro && !g.nz && g.lives < 2) {
+      g.lives = 2;
+      g.pcl = 0;
+      out.push({ k: "shake" });
+    }
+    g.nz = inp.nitro ? 1 : 0;
+    g.vt += (G.trafficK * gameBase(g) - g.vt) * (1 - Math.exp(-DT2 / G.trafficEase));
+    g.tr += g.vt * DT2;
+    const up = gd - g.tr;
     for (let n = 0; g.genU < up + G.ahead && n < 6; n++) genRow(g);
     let mult = gameMult(g);
-    const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g));
+    const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g)), lr = laneRate(g, inp.vel);
     let draft = 0;
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
       if (!type) continue;
-      if (type === T_TAXI && veh[o + 6] !== 0) {
+      if (crosses(veh, o)) {
+        const from = fromLane(veh[o + 5]);
         if (veh[o + 7] === 0) {
           const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL);
-          if (gap0 < (vFull - veh[o + 3]) * G.taxiAt) veh[o + 7] = gt;
+          if (gap0 < (vFull - g.vt) * G.taxiAt) veh[o + 7] = gt;
         } else {
           const m = (gt - veh[o + 7] - G.taxiBlink) / G.taxiMove;
           if (m >= 1) {
-            veh[o + 1] = veh[o + 6];
+            veh[o + 1] = from + veh[o + 6];
             veh[o + 6] = 0;
             veh[o + 7] = -gt;
-          } else if (m > 0) veh[o + 1] = veh[o + 6] * sCurve(m);
+          } else if (m > 0) veh[o + 1] = from + veh[o + 6] * sCurve(m);
         }
       }
       let fl = veh[o + 5];
-      if (type < T_TAXI) veh[o + 3] = G.vTraffic + breathe(veh[o + 8], gt, 1);
+      if (type !== T_BLOCK) veh[o + 3] = g.vt + laneV(veh[o + 1]) * lr + (type < T_TAXI ? breathe(veh[o + 8], gt, 1) : 0);
       if (type === T_WEAVE) {
         if (fl & COMMIT) {
           const W = G.weaveSnap, tgt = fl & SIDE ? veh[o + 6] : 0;
@@ -778,7 +847,7 @@
         } else {
           const ph = gt + veh[o + 7];
           veh[o + 1] = veh[o + 6] * weave(ph);
-          if (veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - G.vTraffic) * G.weaveLock) {
+          if (veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - g.vt) * G.weaveLock) {
             const v = weave(ph, 1);
             fl |= COMMIT | ((v !== 0 ? v > 0 : weave(ph) > 0.5) ? SIDE : 0);
             veh[o + 7] = veh[o + 6] * v;
@@ -786,12 +855,12 @@
         }
       }
       if (type === T_BLOCK || type === T_WEAVE) {
-        const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL), rel0 = vFull - G.vTraffic;
+        const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL), rel0 = vFull - g.vt;
         if (type === T_BLOCK) {
-          const tv = gap0 > 0 && gap0 < rel0 * G.blockAt ? G.vTraffic - G.blockSlow : G.vTraffic;
+          const tv = g.vt + laneV(veh[o + 1]) * lr - (gap0 > 0 && gap0 < rel0 * G.blockAt ? G.blockSlow : 0);
           veh[o + 3] += clamp2(tv - veh[o + 3], -G.blockDecel * DT2, G.blockDecel * DT2);
         }
-        if (!(fl & WARNED) && gap0 < rel0 * G.weaveWarn && (type === T_WEAVE || veh[o + 7] === 1)) {
+        if (!(fl & WARNED) && gap0 < rel0 * G.weaveWarn && (type === T_WEAVE || fl & ANN)) {
           fl |= WARNED;
           if (gt - g.blkEv > 2.5) {
             g.blkEv = gt;
@@ -825,6 +894,14 @@
             addHeat(g, G.heatSwipe);
             stumble(g, out, "swipe");
             out.push({ k: "swipe", back: clamp2(Math.round(veh[o + 1]) + dir, -1, 1), dir, lane: veh[o + 1] });
+          } else if (g.lives > 1) {
+            veh[o] = 0;
+            g.inv = gt + G.hitInv;
+            g.slow = gt + G.ramSlow;
+            addHeat(g, G.heatSwipe);
+            out.push({ k: "wreck", lane: veh[o + 1], dz, type });
+            stumble(g, out, "crash");
+            continue;
           } else {
             g.over = 1;
             out.push({ k: "crash", type, lane: veh[o + 1] });
@@ -864,7 +941,7 @@
     for (let i = 0; i < NC; i++) {
       const o = i * CF, n = cel[o];
       if (!n) continue;
-      cel[o + 2] += G.vTraffic * DT2;
+      cel[o + 2] += g.vt * DT2;
       const z0 = cel[o + 2], sp = cel[o + 3];
       if (z0 + (n - 1) * sp < gd - 6) {
         cel[o] = 0;
@@ -885,7 +962,7 @@
     for (let i = 0; i < NI; i++) {
       const o = i * IF;
       if (!itm[o]) continue;
-      itm[o + 2] += G.vTraffic * DT2;
+      itm[o + 2] += g.vt * DT2;
       const dz = itm[o + 2] - gd;
       if (dz < -8) {
         itm[o] = 0;
@@ -916,11 +993,12 @@
     const eK = (tau) => 1 - Math.exp(-DT2 / tau);
     if (g.polM === P_TAIL) {
       const close = policeClose(g);
-      g.polZ += ((close ? -G.polClose : -G.polFar) - g.polZ) * eK(close ? 0.3 : 1.1);
-      g.polX += (px - g.polX) * eK(0.3);
+      const near = gt < G.introClose || gt < g.pcl || gt < g.stG + 1.5;
+      g.polZ += ((close ? near ? -G.polClose : -G.chaseZ : -G.polFar) - g.polZ) * eK(close ? near ? 0.3 : 0.9 : 1.1);
+      g.polX += (px + (close && !near ? px > 0.5 ? -G.chaseX : G.chaseX : 0) - g.polX) * eK(close && !near ? 0.5 : 0.3);
       if (g.star >= 2 && gt >= g.ramNext && gt > G.introT + 4 && g.drT < 0 && !inp.nitro && !hazardPending(g, inp.vel)) {
-        const l = inp.lane, s = G.ramClear;
-        if (laneClear(g, l, inp.vel, G.ramOwn) && (l > -1 && laneClear(g, l - 1, inp.vel, s) || l < 1 && laneClear(g, l + 1, inp.vel, s))) {
+        const l = inp.lane;
+        if (laneClear(g, l, inp.vel, G.ramOwn) && wayOut(g, l, inp.vel, G.ramClear, G.clearAfter)) {
           g.polM = P_WARN;
           g.polT = gt;
           g.polLane = l;
@@ -960,7 +1038,7 @@
         g.polZ -= G.ramBack * DT2 * Math.min(1, u / 0.25);
         if (g.polZ <= -G.polFar) {
           g.polM = P_TAIL;
-          g.ramNext = gt + G.ramEvery[0] + rnd(g) * (G.ramEvery[1] - G.ramEvery[0]);
+          g.ramNext = gt + (G.ramEvery[0] + rnd(g) * (G.ramEvery[1] - G.ramEvery[0])) * (g.lives < 2 ? G.chaseRam : 1);
         }
       }
       const lat = Math.abs(px - g.polX) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.polZ) < POL_HL + CAR_HL - 0.2;
@@ -990,8 +1068,8 @@
     if (g.star >= 3) {
       if (g.drT < 0) {
         if (gt >= g.drNext && g.polM === P_TAIL && !hazardPending(g, inp.vel)) {
-          const l = inp.lane, s = G.drClear;
-          if (l > -1 && laneClear(g, l - 1, inp.vel, s) || l < 1 && laneClear(g, l + 1, inp.vel, s)) {
+          const l = inp.lane;
+          if (wayOut(g, l, inp.vel, G.drClear, G.clearAfter)) {
             g.drT = gt;
             g.drLane = l;
             g.drAcc = 0;
@@ -1373,6 +1451,7 @@
       g.stG = 0;
       g.slow = 0;
       g.brkAcc = 0;
+      g.lives = 2;
       g.polM = P_TAIL;
       g.polZ = Math.min(g.polZ, -GAME.polFar + 2);
       g.drT = -1;

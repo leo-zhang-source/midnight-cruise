@@ -29,7 +29,10 @@ const when = (test, from = 6, id = 0) => { for (let T = from; T < 200; T += 0.02
 { const m = (v, o, g) => (g.gt - v[o + 7] - GAME.taxiBlink) / GAME.taxiMove, cut = (lo) => (v, o, dz, g) => v[o] === T_TAXI && v[o + 6] !== 0 && v[o + 7] > 0 && m(v, o, g) > lo;
   const a = when(cut(0.3)); if (a) { shots.push(['taxi_cut_a', clean, a[0]]); const b = when(cut(0.5), a[0], a[1]), c = when(cut(0.8), a[0], a[1]); if (b) shots.push(['taxi_cut_b', clean, b[0]]); if (c) shots.push(['taxi_cut_c', clean, c[0]]); } }
 // a rolling roadblock: far off, and on the brakes as we come up
-{ const a = when((v, o, dz) => v[o] === T_BLOCK && v[o + 7] === 1 && dz < 85 && dz > 40, 20); if (a) { shots.push(['block_far', clean, a[0]]); const b = when((v, o, dz) => dz < 26, a[0], a[1]); if (b) shots.push(['block_near', clean, b[0]]); } }
+{ const a = when((v, o, dz) => v[o] === T_BLOCK && (v[o + 5] & 256) && v[o + 6] === 0 && v[o + 7] === 0 && dz < 85 && dz > 40, 20); if (a) { shots.push(['block_far', clean, a[0]]); const b = when((v, o, dz) => dz < 26, a[0], a[1]); if (b) shots.push(['block_near', clean, b[0]]); } }
+// a rolling roadblock in which one cruiser crosses into the open lane: signalling, half-way, done
+{ const m = (v, o, g) => (g.gt - v[o + 7] - GAME.taxiBlink) / GAME.taxiMove, a = when((v, o, dz, g) => v[o] === T_BLOCK && v[o + 6] !== 0 && v[o + 7] > 0 && m(v, o, g) > -0.5, 20);
+  if (a) { shots.push(['shift_a', clean, a[0]]); const b = when((v, o, dz, g) => v[o + 7] > 0 && m(v, o, g) > 0.5, a[0], a[1]), c = when((v, o) => v[o + 7] < 0, a[0], a[1]); if (b) shots.push(['shift_b', clean, b[0]]); if (c) shots.push(['shift_c', clean, c[0] + 0.15]); } }
 // a weaving cruiser: mid-swing, just after it has picked its lane, and as we pass it
 { const a = when((v, o, dz, g) => v[o] === T_WEAVE && dz < 130 && !(v[o + 5] & COMMIT) && Math.abs(v[o + 1]) > 0.35 && Math.abs(v[o + 1]) < 0.65, 20);
   if (a) { shots.push(['weave_a', clean, a[0]]); const b = when((v, o) => v[o + 5] & COMMIT, a[0], a[1]); if (b) shots.push(['weave_b', clean, b[0] + 0.25]); const c = when((v, o, dz) => dz < 16, a[0], a[1]); if (c) shots.push(['weave_c', clean, c[0]]); } }
