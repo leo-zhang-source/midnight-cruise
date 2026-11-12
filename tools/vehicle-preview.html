@@ -1,37 +1,35 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>vehicle preview (development)</title>
-<style>html, body { margin: 0; background: #15121f; } canvas { display: block; }</style>
+<style>html, body { margin: 0; background: #0b0c18; } canvas { display: block; }</style>
 <canvas id="c"></canvas>
 <script type="module">
-// Development aid: the traffic / police bodies from js/vehicles.js on a turntable grid.
-// Open http://localhost:8086/tools/vehicle-preview.html?w=1600&h=1000  (rows: car, taxi, police, van, cab, coupe, estate, pickup, coach · columns: view angles)
-// &row=2 one row only · &roll=0.1 &pitch=-0.05 the body on its springs · &t=0.1 wheel angle · &brake=1
+// Development aid: the traffic / police bodies from js/vehicles.js on a turntable grid (one row each, six views).
+// Open http://localhost:8086/tools/vehicle-preview.html?w=1800&h=1500
+// &rows=0,3 only these styles · &views=0,1,2 only these views · &zoom=0.7 closer · &roll=0.1 &pitch=-0.05 the body on its springs · &brake=1 · &pal=0..3
 import * as THREE from '../vendor/three.module.min.js';
-import { Vehicles } from '../js/vehicles.js';
+import { Vehicles, VEHICLE_STYLES } from '../js/vehicles.js';
 import { PALETTES } from '../js/palette.js';
-const Q = new URLSearchParams(location.search), W = +Q.get('w') || 1600, H = +Q.get('h') || 1000, pal = PALETTES[+Q.get('pal') || 0];
+const Q = new URLSearchParams(location.search), W = +Q.get('w') || 1800, H = +Q.get('h') || 1500, pal = PALETTES[+Q.get('pal') || 0];
 const canvas = document.getElementById('c');
 const r = new THREE.WebGLRenderer({ canvas, antialias: true });
 r.outputColorSpace = THREE.LinearSRGBColorSpace; r.setPixelRatio(1); r.setSize(W, H, false); r.autoClear = false;
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const scene = new THREE.Scene(), veh = new Vehicles(); scene.add(veh.group);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: Q.has('dark') ? 0x0a0214 : 0x2a2440 })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
-const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
-const rows = [['car', [0.5, 0.05, 0.09], 0], ['car', [0.8, 0.56, 0.03], 1], ['car', [0.52, 0.56, 0.7], 2], ['van', [0.05, 0.28, 0.4], 0], ['cab', [0.36, 0.36, 0.42], 0],
-  ['coupe', [0.85, 0.1, 0.16], 0], ['suv', [0.14, 0.7, 0.36], 0], ['pickup', [0.92, 0.42, 0.06], 0], ['bus', [0.82, 0.84, 0.9], 0]];
-const far = Q.has('far') ? 2.2 : 1;      // &far: step back for the coach
-const views = [[0.6, 0.35, 9], [2.5, 0.3, 9], [Math.PI, 0.45, 10], [0, 0.12, 9], [Math.PI / 2, 0.08, 10], [0.9, 1.1, 10]].map(([a, e, d]) => [a, e, d * far]);   // azimuth (0 = from behind), elevation, distance
-const only = Q.get('row');
-r.setScissorTest(true);
-r.setClearColor(Q.has('dark') ? 0x05020f : 0x15121f, 1);
-const list = only === null ? rows : [rows[+only]];
-list.forEach(([style, col, bar], ri) => {
-  veh.begin(pal, +Q.get('t') || 0); veh.add(style, 0, 0, 0, 0, 1.06, col, 1, bar, 1, 1, 0.1, +Q.get('brake') || 0, +Q.get('roll') || 0, +Q.get('pitch') || 0); veh.end();
-  views.forEach(([az, el, d], ci) => {
-    const cw = W / views.length, ch = H / list.length;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshBasicMaterial({ color: 0x06070f })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 300);
+const COL = { monolith: [0.62, 0.64, 0.7], razor: [0.85, 0.36, 0.1], nomad: [0.2, 0.4, 0.32], orbit: [0.62, 0.56, 0.82] };
+const long = (s) => s === 'leviathan' || s === 'orbit';
+const rows = (Q.get('rows') ? Q.get('rows').split(',').map((i) => VEHICLE_STYLES[+i]) : VEHICLE_STYLES);
+const views = [[Math.PI - 0.75, 0.22], [0, 0.1], [0.7, 0.3], [Math.PI / 2, 0.06], [Math.PI, 0.3], [0.9, 1.05]];   // azimuth (0 = from behind, π = nose-on), elevation
+if (Q.get('views')) { const v = Q.get('views').split(',').map((i) => views[+i]); views.length = 0; views.push(...v); }     // &views=0,1,2 only these
+r.setScissorTest(true); r.setClearColor(0x0b0c18, 1);
+rows.forEach((style, ri) => {
+  veh.begin(pal, 0); veh.add(style, 0, 0, 0, 0, 1, COL[style] || [1, 1, 1], 1, 1, 1, 1, +Q.get('brake') || 0, +Q.get('roll') || 0, +Q.get('pitch') || 0); veh.end();
+  views.forEach(([az, el], ci) => {
+    const cw = W / views.length, ch = H / rows.length, d = (long(style) ? 26 : 12) * (+Q.get('zoom') || 1);
     r.setViewport(ci * cw, H - (ri + 1) * ch, cw, ch); r.setScissor(ci * cw, H - (ri + 1) * ch, cw, ch);
-    cam.aspect = cw / ch; cam.position.set(Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d + 0.6, Math.cos(az) * Math.cos(el) * d); cam.lookAt(0, 0.7, 0); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+    cam.aspect = cw / ch; cam.position.set(Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d + 0.9, Math.cos(az) * Math.cos(el) * d); cam.lookAt(0, long(style) ? 1.6 : 0.9, 0); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
     r.clear(); r.render(scene, cam);
   });
 });

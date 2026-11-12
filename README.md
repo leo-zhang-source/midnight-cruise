@@ -46,10 +46,10 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 | Thing | What it does |
 |---|---|
-| Saloon, coupe, estate | Car-sized: blocks a lane. Each is at least as big as your car. |
-| Van, pickup | A little longer and taller. |
-| Truck, coach | A cab with a long trailer, or a coach just as long: blocks a lane for longer. |
-| Taxi | Drives in the middle lane, signals for 0.45 s, then steers across to one side as you close in (0.85 s, nose first, leaning out of the turn). It starts 1.8 s before you reach it and is in its new lane about half a second ahead of you. |
+| MONOLITH saloon, RAZOR coupe, NOMAD estate | Car-sized: blocks a lane. The saloon is a long flat-sided slab with a bar of red light across its tail; the coupe an open-wheeler with rings of light on its wheels; the estate a square off-roader with cargo on its roof. |
+| RELAY van, MULE pickup | A little longer and taller: a dark cab carrying a pale cargo pod with an arch of red light round its doors, and a six-wheel utility truck with an orange tube frame. |
+| LEVIATHAN truck, ORBIT coach | Twelve units long: blocks a lane for longer. A dark banded container behind an angular cab with a visor of cyan light, or a lilac coach with glass its whole length. |
+| FIREFLY taxi | A tall yellow pod round black glass, a lit TAXI sign, two rings of red light at the back. Drives in the middle lane, signals for 0.45 s, then steers across to one side as you close in (0.85 s, nose first, leaning out of the turn). It starts 1.8 s before you reach it and is in its new lane about half a second ahead of you. |
 | Rolling roadblock | From two stars: two police cruisers in echelon, lights on, snaking across their lanes, a warning sign over each. They brake as you come up. One lane is left — and when a cruiser is in the middle lane it usually (half the time at two stars, 60 % at three; that pair does not brake) signals with chevrons and steers across into that open side lane, so the middle becomes the way through. |
 | Weaving cruiser | From two stars: one cruiser swinging between the middle lane and one side; chevrons over the two lanes show which way it is steering. About 1.2 s before you reach it, it takes the lane it is heading for and the sign over that lane turns into a warning triangle. At three stars a second cruiser may hold the third lane. |
 | Energy cells | Mark the open lane. Each adds score; 100 of them earn a spare tape (up to 3). |
@@ -201,7 +201,7 @@ js/cue.js             THE cue sheet: timecodes, harmony, patterns — read by pi
 js/timeline.js        event log + 240 Hz fixed-step simulation (speed, brake, lanes, runs, home / restart, rewind)
 js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car and its grappler, the helicopter
 js/gameview.js        game layer and highway scenery: traffic, police, grappler, roadblock, helicopter, pickups, debris, city, gantries, billboards
-js/vehicles.js        instanced saloon / coupe / estate / van / pickup / coach / truck-cab bodies: one lofted shell each, dark metal edged in neon
+js/vehicles.js        the nine traffic and police vehicles after the vehicle studies: faceted hulls, boxes, wheels and lamps, one instanced mesh each
 js/heli.js            the police helicopter: one lofted body (bubble, cabin, boom) with T-tail, skids, searchlight, gun pods and blurred rotor discs
 js/director.js        pure choreography: (T, events, viewport) → frame description
 js/world.js           sky/sun, grid, wireframe mountains, palms, light trails (GLSL)

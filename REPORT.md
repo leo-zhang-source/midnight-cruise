@@ -19,6 +19,45 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 26: the vehicles from the studies
+
+You sent two sheets of vehicle studies (01–10) and said the player's car stays as it is. The nine others replace everything I had on the road, including the neon-edged look of Revision 25.
+
+| Study | In the game as | What I kept from the sheet |
+|---|---|---|
+| 02 MONOLITH — saloon | a car | Long flat-sided slab, upright glasshouse, dark lower cladding; a bar of red light the full width of the tail; bracket-shaped lamps at the front corners; two upright slits of light behind the front wheel. |
+| 03 RAZOR — coupe | a car | Open-wheeler: narrow wedge body, canopy, twin air boxes and a fin behind it, side pods, suspension arms, four big exposed wheels with rings of orange light; two clusters of three upright red bars at the back. |
+| 04 NOMAD — estate | a car | Square off-roader on tall tyres, arch cladding, roof rails with three cargo cases; tail lamps like a pair of brackets; thin light bars in front. |
+| 05 FIREFLY — taxi | the taxi | Tall pod, yellow shell round black glass, leaning door posts, lit TAXI sign, amber arrows on the doors; two rings of red light at the back. |
+| 06 WARDEN — police | every police car | Black with white doors and roof, red and blue light bar, arch armour, push bumper with hazard stripes; red block lamps either side of a white plate. |
+| 07 RELAY — van | a van | Dark wedge cab, pale faceted cargo pod, sensor mast with a cyan light; an arch of red light round the rear doors; cyan markers. |
+| 08 MULE — pickup | a van | Six wheels, dark cab, tool box, orange tube frame round the bed and an orange bull bar; bracket tail lamps; amber markers. |
+| 09 LEVIATHAN — truck | a long vehicle | Angular cab with a visor of cyan light, dark container in five banded segments, six axles; two slashes of red at the back, amber corner lamps. |
+| 10 ORBIT — coach | one long vehicle in three | One long lilac volume, dark glass its whole length with pillars, raked nose; three red lamps stacked up each rear corner; violet markers along the skirt. |
+
+**How they are built** (`js/vehicles.js`, rewritten). Each vehicle is a handful of faceted hulls: flat-shaded lofts through six-cornered sections (sill, waist, roof edge), which is what gives the cut-stone surfaces of the sheets. Boxes, wheels and lamps are added, and everything is merged into one mesh in which every face has its own material and colour, so one vehicle can be black and white, or dark with a pale pod. The paint is satin, not mirror. The saloon, coupe, estate and coach come in three or four paints each; the others keep the colours of the sheet.
+
+**In the scene.** Each vehicle throws a little of its signature colour on the road (ice white, orange, amber, cyan, violet). The truck is now one modelled vehicle; the neon-edged box trailer is gone. The police pursuit car, the rolling roadblock and the weaving cruiser are all the WARDEN.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| Turntable (`tools/vehicle-preview.html`) | all nine looked at from the front quarter, behind and the rear quarter, and compared with the sheets |
+| In-game frames (`tools/seq.mjs`) | taxi, police pair, van, truck and coach seen on the road |
+| `tools/game-test.mjs` | 61/61 (the rules are untouched) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 43/43, 46/46, 9/9, 8/8, no console errors |
+| `tools/perf.mjs`, 1920×1080 | traffic 6.3 ms median, 8.0 ms 95th percentile per frame |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+
+**Limits**
+
+- These are low-polygon readings of the sheets, a few hundred flat faces each. The silhouettes, colours and light signatures follow them; the fine surface detail (panel lines, vents, seats behind the glass, the lettering on the police car and the taxi sign) is not there.
+- The FIREFLY is more angular than the sheet's rounded pod: its section has six corners.
+- The RAZOR and the FIREFLY are smaller than the lane they block; a hit registers on the same box as any other car.
+- The studies show three-quarter front views; in the game you mostly see tails. I matched each tail to the small rear view on its sheet.
+- Not played by me.
+
 ## Revision 25: fewer police, a helicopter that comes and goes, slower stars, neon traffic
 
 Five requests after Revision 24.
