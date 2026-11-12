@@ -315,6 +315,8 @@ class Smp extends Voice {
 }
 
 // ── SFX ───────────────────────────────────────────────────────────────────
+// Energy cells: each cell of a line sounds the next note up the A minor pentatonic scale (the track's key), from A5.
+const CELL_NOTES = [81, 84, 86, 88, 91, 93, 96, 98];
 class Tape extends Voice { // cassette engage + motor spin-up
   constructor(s, o) { super(s, o); this.saw = new Saw(); this.lp = new SVF(); this.r = new RNG(s.seed()); this.nl = new SVF(); this.nl.set(1400, 0.7); this.ph = 0; }
   tick(B, i, t) {
@@ -365,6 +367,17 @@ class Blip extends Voice { // generic UI tone: freq sweep f0→f1, decay
     const y = sin(TAU * this.ph) * exp(-u / this.dur) * Math.min(1, u / 0.001) * this.amp;
     B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r;
     return u < this.dur * 7;
+  }
+}
+class Coin extends Voice { // an energy cell picked up: a glassy ping with a struck attack; its note is the cell's place in its line
+  constructor(s, o, n, amp = 0.13, pan = 0) { super(s, o); this.f = mtof(n); this.amp = amp; this.pc = 0; this.pm = 0; this.l = panL(pan) * Math.SQRT2; this.r = panR(pan) * Math.SQRT2; }
+  tick(B, i, t) {
+    this.pc += this.f / SR; this.pm += this.f * 2 / SR;
+    const body = sin(TAU * this.pc + sin(TAU * this.pm) * 1.5 * exp(-t / 0.018)) * exp(-t / 0.1);
+    const air = sin(TAU * this.pc * 2) * 0.3 * exp(-t / 0.045);
+    const y = (body + air) * Math.min(1, t / 0.0012) * this.amp;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r;
+    return t < 0.7;
   }
 }
 class Click extends Voice { // mechanical button: noise tick + body thump
@@ -560,7 +573,7 @@ export class Synth {
       case 'rewind': v = new Squeal(s, o, n.d ?? 0.6, false); break;
       case 'rewindlong': v = new Squeal(s, o, 1.25, false); break;
       // game
-      case 'cell': v = new Blip(s, o, 1560, 2350, 0.035, 0.05, 0.15); break;
+      case 'cell': { const k = Math.max(0, Math.min(CELL_NOTES.length - 1, n.n | 0)); v = new Coin(s, o, CELL_NOTES[k], 0.1, k % 2 ? 0.22 : -0.22); break; }
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
       case 'smash': v = new Click(s, o, 1.0, 1); this.voices.push(new Blip(s, o, 1500, 240, 0.09, 0.1), new Blip(s, o, 2600, 900, 0.05, 0.05, 0.3, 0.03)); break;
       case 'swipe': v = new Click(s, o, 1.1, 1); this.voices.push(new Blip(s, o, 260, 85, 0.1, 0.16)); break;
@@ -623,7 +636,7 @@ export class Synth {
     for (const e of tl.events) {
       if (e.type !== 'sfx') continue;
       if (this._sx(e.t) >= f1) break;
-      this._once('s' + e.seq, e.t, f0, f1, (o) => this.trigger({ i: e.name }, o));
+      this._once('s' + e.seq, e.t, f0, f1, (o) => this.trigger({ i: e.name, n: e.n }, o));
     }
   }
   _once(key, t, f0, f1, fn) {

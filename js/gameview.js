@@ -5,7 +5,7 @@
 //  · glows    — instanced additive quads: lights, energy cells, nitro canisters, the grappler's net,
 //               the grappler and searchlight warnings, beams, tracer fire
 //  · scenery  — the megastructure city on the horizon, overhead sign gantries, a big billboard now and then, and the
-//               highway's own furniture: reflector posts, roadside signs, emergency phones
+//               highway's own furniture: reflector posts, roadside signs
 // Everything is rebuilt each frame from the frame state: no hidden state, so seeking and replays stay exact.
 import * as THREE from '../vendor/three.module.min.js';
 import { ROAD } from './cue.js';
@@ -282,7 +282,7 @@ const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2];
 const BB_SPAN = 4800, BB = [{ z0: 700, side: 1 }, { z0: 2300, side: -1 }, { z0: 3900, side: 1 }];      // a billboard every 1600 units
 const GA_SPAN = 4800, GA = [1500, 3900];                                                              // a sign gantry every 2400
 const SG_SPAN = 4800, SG = [{ z0: 1100, side: 1, k: 0 }, { z0: 3250, side: 1, k: 1 }, { z0: 4450, side: -1, k: 2 }];   // roadside signs
-const POST_S = 30, SOS_S = 640;                                                                       // reflector posts on the rails, emergency phones
+const POST_S = 30;                                                                                    // reflector posts on the rails
 const mod = (a, n) => ((a % n) + n) % n, V1 = new THREE.Vector3();
 // each body: where its tail lamps are (tz behind its middle, ty up, tx = 0: one bar across; else a lamp each side), how much road
 // it lights and in what colour, and the paints it comes in (the fixed-colour ones take none)
@@ -359,15 +359,13 @@ export class GameView {
       for (const l of [-1, 0, 1]) this.box(l * L, 6.6, z + 0.2, 0.9, 0.09, 0.2, [0.2, 1, 0.5], 1, f, 1.4);     // green lane lamps
     });
 
-    // ── scenery: the highway's furniture. Reflector posts on the rails, an orange emergency phone now and then ──
+    // ── scenery: the highway's furniture. Reflector posts on the rails ──
     if (sc > 0.003) {
       for (const side of [-1, 1]) for (let k = 0; k < 14; k++) {
         const d = mod(-pos, POST_S) + k * POST_S, z = 30 - d, f = smooth((430 - d) / 100) * sc;
         if (f < 0.01) continue;
         this.box(side * (R + 0.35), 0.45, z, 0.1, 0.9, 0.1, DARK, 3, f); this.sprite(side * (R + 0.35), 0.84, z, 0.3, side < 0 ? [1, 0.72, 0.2] : [1, 1, 1], 0.9 * f);
       }
-      const d = mod(450 - pos, SOS_S), z = 30 - d, f = smooth((600 - d) / 150) * sc;
-      if (f > 0.01) { this.box(-(R + 1.0), 0.9, z, 0.5, 1.8, 0.4, [1, 0.45, 0.08], 0, f); this.box(-(R + 1.0), 2.0, z, 0.6, 0.3, 0.5, [1, 0.5, 0.1], 1, f, 1.6); this.sprite(-(R + 1.0), 2.05, z, 0.8, [1, 0.5, 0.1], 0.9 * f); }
     }
     // ── scenery: roadside signs on two posts ──
     SG.forEach((sg, i) => {

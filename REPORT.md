@@ -19,6 +19,36 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 28: the roadside phone removed, a chime for the cells
+
+You pointed at the yellow post beside the road and asked for it to go, and asked for a sound when a diamond is picked up.
+
+**The yellow post is gone.** It was the orange emergency phone that stood left of the rail every 640 units (a dark box with lit edges and a glowing cap). Nothing replaces it; the reflector posts, the roadside signs, the gantries and the billboards stay.
+
+**The cells now ring.** There was a sound for them before, but you could not hear it: a 35 ms blip at a third of the level of the other effects. It is replaced (`Coin` in `js/audio/synth.js`):
+
+| What | How |
+|---|---|
+| The sound | A glassy ping with a struck attack: a sine with a short burst of frequency modulation, an octave partial that dies quickly, about 0.1 s of decay. |
+| The pitch | Each cell of a line sounds the next note up the A minor pentatonic scale, the key of the track: A5, C6, D6, E6, G6. A line of five is a rising figure; changing lane into the middle of a line picks the figure up where that cell stands. |
+| The level | Peak 0.16 of full scale, about the level of the other game effects (the old blip peaked at 0.035). It alternates slightly left and right from note to note. |
+| Where the note comes from | The simulation's `cell` event now carries the cell's place in its line. The rules, the traffic and the scores are unchanged. |
+
+**Checks.**
+
+| Check | Result |
+|---|---|
+| Offline render of five chimes through the synth | Notes measured at 880, 1060, 1180, 1320 and 1580 Hz (A5 to G6, within the 20 Hz step of the measurement), peak 0.16. |
+| `tools/game-test.mjs` | 61/61 |
+| `tools/game-ui.mjs` | 44/44, with a new check: taking cells in a run writes one chime per cell, the notes climbing along a line. |
+| `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 46/46, 9/9 and 8/8; no console errors. |
+| Looked at | Six in-game frames over 14 s of a bot run: no orange post beside the road in any of them (one stood in view almost all the time before). |
+
+**Limits.**
+
+- I measured the chime but did not listen to it; whether its level sits well against the music is for your ears.
+- I did not play the game by hand.
+
 ## Revision 27: the vehicles remodelled, with metal and glass
 
 You asked for the RAZOR to go, and for the other vehicles to be modelled to the standard of the player's car and of the study sheets, with metal and glass that look like metal and glass. The player's car is untouched.
@@ -190,7 +220,7 @@ Five requests after Revision 23.
 - **The intro is part of every start.** It used to play once, on the first START; later starts from the home screen cut straight to the run, and the home screen carried a separate REPLAY INTRO button. Now every START from the home screen rewinds the tape (0.6 s) and plays the ten-second intro into the run, and the REPLAY INTRO button is gone.
   - SKIP INTRO (or `S` / `Esc`) still cuts it to a 0.4 s fast-forward, and now also works while the tape is rewinding.
   - RESTART in the pause menu opens with it as well (confirmed afterwards; it first kept its instant start).
-- **Overpasses and street lamps are gone.** Reflector posts, roadside signs and the emergency phones stay.
+- **Overpasses and street lamps are gone.** Reflector posts, roadside signs and the emergency phones stay. (The phones went in Revision 28.)
 
 **Checks**
 

@@ -185,7 +185,7 @@ export class UI {
     let cell = false;
     for (const e of evs) {
       const k = e.k;
-      if (k === 'cell') { if (!cell) { cell = true; this.sfx('cell'); } }
+      if (k === 'cell') { if (!cell) { cell = true; this.ev('sfx', { name: 'cell', n: e.i | 0 }); } }   // each line of cells climbs a scale: the note is the cell's place in its line
       else if (k === 'near') this.sfx('near');
       else if (k === 'smash' || k === 'wreck') this.sfx('smash');
       else if (k === 'shake') this.sfx('chime');

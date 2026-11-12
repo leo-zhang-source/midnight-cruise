@@ -66,6 +66,10 @@ async function wreck(p, touch, once) {
   ok('holding Space brakes (the car slows, the BRAKE key lights)', s.brake === 'true' && s.vel < 40 && !s.over, `v=${Math.round(s.vel)}`);
   await p.keyboard.up('Space'); st = await drive(p, 1500); s = await gs(p);
   ok('releasing it returns to full speed', s.brake === 'false' && s.vel > 50 && !s.over, `v=${Math.round(s.vel)}`);
+  // the pickup chime: one per cell taken, its note the cell's place in its line
+  const chimes = async () => p.evaluate(() => MC.events().filter((e) => e.type === 'sfx' && e.name === 'cell').map((e) => e.n));
+  let ce = await chimes(); for (let i = 0; i < 8 && ce.length < 6; i++) { await drive(p, 1000); ce = await chimes(); }
+  ok('taking cells rings the pickup chime, climbing note by note along a line', ce.length >= 6 && ce.every((n) => n >= 0 && n < 5) && ce.some((n, i) => i > 0 && n === ce[i - 1] + 1), `${ce.length} chimes, notes ${ce.slice(0, 14).join(' ')}`);
   // crash → EJECT panel → rewind
   await wreck(p);
   s = await gs(p); ok('driving into a vehicle: WRECKED panel with the score, REWIND focused', s.over === 1 && s.panel && s.title === 'WRECKED' && s.ovScore === s.hudScore && s.ovScore !== '0' && s.focus === 'revive' && !s.pauseBtn, `score ${s.ovScore}`);

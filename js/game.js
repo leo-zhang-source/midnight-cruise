@@ -365,7 +365,7 @@ export function stepGame(g, inp, out) {
     const bit = 1 << k;
     if (cel[o + 4] & bit) continue;
     cel[o + 4] |= bit; g.cells++; g.score += G.ptsCell * mult;
-    out.push({ k: 'cell' });
+    out.push({ k: 'cell', i: k });
     if (g.cells % G.tapeEvery === 0) out.push({ k: 'tape' });
   }
   const itm = g.itm;
