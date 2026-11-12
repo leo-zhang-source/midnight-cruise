@@ -19,6 +19,27 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 30: the coin as a real square wave, loud enough to hear
+
+The Revision 29 coin could not be heard in play. Measured inside a run it explains itself: the music and engine sit at −15 dB RMS, with −31 dB in the third-octave band around the coin's first note, and the coin's first note was −30 dB, so it was level with the music it had to be heard over. It was also a softened tone (three harmonics), not the sound the name promises.
+
+`Coin` in `js/audio/synth.js` is now the classic one, written out again from its pattern (no recording of another game is used):
+
+| | Revision 29 | Revision 30 |
+|---|---|---|
+| Wave | first three odd harmonics | a plain square wave, edges rounded so it does not alias, top taken off above 10 kHz |
+| Notes | B5 for 55 ms, then E6 | B5 for 60 ms, then E6 (unchanged in pitch) |
+| Second note | fades in about 0.3 s | fades over 0.8 s |
+| First note, RMS | −30 dB | −21 dB |
+| First note against the music in its band | about level | 9 dB above |
+| Peak, one coin / a line of them | 0.05 / 0.056 | 0.11 / 0.14 |
+
+For comparison the Revision 28 chime that was too loud peaked at 0.16 for one and piled up in a line, because nothing cut it off. This one still plays one at a time: the next pickup cuts the last.
+
+**Checked:** rendered offline inside the canonical run (one coin, then five 0.12 s apart): pitches 980 and 1320 Hz, silent after 0.87 s, and the music's low band moves 0.2 dB while coins play, so the limiter is not ducking the music for them. The suites pass (game-test 61, game-ui 44, interact 44, touch 9, auto-env-test 8) and so does the smoke test on the built pages. In `interact` the two checks of the live worklet's signal were skipped this time, because this machine's audio output was not running; the offline render above runs the same synth code. No game rule changed, so the bot soak was not rerun.
+
+**Not checked:** I have not listened to it. The level is set from measurement, halfway (in dB above the music) between the one that was too loud and the one that was inaudible.
+
 ## Revision 29: faster and harder, fewer nitro canisters, and a quieter coin
 
 You asked for more difficulty and a higher top speed; then said the pickup sound of Revision 28 was too loud and not pleasant, and to model it on the sounds of good games; then asked for fewer nitro canisters, so that the player is not always quickly back at one star. The game values are in `GAME` in `js/cue.js`.
@@ -60,7 +81,7 @@ Measured with the bot that takes every canister and fires it at once, 12 runs of
 
 **What stays fair.** The bar is unchanged: the bot (no nitro) drives 40 different roads for 5 minutes each without a single hit. Tightening the rows further failed that bar (0.64 s in top gear: 4 of 40 runs took a hit; 0.60 s: 8 of 40), so 0.68 s is where it stops.
 
-**The pickup sound, again** (`Coin` in `js/audio/synth.js`). The chime of Revision 28 is gone: it peaked at 0.16 of full scale, a sine with a metallic attack, a new note on top of the last one five to seven times a second, climbing a scale. The new one follows the pattern of the classic arcade coin:
+**The pickup sound, again** (`Coin` in `js/audio/synth.js`). (Replaced once more in Revision 30: this one could not be heard in play.) The chime of Revision 28 is gone: it peaked at 0.16 of full scale, a sine with a metallic attack, a new note on top of the last one five to seven times a second, climbing a scale. The new one follows the pattern of the classic arcade coin:
 
 | What | How |
 |---|---|

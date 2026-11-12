@@ -367,21 +367,22 @@ class Blip extends Voice { // generic UI tone: freq sweep f0→f1, decay
     return u < this.dur * 7;
   }
 }
-class Coin extends Voice { // an energy cell picked up, after the classic arcade coin: a short note, then a jump up a fourth that rings out.
-  // One at a time: the next pickup cuts this one off, so a line of cells is a row of clean pings, not a pile of them.
-  constructor(s, o, amp = 0.055) { super(s, o); this.amp = amp; this.ph = 0; this.end = Infinity; }
+class Coin extends Voice { // an energy cell picked up: the classic arcade coin. A plain square wave on B5 for a moment, then up a fourth to E6, which rings out.
+  // One at a time, as on a console with a single channel to spare: the next pickup cuts this one off, so a line of cells is a row of clean coins.
+  constructor(s, o, amp = 0.09) { super(s, o); this.amp = amp; this.ph = 0; this.lp = 0; this.end = Infinity; }
   cut(o) { this.end = Math.min(this.end, this.n + o); }
   tick(B, i, t) {
-    const hi = t >= 0.055, u = hi ? t - 0.055 : t;
-    this.ph += (hi ? 1318.5 : 987.8) / SR; if (this.ph > 1) this.ph -= 1;                    // B5, then E6
-    const env = hi ? exp(-u / 0.17) * (0.8 + 0.2 * Math.min(1, u / 0.003)) : 0.8 * Math.min(1, t / 0.002);
-    const a = TAU * this.ph;
-    let y = (sin(a) + 0.3 * sin(3 * a) + 0.12 * sin(5 * a)) * env * this.amp;                 // a softened square: the first three odd harmonics
+    const hi = t >= 0.06, u = hi ? t - 0.06 : t, dp = (hi ? 1318.5 : 987.8) / SR;              // B5, then E6
+    this.ph += dp; if (this.ph >= 1) this.ph -= 1;
+    const p = this.ph, q = (p < 0.5 ? 1 : -1) + blep(p, dp) - blep(p < 0.5 ? p + 0.5 : p - 0.5, dp);
+    this.lp += (q - this.lp) * 0.73;                                                            // the top taken off above 10 kHz, as the old hardware did
+    const env = hi ? Math.max(0, 1 - u / 0.8) * exp(-u / 0.3) : Math.min(1, t / 0.001);         // the first note held flat, the second fading over most of a second
+    let y = this.lp * env * this.amp;
     const k = (this.n - this.end) / (0.006 * SR);
     if (k >= 1) return false;
     if (k > 0) y *= 1 - k;
     B.sfxL[i] += y; B.sfxR[i] += y;
-    return t < 0.9;
+    return t < 0.87;
   }
 }
 class Click extends Voice { // mechanical button: noise tick + body thump
