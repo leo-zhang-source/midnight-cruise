@@ -288,14 +288,13 @@ const mod = (a, n) => ((a % n) + n) % n, V1 = new THREE.Vector3();
 // it lights and in what colour, and the paints it comes in (the fixed-colour ones take none)
 const BODY = {
   monolith: { tz: 2.52, ty: 0.8, tx: 0, w: 1.35, glow: [0.6, 0.8, 1.0], paint: [[0.62, 0.64, 0.7], [0.3, 0.36, 0.5], [0.68, 0.6, 0.48], [0.17, 0.18, 0.23]] },
-  razor: { tz: 2.22, ty: 0.56, tx: 0.3, w: 1.3, glow: [1.0, 0.36, 0.05], paint: [[0.85, 0.36, 0.1], [0.8, 0.12, 0.4], [0.1, 0.58, 0.75], [0.72, 0.68, 0.1]] },
-  nomad: { tz: 2.47, ty: 0.98, tx: 0.78, w: 1.4, glow: [0.7, 0.9, 0.8], paint: [[0.2, 0.4, 0.32], [0.5, 0.44, 0.3], [0.28, 0.32, 0.42], [0.45, 0.2, 0.16]] },
+  nomad: { tz: 2.47, ty: 1.02, tx: 0.82, w: 1.4, glow: [0.7, 0.9, 0.8], paint: [[0.2, 0.4, 0.32], [0.5, 0.44, 0.3], [0.28, 0.32, 0.42], [0.45, 0.2, 0.16]] },
   firefly: { tz: 1.98, ty: 0.98, tx: 0.36, w: 1.3, glow: [1.0, 0.72, 0.1] },
-  warden: { tz: 2.52, ty: 0.92, tx: 0.66, w: 1.4, glow: [0.3, 0.5, 1.0] },
-  relay: { tz: 2.72, ty: 1.4, tx: 0.6, w: 1.45, glow: [0.25, 0.9, 1.0] },
-  mule: { tz: 2.82, ty: 0.96, tx: 0.8, w: 1.45, glow: [1.0, 0.6, 0.1] },
-  leviathan: { tz: 6.12, ty: 1.5, tx: 0.62, w: 1.75, glow: [0.25, 0.9, 1.0] },
-  orbit: { tz: 6.12, ty: 1.36, tx: 0.92, w: 1.75, glow: [0.6, 0.35, 1.0], paint: [[0.62, 0.56, 0.82], [0.5, 0.74, 0.72], [0.8, 0.8, 0.85]] },
+  warden: { tz: 2.52, ty: 0.93, tx: 0.68, w: 1.4, glow: [0.3, 0.5, 1.0] },
+  relay: { tz: 2.72, ty: 1.4, tx: 0.55, w: 1.45, glow: [0.25, 0.9, 1.0] },
+  mule: { tz: 2.82, ty: 1.1, tx: 0.95, w: 1.45, glow: [1.0, 0.6, 0.1] },
+  leviathan: { tz: 6.1, ty: 1.48, tx: 0.86, w: 1.75, glow: [0.25, 0.9, 1.0] },
+  orbit: { tz: 6.12, ty: 1.28, tx: 0.95, w: 1.75, glow: [0.6, 0.35, 1.0], paint: [[0.62, 0.56, 0.82], [0.5, 0.74, 0.72], [0.8, 0.8, 0.85]] },
 };
 const WHITE = [1, 1, 1];
 
@@ -328,9 +327,9 @@ export class GameView {
   cruiser(x, z, yaw, fade, T, phase = 0, roll = 0, pitch = 0, brake = 0) {
     const on = Math.floor(T * 5 + phase) % 2 === 0, cs = Math.cos(yaw), sn = Math.sin(yaw);
     this.veh.add('warden', x, 0, z, yaw, 1, WHITE, fade, 0.7, on ? 1 : 0.06, on ? 0.06 : 1, brake, roll, pitch);
-    this.sprite(x - 0.36 * cs - 0.2 * sn, 1.72, z + 0.36 * sn - 0.2 * cs, 1.25, [1, 0.1, 0.2], (on ? 1.1 : 0.08) * fade); this.sprite(x + 0.36 * cs - 0.2 * sn, 1.72, z - 0.36 * sn - 0.2 * cs, 1.25, [0.15, 0.4, 1], (on ? 0.08 : 1.1) * fade);
+    this.sprite(x - 0.5 * cs - 0.3 * sn, 1.72, z + 0.5 * sn - 0.3 * cs, 1.25, [1, 0.1, 0.2], (on ? 1.1 : 0.08) * fade); this.sprite(x + 0.5 * cs - 0.3 * sn, 1.72, z - 0.5 * sn - 0.3 * cs, 1.25, [0.15, 0.4, 1], (on ? 0.08 : 1.1) * fade);
     this.glow(x, 0.04, z, 3.2, 0, 0, 0, 0, 4.2, on ? [1, 0.1, 0.2] : [0.15, 0.4, 1], 2, 0.4 * fade);
-    if (brake) this.sprite(x + sn * 2.6, 0.92, z + cs * 2.6, 1.5, RED, 0.75 * fade);
+    if (brake) this.sprite(x + sn * 2.6, 0.93, z + cs * 2.6, 1.5, RED, 0.75 * fade);
   }
 
   update(s) {
@@ -406,10 +405,10 @@ export class GameView {
         // tail lamps streak the road behind a moving car: as long as it is fast, laid along the way it came
         const trail = (lz, w, k) => { const [px, pz] = at(0, lz), len = v.v * 0.3; this.glow(px - v.vx * 0.15, 0.045, pz + len / 2, w, 0, 0, v.vx * 0.15, 0, -len / 2, TAIL, 8, k * f); };
         if (v.type !== T_BLOCK && v.type !== T_WEAVE) {
-          // which of the studies it is: a car is a MONOLITH, a RAZOR or a NOMAD; a van a RELAY or a MULE; a long one a LEVIATHAN or,
+          // which of the studies it is: a car is a MONOLITH or a NOMAD; a van a RELAY or a MULE; a long one a LEVIATHAN or,
           // one in three, an ORBIT; a taxi is always a FIREFLY
           const taxi = v.type === T_TAXI, long = v.type === T_TRUCK;
-          const style = taxi ? 'firefly' : v.type === T_VAN ? (id % 2 ? 'mule' : 'relay') : long ? (id % 3 === 0 ? 'orbit' : 'leviathan') : ['monolith', 'razor', 'nomad'][id % 3], B = BODY[style];
+          const style = taxi ? 'firefly' : v.type === T_VAN ? (id % 2 ? 'mule' : 'relay') : long ? (id % 3 === 0 ? 'orbit' : 'leviathan') : (id % 2 ? 'nomad' : 'monolith'), B = BODY[style];
           const col = B.paint ? B.paint[(id >> 2) % B.paint.length] : WHITE, y8 = long ? 0 : yaw;
           this.veh.add(style, x, 0, z, y8, 1, col, f, 1, taxi ? 1 : 0, taxi ? 1 : 0, 0, long ? 0 : v.roll, long ? 0 : v.pitch);
           for (const sx of B.tx ? [-1, 1] : [0]) { const [tx, tz] = long ? [x + sx * B.tx, z + B.tz] : at(sx * B.tx, B.tz); this.sprite(tx, B.ty, tz, far * (B.tx ? 0.8 : 1) * (long ? 1.2 : 1), TAIL, (B.tx ? 0.26 : 0.3) * f); }

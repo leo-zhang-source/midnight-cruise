@@ -4,9 +4,10 @@
 <style>html, body { margin: 0; background: #0b0c18; } canvas { display: block; }</style>
 <canvas id="c"></canvas>
 <script type="module">
-// Development aid: the traffic / police bodies from js/vehicles.js on a turntable grid (one row each, six views).
+// Development aid: the traffic / police bodies from js/vehicles.js on a studio floor (one row each, a column per view).
 // Open http://localhost:8086/tools/vehicle-preview.html?w=1800&h=1500
-// &rows=0,3 only these styles · &views=0,1,2 only these views · &zoom=0.7 closer · &roll=0.1 &pitch=-0.05 the body on its springs · &brake=1 · &pal=0..3
+// &rows=0,3 only these styles · &views=0,1,2 only these views (0 front quarter, 1 behind, 2 rear quarter, 3 side, 4 nose-on, 5 above, 6 low front quarter)
+// &zoom=0.7 closer · &roll=0.1 &pitch=-0.05 the body on its springs · &brake=1 · &pal=0..3 · &t=1.3 time (the wheels turn) · &paint=1 another colour
 import * as THREE from '../vendor/three.module.min.js';
 import { Vehicles, VEHICLE_STYLES } from '../js/vehicles.js';
 import { PALETTES } from '../js/palette.js';
@@ -16,22 +17,27 @@ const r = new THREE.WebGLRenderer({ canvas, antialias: true });
 r.outputColorSpace = THREE.LinearSRGBColorSpace; r.setPixelRatio(1); r.setSize(W, H, false); r.autoClear = false;
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const scene = new THREE.Scene(), veh = new Vehicles(); scene.add(veh.group);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshBasicMaterial({ color: 0x06070f })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.ShaderMaterial({
+  vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'precision highp float; varying vec3 vP; void main(){ float d = length(vP.xy); gl_FragColor = vec4(mix(vec3(0.075, 0.085, 0.16), vec3(0.035, 0.04, 0.085), smoothstep(2.0, 16.0, d)), 1.0); }' }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
 const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 300);
-const COL = { monolith: [0.62, 0.64, 0.7], razor: [0.85, 0.36, 0.1], nomad: [0.2, 0.4, 0.32], orbit: [0.62, 0.56, 0.82] };
+const PAINT = { monolith: [[0.62, 0.64, 0.7], [0.3, 0.36, 0.5], [0.68, 0.6, 0.48], [0.17, 0.18, 0.23]], nomad: [[0.2, 0.4, 0.32], [0.5, 0.44, 0.3], [0.28, 0.32, 0.42], [0.45, 0.2, 0.16]], orbit: [[0.62, 0.56, 0.82], [0.5, 0.74, 0.72], [0.8, 0.8, 0.85]] };
 const long = (s) => s === 'leviathan' || s === 'orbit';
 const rows = (Q.get('rows') ? Q.get('rows').split(',').map((i) => VEHICLE_STYLES[+i]) : VEHICLE_STYLES);
-const views = [[Math.PI - 0.75, 0.22], [0, 0.1], [0.7, 0.3], [Math.PI / 2, 0.06], [Math.PI, 0.3], [0.9, 1.05]];   // azimuth (0 = from behind, π = nose-on), elevation
-if (Q.get('views')) { const v = Q.get('views').split(',').map((i) => views[+i]); views.length = 0; views.push(...v); }     // &views=0,1,2 only these
-r.setScissorTest(true); r.setClearColor(0x0b0c18, 1);
+const views = [[Math.PI - 0.75, 0.22], [0, 0.1], [0.7, 0.3], [Math.PI / 2, 0.06], [Math.PI, 0.3], [0.9, 1.05], [Math.PI - 0.62, 0.09]];   // azimuth (0 = from behind, π = nose-on), elevation
+if (Q.get('views')) { const v = Q.get('views').split(',').map((i) => views[+i]); views.length = 0; views.push(...v); }
+r.setScissorTest(true); r.setClearColor(0x0a0c1c, 1);
 rows.forEach((style, ri) => {
-  veh.begin(pal, 0); veh.add(style, 0, 0, 0, 0, 1, COL[style] || [1, 1, 1], 1, 1, 1, 1, +Q.get('brake') || 0, +Q.get('roll') || 0, +Q.get('pitch') || 0); veh.end();
+  const paints = PAINT[style] || [[1, 1, 1]];
+  veh.begin(pal, +Q.get('t') || 0); veh.add(style, 0, 0, 0, 0, 1, paints[(+Q.get('paint') || 0) % paints.length], 1, 1, 1, 1, +Q.get('brake') || 0, +Q.get('roll') || 0, +Q.get('pitch') || 0); veh.end();
   views.forEach(([az, el], ci) => {
-    const cw = W / views.length, ch = H / rows.length, d = (long(style) ? 26 : 12) * (+Q.get('zoom') || 1);
+    const cw = W / views.length, ch = H / rows.length, d = (long(style) ? 30 : 12) * (+Q.get('zoom') || 1);
     r.setViewport(ci * cw, H - (ri + 1) * ch, cw, ch); r.setScissor(ci * cw, H - (ri + 1) * ch, cw, ch);
     cam.aspect = cw / ch; cam.position.set(Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d + 0.9, Math.cos(az) * Math.cos(el) * d); cam.lookAt(0, long(style) ? 1.6 : 0.9, 0); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
     r.clear(); r.render(scene, cam);
   });
 });
+window.__tris = Object.fromEntries(VEHICLE_STYLES.map((k) => [k, veh.m[k].geometry.getAttribute('position').count / 3]));
 window.__ready = true;
 </script>

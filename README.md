@@ -46,7 +46,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 | Thing | What it does |
 |---|---|
-| MONOLITH saloon, RAZOR coupe, NOMAD estate | Car-sized: blocks a lane. The saloon is a long flat-sided slab with a bar of red light across its tail; the coupe an open-wheeler with rings of light on its wheels; the estate a square off-roader with cargo on its roof. |
+| MONOLITH saloon, NOMAD estate | Car-sized: blocks a lane. The saloon is a long flat-sided slab with a bar of red light across its tail and bracket lamps at its front corners; the estate a square off-roader on lugged tyres with flared arches and cargo on its roof. Four paints each. |
 | RELAY van, MULE pickup | A little longer and taller: a dark cab carrying a pale cargo pod with an arch of red light round its doors, and a six-wheel utility truck with an orange tube frame. |
 | LEVIATHAN truck, ORBIT coach | Twelve units long: blocks a lane for longer. A dark banded container behind an angular cab with a visor of cyan light, or a lilac coach with glass its whole length. |
 | FIREFLY taxi | A tall yellow pod round black glass, a lit TAXI sign, two rings of red light at the back. Drives in the middle lane, signals for 0.45 s, then steers across to one side as you close in (0.85 s, nose first, leaning out of the turn). It starts 1.8 s before you reach it and is in its new lane about half a second ahead of you. |
@@ -156,7 +156,7 @@ node tools/vary.mjs '{"rowGap":[1.2,0.75]}' 40 300   # the fairness soak with so
 node tools/smoke.mjs             # after a build: the Pages build and both single files load a three-star moment without errors
 ```
 
-Open `http://localhost:8086/tools/vehicle-preview.html` to see the traffic and police bodies on a turntable, and `http://localhost:8086/tools/heli-preview.html` for the helicopter from eight sides.
+Open `http://localhost:8086/tools/vehicle-preview.html` to see the traffic and police bodies on a studio floor (`&rows=0,3` picks vehicles, `&views=6,2,1` the angles, `&paint=1` another colour, `&t=0.4` turns the wheels), and `http://localhost:8086/tools/heli-preview.html` for the helicopter from eight sides.
 
 ```bash
 node tools/touch.mjs             # emulated-touch test at 390×844
@@ -201,7 +201,7 @@ js/cue.js             THE cue sheet: timecodes, harmony, patterns — read by pi
 js/timeline.js        event log + 240 Hz fixed-step simulation (speed, brake, lanes, runs, home / restart, rewind)
 js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car and its grappler, the helicopter
 js/gameview.js        game layer and highway scenery: traffic, police, grappler, roadblock, helicopter, pickups, debris, city, gantries, billboards
-js/vehicles.js        the nine traffic and police vehicles after the vehicle studies: faceted hulls, boxes, wheels and lamps, one instanced mesh each
+js/vehicles.js        the eight traffic and police vehicles after the vehicle studies: lofted hulls with cut wheel arches, chamfered blocks, tube frames, turned wheels that spin, lettering; metallic paint, glass, trim and lamp materials; one instanced mesh each
 js/heli.js            the police helicopter: one lofted body (bubble, cabin, boom) with T-tail, skids, searchlight, gun pods and blurred rotor discs
 js/director.js        pure choreography: (T, events, viewport) → frame description
 js/world.js           sky/sun, grid, wireframe mountains, palms, light trails (GLSL)

@@ -19,6 +19,66 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 27: the vehicles remodelled, with metal and glass
+
+You asked for the RAZOR to go, and for the other vehicles to be modelled to the standard of the player's car and of the study sheets, with metal and glass that look like metal and glass. The player's car is untouched.
+
+**The RAZOR is gone.** A car in traffic is now a MONOLITH or a NOMAD, in four paints each. Eight vehicles remain.
+
+**The models** (`js/vehicles.js`, rewritten again). Revision 26 built each vehicle from a few six-cornered boxes, 300 to 600 flat faces. Each is now 4,500 to 11,500 triangles, built the way the sheets are drawn:
+
+| What | How it is made now |
+|---|---|
+| Bodies | Hulls lofted through sections with a sill, dark cladding, a crease at the waist and a chamfered shoulder. The wheel arches are cut out of the section, so you look into a wheel well. |
+| Round bodies | The FIREFLY and the ORBIT are smooth: fifty to seventy sections each, shaded round, with crisp edges only where the sheet has them. |
+| Arches | Flat-faced flares stand proud of the flank on the NOMAD, WARDEN, RELAY, MULE and LEVIATHAN; a thin lip on the MONOLITH; yellow bulges on the FIREFLY. |
+| Wheels | Turned on a lathe: a tyre with shoulders and a tread groove, a bright rim lip, then a flat cover (MONOLITH, FIREFLY, ORBIT), six heavy spokes and a lugged tyre (NOMAD, WARDEN, MULE) or a deep dish round a hub (RELAY, LEVIATHAN). They turn as the vehicle drives. |
+| Details | Chamfered blocks for bumpers, lamp bezels, mirrors, roof cases and light pods; round tube for the MULE's frame and bull bar; shut lines for doors, bonnets and cargo panels; slats, vents, door handles, lock rods. |
+| Lettering | POLICE along both sides of the WARDEN and across its tail, TAXI on the FIREFLY's sign, hazard stripes under the WARDEN's push bumper and on the RELAY's coupling. |
+
+What each one gained, against its sheet:
+
+- **02 MONOLITH**: round arches, flat wheel covers, grille in a frame between the bracket lamps, the light bar set in a slot, door lines and handles.
+- **04 NOMAD**: flared arches, lugged tyres, slats over the rear quarter glass, rails and three strapped cases on the roof, corner-bracket tail lamps in bezels, a heavy bumper each end.
+- **05 FIREFLY**: a rounded pod with yellow hoops round the door glass and the windscreen, a black tail panel with the two red rings, the arrow and chevrons on the doors, the lit TAXI sign.
+- **06 WARDEN**: a wedge with grey arch armour, white doors with POLICE and three slashes, a red pod and a blue pod, fins on the rear deck, twin red bars either side of POLICE on the tail, the push bumper over hazard stripes.
+- **07 RELAY**: an eight-sided pale pod with drawn-in ends, the red arch split by the door seam, wheel pods on a low chassis, a wedge cab with square headlamps, the sensor mast.
+- **08 MULE**: six lugged wheels, the orange tube frame round a ribbed bed, the headboard hoop, a generator with its pipe, the bull bar, square-bracket tail lamps on corner posts.
+- **09 LEVIATHAN**: five raised bands round the container, lock rods and the two red slashes on the doors, amber top corners, side skirts and markers, a cab with a cyan visor, vents and steps, twelve wheels.
+- **10 ORBIT**: one smooth volume, the glass band wrapping into the windscreen, stacked red lamps in bezels, mirrors on arms, and a lit cabin behind the glass.
+
+**The materials** (one shader, a material on every face):
+
+| Material | What it does |
+|---|---|
+| Metallic paint | The paint's own colour lit by the sky; a clear coat that mirrors the sky, the horizon's glow and the road's lines, more strongly at glancing angles; the same scene reflected again tinted by the metal; flake that sparkles towards the horizon; a soft sheen so dark paints keep their shape. This is the paint model of the player's car. |
+| Glass | Black, mirroring the sky more the flatter you look along it. On the ORBIT and the FIREFLY a lit cabin sits behind it: seat backs and, in the coach, amber strips under the ceiling, placed half a metre inside so they shift as you pass. |
+| Satin trim, bright metal, rubber | Cladding and bumpers with a faint sheen; rim lips and wheel covers that mirror the scene; tyres that only catch light at the edges. |
+| Lamps | Tail lamps, head lamps, markers, police pods and the taxi sign, set in dark bezels. |
+
+Recesses (wheel wells, shut lines, the undersides) are shaded darker, and every body darkens towards the road.
+
+**Checks**
+
+| Check | Result |
+|---|---|
+| Studio views (`tools/vehicle-preview.html`) | all eight looked at from the front quarter, the side, the rear quarter and behind, and compared with the sheets |
+| In-game frames (`tools/seq.mjs`, `tools/scenes.mjs`) | MONOLITH, NOMAD, FIREFLY, RELAY, MULE, LEVIATHAN and the WARDEN seen on the road at 1600×900, near and far |
+| `tools/game-test.mjs` | 61/61 (the rules are untouched) |
+| `tools/game-ui.mjs`, `tools/interact.mjs`, `tools/touch.mjs`, `tools/auto-env-test.mjs` | 43/43, 46/46, 9/9, 8/8, no console errors |
+| `tools/perf.mjs`, 1920×1080 | traffic 6.0 ms median, 9.0 ms 95th percentile per frame (6.3 / 8.0 before) |
+| Building the eight models at start-up | about 0.2 s on this machine |
+| `tools/smoke.mjs` | the Pages build and both single files load a three-star moment without errors |
+
+**Limits**
+
+- These are still models built in code, not sculpted ones. They follow the sheets in silhouette, proportions, colours, lights and the main details; the sheets' fine surface work (weathering, bolts, the panel breakup on every face, seats modelled behind the glass) is not there.
+- The LEVIATHAN's cab is the least like its sheet: simpler in the nose and the side window.
+- The wheels all turn at one pace, not each at its vehicle's own speed.
+- The ORBIT was not seen in the in-game frames I captured, only in the studio views.
+- Start-up on a phone will take longer than the 0.2 s measured here; I did not measure it on one.
+- Not played by me.
+
 ## Revision 26: the vehicles from the studies
 
 You sent two sheets of vehicle studies (01–10) and said the player's car stays as it is. The nine others replace everything I had on the road, including the neon-edged look of Revision 25.
