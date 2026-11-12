@@ -19,13 +19,88 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 29: faster and harder, fewer nitro canisters, and a quieter coin
+
+You asked for more difficulty and a higher top speed; then said the pickup sound of Revision 28 was too loud and not pleasant, and to model it on the sounds of good games; then asked for fewer nitro canisters, so that the player is not always quickly back at one star. The game values are in `GAME` in `js/cue.js`.
+
+**Speed.**
+
+| | Before | Now |
+|---|---|---|
+| Gear 1 → gear 6 | 130 → 230 MPH (54 → 96 units/s) | 139 → 269 MPH (58 → 112 units/s) |
+| Past gear 6 | creeps up to 278 MPH (+1 unit/s per 1,000 units, up to +20) | creeps up to 336 MPH (+1 per 800 units, up to +28) |
+| Gears engage at | 0.8, 2.0, 3.6, 5.6, 8.0 km | 0.6, 1.5, 2.8, 4.4, 6.4 km |
+| Top gear reached (bot, mean of 8 runs) | 111 s into the run | 79 s |
+| Distance covered in 5 minutes (bot) | 27.9 km | 34.6 km |
+
+A nitro burst is still ×1.85 on top of that. Traffic still drives at 46 % of your cruising speed, so it is faster too (64 → 124 MPH).
+
+**Difficulty.**
+
+| | Before | Now |
+|---|---|---|
+| Time between rows of traffic (gear 1 → 6) | 1.10 → 0.72 s | 1.05 → 0.68 s |
+| Two stars after | 3 km (49 s for the bot) | 2 km (30 s) |
+| Three stars after | 7.5 km (105 s) | 5 km (65 s) |
+| Share of rows that are police, at ★★ / ★★★ | 12 % / 18 % | 18 % / 26 % |
+| Of those, weaving cruisers | 40 % / 50 % | 50 % / 60 % |
+| Police rows met in 5 minutes (bot) | 26 | 43 |
+| Grappler runs come every | 3.5 to 5.5 s | 3 to 4.8 s |
+| Helicopter | 2 attacks a visit, back after 14 to 22 s | up to 3 a visit, back after 10 to 16 s |
+
+**Nitro canisters.** The third burst clears the heat, so how often canisters come decides how often you are back at one star. The first one still comes about 15 s into a run (it is the second chance after a hit). After that they are twice as far apart: one every 1,800 to 2,700 units gained on the traffic (was 900 to 1,500), which in top gear is one every 30 to 45 s.
+
+Measured with the bot that takes every canister and fires it at once, 12 runs of 5 minutes, both at the new speeds:
+
+| | Canisters every 900–1,500 | Now, every 1,800–2,700 |
+|---|---|---|
+| Canisters picked up in 5 minutes | 9.2 | 5.0 |
+| Heat cleared in 5 minutes | 2.7 times | 1.4 times |
+| Time at ★ / ★★ / ★★★ | 17 % / 30 % / 53 % | 12 % / 23 % / 66 % |
+
+**What stays fair.** The bar is unchanged: the bot (no nitro) drives 40 different roads for 5 minutes each without a single hit. Tightening the rows further failed that bar (0.64 s in top gear: 4 of 40 runs took a hit; 0.60 s: 8 of 40), so 0.68 s is where it stops.
+
+**The pickup sound, again** (`Coin` in `js/audio/synth.js`). The chime of Revision 28 is gone: it peaked at 0.16 of full scale, a sine with a metallic attack, a new note on top of the last one five to seven times a second, climbing a scale. The new one follows the pattern of the classic arcade coin:
+
+| What | How |
+|---|---|
+| The notes | A short B5 (55 ms), then a jump up a fourth to E6 that rings out over about 0.17 s. The same two notes every time. |
+| The tone | A softened square wave: the first three odd harmonics, no metallic attack. |
+| One at a time | The next pickup cuts the one before off within 6 ms, so a line of cells is a row of clean pings with only the last one ringing out. |
+| The level | Peak 0.05 of full scale (0.056 at the instant one cuts another off), about 10 dB below the chime it replaces and level with the other small effects. |
+
+It is synthesised here, written after that pattern; no audio from another game is used, since those recordings are not free to copy.
+
+**Other changes that follow from the speed.**
+
+- The colour presets change every 40 s or 3,500 road units (was 2,900), so the moods keep their pace at the higher speeds.
+- `CANONICAL`, the reference run, is recorded again on the new traffic (clean, two nitro bursts, three stars).
+- `tools/game-test.mjs`: the traffic-pace check now allows for a gear step of 12 units/s (it was written for steps of 9).
+
+**Checks.**
+
+| Check | Result |
+|---|---|
+| Bot soak, no nitro, 40 seeds × 300 s | 40/40 without a hit |
+| Bot soak firing nitro, 40 seeds × 300 s | 36/40 without a hit (38/40 before this revision). The nitro bot is not the bar: it fires blind and then has to find its way at ×1.85. |
+| `tools/game-test.mjs` | 61/61. The canister check now drives 240 s instead of 150, since canisters are further apart. |
+| `tools/game-ui.mjs`, `interact.mjs`, `touch.mjs`, `auto-env-test.mjs` | 44/44, 46/46, 9/9 and 8/8; no console errors. |
+| Smoke test of the built pages | The Pages build and both single files load and replay a run to three stars without errors. |
+| Looked at | Three in-game frames at 293 to 300 MPH in gear 6 with three stars: road, traffic, police, helicopter and HUD draw as before. |
+
+**Limits.**
+
+- The helicopter and the grappler are allowed to attack more often, but in the bot's runs they did not: about 6 searchlight locks in 5 minutes before and after, and 2 grappler warnings against 3. They wait for a moment when a lane beside you is clear, and with more police ahead there are fewer such moments. The extra difficulty you will feel is the speed, the earlier gears and stars, and the police on the road ahead.
+- How hard it feels to a person is not something the bot measures. I did not play it by hand.
+- I measured the pickup sound (level, pitch, that one cuts the other off) but did not listen to it.
+
 ## Revision 28: the roadside phone removed, a chime for the cells
 
 You pointed at the yellow post beside the road and asked for it to go, and asked for a sound when a diamond is picked up.
 
 **The yellow post is gone.** It was the orange emergency phone that stood left of the rail every 640 units (a dark box with lit edges and a glowing cap). Nothing replaces it; the reflector posts, the roadside signs, the gantries and the billboards stay.
 
-**The cells now ring.** There was a sound for them before, but you could not hear it: a 35 ms blip at a third of the level of the other effects. It is replaced (`Coin` in `js/audio/synth.js`):
+**The cells now ring.** (This chime was replaced in Revision 29: too loud, not pleasant.) There was a sound for them before, but you could not hear it: a 35 ms blip at a third of the level of the other effects. It is replaced (`Coin` in `js/audio/synth.js`):
 
 | What | How |
 |---|---|

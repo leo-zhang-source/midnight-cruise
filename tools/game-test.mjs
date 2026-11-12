@@ -166,9 +166,9 @@ let crashT;
   const tl = fresh(); tl.add('lane', C + 5, { dir: 1 });
   tl.add('turbo', C + 5.5);
   ok('nitro is refused with no canister in stock', tl.turboAt(C + 6) === null && tl.turboReady(C + 6) === 0 && tl.stateAt(C + 6).g.nstock === 0);
-  const r = play(7, 150, { nitro: true, seek: true });
+  const r = play(7, 240, { nitro: true, seek: true });   // canisters are 30 to 45 s apart in top gear, and not every one can be reached
   const t2 = new Timeline(); t2.load(r.ev);
-  const ev = t2.gameEvents(0, C + 150), items = ev.filter((e) => e.k === 'item'), ns = t2.nitros(C + 150);
+  const ev = t2.gameEvents(0, C + 240), items = ev.filter((e) => e.k === 'item'), ns = t2.nitros(C + 240);
   ok('canisters are picked up on the road and can be fired', items.length >= 2 && ns.length >= 1 && ns.length <= items.length, `${items.length} picked up, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
   const n0 = ns[0], st = t2.stateAt(n0.I + 1.0), basev = t2.stateAt(n0.p - 0.1).vel;
   ok('nitro impact lands on the half-beat grid, 0.2–0.45 s after the press', n0.I - n0.p >= 0.2 - 1e-9 && n0.I - n0.p <= 0.45 + 1e-9 && Math.abs(((n0.I - C) / 0.25) - Math.round((n0.I - C) / 0.25)) < 1e-6, `wind-up ${(n0.I - n0.p).toFixed(3)} s`);
@@ -205,7 +205,7 @@ let crashT;
   const record = (tl, log = new Map()) => {              // every vehicle's track, sampled 50 times a second
   for (let T = C + 4; T < C + 200; T += H) {
     const st = tl.stateAt(T), g = st.g, lr = laneRate(g, st.vel); if (st.over) break;
-    for (let i = 0; i < NV; i++) { const o = i * VF; if (!g.veh[o]) continue; const id = g.veh[o + 8]; if (!log.has(id)) log.set(id, []); log.get(id).push({ T, id, type: g.veh[o], lane: g.veh[o + 1], dz: g.veh[o + 2] - g.gd, vt: g.vt, lr, base: GAME.gears[g.gear], v: g.veh[o + 3], hl: g.veh[o + 4], fl: g.veh[o + 5], a: g.veh[o + 6], b: g.veh[o + 7] }); }
+    for (let i = 0; i < NV; i++) { const o = i * VF; if (!g.veh[o]) continue; const id = g.veh[o + 8]; if (!log.has(id)) log.set(id, []); log.get(id).push({ T, id, type: g.veh[o], lane: g.veh[o + 1], dz: g.veh[o + 2] - g.gd, vt: g.vt, lr, base: gameBase(g), v: g.veh[o + 3], hl: g.veh[o + 4], fl: g.veh[o + 5], a: g.veh[o + 6], b: g.veh[o + 7] }); }
   }
   return [...log.values()]; };
   const tracks = record(tl), of = (type) => tracks.filter((t) => t[0].type === type && t[0].dz > 200 && t[t.length - 1].dz < 0);
@@ -213,7 +213,7 @@ let crashT;
   const ahead = cars.flatMap((t) => t.filter((q) => q.dz > 0)), mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
   const byLane = [-1, 0, 1].map((l) => mean(ahead.filter((q) => q.lane === l).map((q) => q.v - q.vt)));
   ok('traffic keeps pace with the road: 46 % of our cruising speed, each vehicle within 1.6 of its lane\'s speed',
-    cars.length > 100 && ahead.every((q) => Math.abs(q.v - q.vt - laneV(q.lane) * q.lr) < 1.6 && Math.abs(q.vt - GAME.trafficK * q.base) < GAME.trafficK * 10),
+    cars.length > 100 && ahead.every((q) => Math.abs(q.v - q.vt - laneV(q.lane) * q.lr) < 1.6 && Math.abs(q.vt - GAME.trafficK * q.base) < GAME.trafficK * 13),   // it eases up to each new gear: never more than one gear step (12 u/s) behind
     `${cars.length} vehicles tracked, ${Math.min(...ahead.map((q) => q.v)).toFixed(1)} … ${Math.max(...ahead.map((q) => q.v)).toFixed(1)} u/s over the run`);
   ok('each lane has its own speed: the left lane overtakes the middle, the middle overtakes the right', Math.abs(byLane[0] - GAME.laneDv) < 0.3 && Math.abs(byLane[1]) < 0.3 && Math.abs(byLane[2] + GAME.laneDv) < 0.3, `left ${byLane[0].toFixed(2)}, middle ${byLane[1].toFixed(2)}, right ${byLane[2].toFixed(2)} u/s against the middle lane`);
   // … and still every row is lined up when we reach it: two vehicles spawned as one row pass us within a car's length of each other

@@ -41,11 +41,11 @@
   };
   var TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
   var ENV_XFADE = 1.6;
-  var AUTO_ENV = { time: 40, dist: 2900 };
+  var AUTO_ENV = { time: 40, dist: 3500 };
   var GAME = {
     mph: 2.4,
     // speedometer: road units per second → MPH
-    // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (60 MPH in gear 1, 106 in gear 6), and
+    // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (64 MPH in gear 1, 124 in gear 6), and
     // each lane has its own speed — the left lane laneDv faster than the middle, the right lane laneDv slower — so cars
     // overtake each other all the time. A vehicle starts behind or ahead of its row by what its lane will gain or lose, and the
     // lanes' speed difference follows how fast you are closing, so every row is lined up when you reach it — on the brake,
@@ -55,12 +55,12 @@
     trafficEase: 2,
     breathe: 1.5,
     // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
-    gears: [54, 61, 69, 78, 87, 96],
+    gears: [58, 67, 77, 88, 100, 112],
     // cruising speed per gear
-    gearAt: [0, 800, 2e3, 3600, 5600, 8e3],
+    gearAt: [0, 600, 1500, 2800, 4400, 6400],
     // run distance at which each gear engages
-    creep: [1e3, 20],
-    // past the last gear: +1 u/s per 1000 units, up to +20
+    creep: [800, 28],
+    // past the last gear: +1 u/s per 800 units, up to +28
     brakeMul: 0.55,
     brakeLinger: 2.2,
     // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
@@ -70,14 +70,14 @@
     nitroGrace: 0.7,
     nitroMax: 3,
     nitroFirst: 480,
-    nitroEvery: [900, 1500],
+    nitroEvery: [1800, 2700],
     nitroFree: 7,
-    // (distances measured against the traffic: the first after about 17 s)
+    // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
     ahead: 340,
     firstRow: 175,
     despawn: 30,
     // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-    rowGap: [1.1, 0.72],
+    rowGap: [1.05, 0.68],
     // seconds between rows at the gear's closing speed (gear 1 → 6)
     nearT: 0.32,
     draftT: 0.9,
@@ -102,8 +102,8 @@
     // Wanted level. Stars come slowly: two after star2At of road, three after star3At, counted from the last time the heat was
     // cleared; a hit adds half a star (so does ramming a cruiser in a nitro burst). The third nitro burst clears the heat: back to
     // one star, and the road count starts again. Heat from hits cools by a star every heatDecay s once heatHold s pass quietly.
-    star2At: 3e3,
-    star3At: 7500,
+    star2At: 2e3,
+    star3At: 5e3,
     nitroClear: 3,
     heatSwipe: 0.5,
     heatSmash: 0,
@@ -120,7 +120,7 @@
     chaseRam: 0.6,
     // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
     ramFirst: 4,
-    ramEvery: [3.5, 5.5],
+    ramEvery: [3, 4.8],
     ramWarn: 1.1,
     ramV: 26,
     ramBack: 34,
@@ -131,7 +131,7 @@
     clearAfter: 1.3,
     holdOff: 3,
     // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-    blockP: [0, 0, 0.12, 0.18],
+    blockP: [0, 0, 0.18, 0.26],
     // share of rows that are police units ahead of you, by star
     // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
     // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
@@ -145,7 +145,7 @@
     blockAt: 1.3,
     blockSlow: 9,
     blockDecel: 14,
-    weaveP: [0, 0, 0.4, 0.5],
+    weaveP: [0, 0, 0.5, 0.6],
     weaveHold: 0.45,
     weaveMove: 1.4,
     weaveLock: 1.25,
@@ -153,9 +153,9 @@
     weaveWarn: 3,
     // the helicopter comes and goes: it flies in, settles for heliSettle s, makes heliPasses attacks drEvery s apart, flies off,
     // and is back heliAway s later
-    heliPasses: 2,
+    heliPasses: 3,
     heliSettle: 2.5,
-    heliAway: [14, 22],
+    heliAway: [10, 16],
     drEvery: 3.5,
     drWarn: 1.2,
     drStrike: 0.45,
@@ -987,7 +987,7 @@
       cel[o + 4] |= bit;
       g.cells++;
       g.score += G.ptsCell * mult;
-      out.push({ k: "cell", i: k });
+      out.push({ k: "cell" });
       if (g.cells % G.tapeEvery === 0) out.push({ k: "tape" });
     }
     const itm = g.itm;
@@ -2348,7 +2348,6 @@
       return true;
     }
   };
-  var CELL_NOTES = [81, 84, 86, 88, 91, 93, 96, 98];
   var Tape = class extends Voice {
     // cassette engage + motor spin-up
     constructor(s, o) {
@@ -2454,25 +2453,30 @@
     }
   };
   var Coin = class extends Voice {
-    // an energy cell picked up: a glassy ping with a struck attack; its note is the cell's place in its line
-    constructor(s, o, n, amp = 0.13, pan = 0) {
+    // an energy cell picked up, after the classic arcade coin: a short note, then a jump up a fourth that rings out.
+    // One at a time: the next pickup cuts this one off, so a line of cells is a row of clean pings, not a pile of them.
+    constructor(s, o, amp = 0.055) {
       super(s, o);
-      this.f = mtof(n);
       this.amp = amp;
-      this.pc = 0;
-      this.pm = 0;
-      this.l = panL(pan) * Math.SQRT2;
-      this.r = panR(pan) * Math.SQRT2;
+      this.ph = 0;
+      this.end = Infinity;
+    }
+    cut(o) {
+      this.end = Math.min(this.end, this.n + o);
     }
     tick(B, i, t) {
-      this.pc += this.f / SR;
-      this.pm += this.f * 2 / SR;
-      const body = sin(TAU2 * this.pc + sin(TAU2 * this.pm) * 1.5 * exp(-t / 0.018)) * exp(-t / 0.1);
-      const air = sin(TAU2 * this.pc * 2) * 0.3 * exp(-t / 0.045);
-      const y = (body + air) * Math.min(1, t / 12e-4) * this.amp;
-      B.sfxL[i] += y * this.l;
-      B.sfxR[i] += y * this.r;
-      return t < 0.7;
+      const hi = t >= 0.055, u = hi ? t - 0.055 : t;
+      this.ph += (hi ? 1318.5 : 987.8) / SR;
+      if (this.ph > 1) this.ph -= 1;
+      const env = hi ? exp(-u / 0.17) * (0.8 + 0.2 * Math.min(1, u / 3e-3)) : 0.8 * Math.min(1, t / 2e-3);
+      const a = TAU2 * this.ph;
+      let y = (sin(a) + 0.3 * sin(3 * a) + 0.12 * sin(5 * a)) * env * this.amp;
+      const k = (this.n - this.end) / (6e-3 * SR);
+      if (k >= 1) return false;
+      if (k > 0) y *= 1 - k;
+      B.sfxL[i] += y;
+      B.sfxR[i] += y;
+      return t < 0.9;
     }
   };
   var Click = class extends Voice {
@@ -2878,11 +2882,10 @@
           v = new Squeal(s, o, 1.25, false);
           break;
         // game
-        case "cell": {
-          const k = Math.max(0, Math.min(CELL_NOTES.length - 1, n.n | 0));
-          v = new Coin(s, o, CELL_NOTES[k], 0.1, k % 2 ? 0.22 : -0.22);
+        case "cell":
+          if (this.coin) this.coin.cut(o);
+          v = this.coin = new Coin(s, o);
           break;
-        }
         case "near":
           v = new Whoosh(s, o, 0.45);
           this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
@@ -2989,7 +2992,7 @@
       for (const e of tl.events) {
         if (e.type !== "sfx") continue;
         if (this._sx(e.t) >= f1) break;
-        this._once("s" + e.seq, e.t, f0, f1, (o) => this.trigger({ i: e.name, n: e.n }, o));
+        this._once("s" + e.seq, e.t, f0, f1, (o) => this.trigger({ i: e.name }, o));
       }
     }
     _once(key, t, f0, f1, fn) {

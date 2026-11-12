@@ -49,27 +49,27 @@ export const IGN = {
 export const TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
-export const AUTO_ENV = { time: 40, dist: 2900 };
+export const AUTO_ENV = { time: 40, dist: 3500 };
 // ── The game: a police chase down the highway into the city (all values in road units and seconds) ──
 // Same-direction traffic shares ONE speed, so formations never close up and a row that was passable when it was
 // generated stays passable. The car always drives flat out; the brake buys reaction time but lets the police close in.
 export const GAME = {
   mph: 2.4,                                      // speedometer: road units per second → MPH
-  // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (60 MPH in gear 1, 106 in gear 6), and
+  // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (64 MPH in gear 1, 124 in gear 6), and
   // each lane has its own speed — the left lane laneDv faster than the middle, the right lane laneDv slower — so cars
   // overtake each other all the time. A vehicle starts behind or ahead of its row by what its lane will gain or lose, and the
   // lanes' speed difference follows how fast you are closing, so every row is lined up when you reach it — on the brake,
   // at cruising speed or in a nitro burst alike.
   trafficK: 0.46, laneDv: 3, trafficEase: 2,
   breathe: 1.5,                                  // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
-  gears: [54, 61, 69, 78, 87, 96],               // cruising speed per gear
-  gearAt: [0, 800, 2000, 3600, 5600, 8000],    // run distance at which each gear engages
-  creep: [1000, 20],                             // past the last gear: +1 u/s per 1000 units, up to +20
+  gears: [58, 67, 77, 88, 100, 112],             // cruising speed per gear
+  gearAt: [0, 600, 1500, 2800, 4400, 6400],    // run distance at which each gear engages
+  creep: [800, 28],                              // past the last gear: +1 u/s per 800 units, up to +28
   brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
-  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [900, 1500], nitroFree: 7,   // (distances measured against the traffic: the first after about 17 s)
+  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-  rowGap: [1.1, 0.72],                            // seconds between rows at the gear's closing speed (gear 1 → 6)
+  rowGap: [1.05, 0.68],                           // seconds between rows at the gear's closing speed (gear 1 → 6)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
   taxiAt: 1.8, taxiBlink: 0.45, taxiMove: 0.85,  // a taxi (or a crossing cruiser) signals 1.8 s before you reach it, then steers across one lane: in place 0.5 s ahead of you
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
@@ -82,11 +82,11 @@ export const GAME = {
   // Wanted level. Stars come slowly: two after star2At of road, three after star3At, counted from the last time the heat was
   // cleared; a hit adds half a star (so does ramming a cruiser in a nitro burst). The third nitro burst clears the heat: back to
   // one star, and the road count starts again. Heat from hits cools by a star every heatDecay s once heatHold s pass quietly.
-  star2At: 3000, star3At: 7500, nitroClear: 3,
+  star2At: 2000, star3At: 5000, nitroClear: 3,
   heatSwipe: 0.5, heatSmash: 0, heatCruiser: 0.5, heatHold: 10, heatDecay: 12,
   stumbleGrace: 1.2, hitInv: 1.0, hitRest: 2.5, polClose: 6.5, polFar: 19, chaseZ: 8.5, chaseX: 2.4, chaseRam: 0.6,   // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
-  ramFirst: 4, ramEvery: [3.5, 5.5], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.5, ramOwn: 1.8, clearAfter: 1.3, holdOff: 3,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-  blockP: [0, 0, 0.12, 0.18],                      // share of rows that are police units ahead of you, by star
+  ramFirst: 4, ramEvery: [3, 4.8], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.5, ramOwn: 1.8, clearAfter: 1.3, holdOff: 3,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
+  blockP: [0, 0, 0.18, 0.26],                      // share of rows that are police units ahead of you, by star
   // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
   // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
   // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
@@ -94,10 +94,10 @@ export const GAME = {
   // shiftP: share of rolling roadblocks (of those with a cruiser in the middle lane), by star, in which that cruiser steers across into
   // the open side lane as you close in, timed like a taxi: the middle lane becomes the way through
   stagger: [3.5, 6.5], echelon: [3, 5], shiftP: [0, 0, 0.5, 0.6],
-  blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.4, 0.5], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
+  blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.5, 0.6], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
   // the helicopter comes and goes: it flies in, settles for heliSettle s, makes heliPasses attacks drEvery s apart, flies off,
   // and is back heliAway s later
-  heliPasses: 2, heliSettle: 2.5, heliAway: [14, 22],
+  heliPasses: 3, heliSettle: 2.5, heliAway: [10, 16],
   drEvery: 3.5, drWarn: 1.2, drStrike: 0.45, drClear: 2.1,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
