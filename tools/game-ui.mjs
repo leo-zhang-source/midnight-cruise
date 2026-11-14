@@ -67,11 +67,11 @@ async function wreck(p, touch, once) {
   // no brake: Space does nothing while driving, and there is no BRAKE key
   const v1 = (await gs(p)).vel; await p.keyboard.down('Space'); st = await drive(p, 900); s = await gs(p); await p.keyboard.up('Space');
   ok('there is no brake: holding Space does not slow the car, no BRAKE key on screen', s.vel >= v1 - 0.5 && !s.over && !(await p.$('#brake')), `v=${Math.round(v1)} → ${Math.round(s.vel)}`);
-  // cells are taken in silence now (the coin sound is off); traffic going by in the next lane is heard
+  // cells are taken in silence (the coin sound is off), and so is traffic going by
   const sfx = async (re) => p.evaluate((src) => MC.events().filter((e) => e.type === 'sfx' && new RegExp(src).test(e.name)).length, re);
   let cells = (await gs(p)).cellsN; for (let i = 0; i < 8 && cells < 6; i++) { await drive(p, 1000); cells = (await gs(p)).cellsN; }
   ok('taking cells makes no sound', cells >= 6 && (await sfx('^(cell|coin)$')) === 0, `${cells} cells taken`);
-  ok('a vehicle passing in the next lane is heard on its side', (await sfx('^pass')) >= 1, `${await sfx('^pass')} so far`);
+  ok('… and traffic going by makes no whoosh either', (await sfx('^pass')) === 0);
   // crash → EJECT panel → rewind
   await wreck(p);
   s = await gs(p); ok('driving into traffic until the run ends: the panel (WRECKED by a vehicle, BUSTED if the police got there first) with the score, REWIND focused', (s.over === 1 || s.over === 2) && s.panel && s.title === (s.over === 1 ? 'WRECKED' : 'BUSTED') && s.ovScore === s.hudScore && s.ovScore !== '0' && s.focus === 'revive' && !s.pauseBtn, `score ${s.ovScore} (HUD ${s.hudScore}), over ${s.over}, panel ${s.panel}, title ${s.title}, focus ${s.focus}`);

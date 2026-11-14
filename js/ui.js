@@ -164,7 +164,6 @@ export class UI {
     for (const e of evs) {
       const k = e.k;
       if (k === 'near') this.sfx('near');
-      else if (k === 'pass') this.sfx('pass' + (e.big ? 'B' : '') + (e.side < 0 ? 'L' : 'R'));
       else if (k === 'smash') this.sfx('smash', { pan: r2(pan(e.lane)), v: e.type >= 5 ? 1.05 : e.type === 3 ? 1 : 0.85 });
       else if (k === 'wreck') this.sfx('wreck', { pan: r2(pan(e.lane)) });
       else if (k === 'shake') this.sfx('chime');

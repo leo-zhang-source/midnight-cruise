@@ -19,6 +19,14 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 36: the heavy crash back, no pass-by whoosh
+
+- **The crash sound is the Revision 34 one again**, the heavier, duller crunch (smash: centroid 2.4 kHz, −19.2 dB over its first 0.3 s; wreck and crash 1.9–2.5 kHz, −13 dB), with the impact and sub boom under it at their old levels. Measured identical to Revision 34.
+- **The rush of a car passing in the next lane is removed.** The game still notes each pass (for the score and tests); nothing is played for it. The road wind under the engine stays.
+- Everything else from Revision 35 stays: no attack countdowns, no dodge swish, the stronger hits, full force with reduced motion.
+
+Checked: game-test 82, game-ui 43 (its pass-by check now checks for silence), interact 41, touch 8, auto-env-test 7, all pass; the smoke test passes on all three built pages.
+
 ## Revision 35: a brighter crash, two sounds gone, hits at full force everywhere
 
 | Asked for | Done |

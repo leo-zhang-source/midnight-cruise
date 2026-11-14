@@ -414,35 +414,32 @@ class Skid extends Voice { // tyres: a cruiser swerving hard across a lane
 // Everything here is drawn from noise, sines and a few resonances: no samples. Each takes a pan (−1 left … +1 right) so a hit
 // is heard where it happened, and the big ones duck the music for a moment (see Synth.duck).
 const rnd01 = (r) => r.next() * 0.5 + 0.5;
-class Crunch extends Voice { // a vehicle hit hard. Bright and sharp, not a thud: a hard crack, a bang of crushed panels in the upper mids,
-  // sheet metal ringing at its own inharmonic pitches, a shower of glass, debris rattling down — over a short, tight low punch. Driven
-  // into a soft clip so it lands dense and loud
+class Crunch extends Voice { // a vehicle hit hard: a body thump, a crack, sheet metal ringing, glass, debris rattling down
   constructor(s, o, v = 1, pan = 0, big = 0) {
     super(s, o); this.v = v; this.big = big; this.l = panL(pan * 0.75); this.r = panR(pan * 0.75);
     const R = this.rn = new RNG(s.seed());
-    this.hp = new SVF(); this.hp.set(3000, 0.7); this.bang = new SVF(); this.bang.set(big ? 1500 : 1900, 1.1); this.lp = new SVF(); this.lp.set(big ? 3200 : 4200, 0.7);
-    this.air = new SVF(); this.air.set(7500, 0.8); this.ph = 0; this.gate = 1;
-    const base = [520, 830, 1260, 1790, 2470, 3330, 4410, 5650];
-    this.md = base.map((f) => [f * (0.85 + 0.3 * rnd01(R)) * (big ? 0.88 : 1), (0.04 + 0.2 * rnd01(R)) * (big ? 1.6 : 1), 0.5 + 0.5 * rnd01(R), rnd01(R) * TAU]);
-    this.gl = []; for (let k = 0; k < (big ? 26 : 14); k++) this.gl.push([0.004 + Math.pow(rnd01(R), 1.8) * (big ? 0.8 : 0.4), 3200 + 6500 * rnd01(R), 0.4 + 0.6 * rnd01(R)]);
-    this.len = big ? 2.0 : 1.0;
+    this.hp = new SVF(); this.hp.set(big ? 1400 : 2000, 0.7); this.lp = new SVF(); this.lp.set(big ? 700 : 1100, 0.8); this.ph = 0; this.gate = 1;
+    // the metal: inharmonic modes, each with its own decay (sheet steel and plastic, a little lower and longer for the big one)
+    const base = [312, 517, 788, 1144, 1690, 2380, 3210];
+    this.md = base.map((f) => [f * (0.82 + 0.36 * rnd01(R)) * (big ? 0.78 : 1), (0.05 + 0.22 * rnd01(R)) * (big ? 1.7 : 1), 0.5 + 0.5 * rnd01(R), rnd01(R) * TAU]);
+    // the glass: a few tinkles, spread over the first moments
+    this.gl = []; for (let k = 0; k < (big ? 11 : 6); k++) this.gl.push([0.015 + Math.pow(rnd01(R), 1.6) * (big ? 0.7 : 0.32), 2600 + 5200 * rnd01(R), 0.4 + 0.6 * rnd01(R)]);
+    this.len = big ? 2.4 : 1.1;
   }
   tick(B, i, t) {
     const R = this.rn, big = this.big, n = R.next();
-    this.ph += ((big ? 70 : 90) * (0.6 + 0.4 * exp(-t / 0.05))) / SR;
-    const punch = sin(TAU * this.ph) * exp(-t / (big ? 0.12 : 0.07)) * Math.min(1, t / 0.001) * (big ? 0.55 : 0.4);
-    const crack = this.hp.hp(n) * exp(-t / (big ? 0.03 : 0.018)) * 1.2 + this.air.hp(n) * exp(-t / 0.006) * 0.5;     // the hard transient, with a top
-    const bang = this.bang.bp(n) * exp(-t / (big ? 0.09 : 0.05)) * (big ? 1.4 : 1.1);                                // crushed panels: the body of it
-    if ((this.n & 255) === 0) this.gate = 0.2 + 0.8 * rnd01(R);
-    const crumble = this.lp.lp(n) * exp(-t / (big ? 0.45 : 0.22)) * this.gate * (big ? 0.45 : 0.3);
+    this.ph += ((big ? 58 : 74) * (0.55 + 0.45 * exp(-t / 0.09))) / SR;
+    const thump = sin(TAU * this.ph) * exp(-t / (big ? 0.34 : 0.17)) * Math.min(1, t / 0.0015) * (big ? 0.9 : 0.62);
+    const crack = this.hp.hp(n) * exp(-t / (big ? 0.022 : 0.011)) * (big ? 0.8 : 0.65);
+    if ((this.n & 511) === 0) this.gate = 0.25 + 0.75 * rnd01(R);                  // debris: the rattle comes in clumps
+    const crumble = this.lp.lp(n) * exp(-t / (big ? 0.6 : 0.28)) * this.gate * (big ? 0.5 : 0.32);
     let metal = 0;
-    for (const m of this.md) metal += sin(TAU * m[0] * t * (1 - 0.03 * Math.min(1, t / 0.12)) + m[3]) * m[2] * exp(-t / m[1]);
-    metal *= Math.min(1, t / 0.001) * (big ? 0.15 : 0.13);
+    for (const m of this.md) metal += sin(TAU * m[0] * t * (1 - 0.02 * Math.min(1, t / 0.15)) + m[3]) * m[2] * exp(-t / m[1]);
+    metal *= Math.min(1, t / 0.002) * (big ? 0.075 : 0.06);
     let glass = 0;
-    for (const g of this.gl) { const u = t - g[0]; if (u > 0 && u < 0.09) glass += sin(TAU * g[1] * u) * exp(-u / 0.018) * g[2]; }
-    let y = (punch + crack + bang + crumble + metal + glass * 0.22) * this.v * 0.95;
-    y = Math.tanh(y * 1.7) / 1.15;                                                                                    // driven: dense and loud
-    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r; B.rev[i] += (crack * 0.5 + metal + glass * 0.2) * this.v * 0.06;
+    for (const g of this.gl) { const u = t - g[0]; if (u > 0 && u < 0.12) glass += sin(TAU * g[1] * u) * exp(-u / 0.028) * g[2]; }
+    const y = (thump + crack + crumble + metal + glass * 0.07) * this.v * 0.62;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r; B.rev[i] += (crack + metal + glass * 0.07) * this.v * 0.05;
     return t < this.len;
   }
 }
@@ -690,8 +687,8 @@ export class Synth {
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
       case 'smash': v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0); this.duck(o, 0.32, 0.12); break;                    // a vehicle rammed in a nitro burst
       case 'swipe': v = new Scrape(s, o, 0.36, 1, n.pan || 0); this.voices.push(new Click(s, o, 0.9, 1)); this.duck(o, 0.25, 0.1); break;
-      case 'crashfx': v = new Crunch(s, o, 1.25, 0, 1); this.voices.push(new Impact(s, o, 0.5), new Squeal(s, o, 0.5, false)); this.duck(o, 0.6, 0.35); break;   // the run ends against a vehicle
-      case 'wreck': v = new Crunch(s, o, 1.1, n.pan || 0, 1); this.voices.push(new Sub(s, o, 0.25)); this.duck(o, 0.5, 0.22); break;   // ploughed through one: a life gone
+      case 'crashfx': v = new Crunch(s, o, 1.25, 0, 1); this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false)); this.duck(o, 0.6, 0.35); break;   // the run ends against a vehicle
+      case 'wreck': v = new Crunch(s, o, 1.1, n.pan || 0, 1); this.voices.push(new Sub(s, o, 0.45)); this.duck(o, 0.5, 0.22); break;   // ploughed through one: a life gone
       case 'bust': v = new Blip(s, o, 620, 610, 0.16, 0.09); this.voices.push(new Blip(s, o, 470, 465, 0.16, 0.09, 0, 0.18), new Blip(s, o, 310, 300, 0.4, 0.1, 0, 0.36)); break;
       case 'gear': v = new Shift(s, o); break;
       case 'siren': v = new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4); this.voices.push(new Blip(s, o, 1040, 780, 0.16, 0.05, 0.4, 0.26), new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4, 0.52), new Blip(s, o, 1040, 780, 0.2, 0.05, 0.4, 0.78)); break;
