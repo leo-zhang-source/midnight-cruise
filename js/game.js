@@ -289,7 +289,12 @@ function stumble(g, out, by) {
   g.combo = 0;
   if (g.lives < 2) { g.over = by === 'crash' ? 1 : 2; out.push({ k: by === 'crash' ? 'crash' : 'bust', by }); return true; }
   g.lives = 1; g.stG = gt + GAME.stumbleGrace;
-  g.ramNext = Math.max(g.ramNext, gt + GAME.hitRest); g.drNext = Math.max(g.drNext, gt + GAME.hitRest);   // a moment to recover before the next attack
+  // a moment to recover before the next attack — and the others break off: a warning or a lock still running is called off
+  // (a lunge or a swerve already under way cannot be; the grace after a hit covers those)
+  g.ramNext = Math.max(g.ramNext, gt + GAME.hitRest); g.drNext = Math.max(g.drNext, gt + GAME.hitRest); g.atkGap = Math.max(g.atkGap, gt + GAME.hitRest);
+  if (g.drT >= 0 && by !== 'heli') { g.drT = -1; out.push({ k: 'calloff' }); }
+  if (g.polM === P_WARN) g.polM = P_TAIL;
+  if (g.icM === I_TELL) { g.icM = I_LEAVE; g.icT = gt; }
   out.push({ k: 'stumble', by });
   return true;
 }

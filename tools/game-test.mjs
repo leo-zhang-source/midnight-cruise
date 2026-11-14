@@ -46,7 +46,7 @@ let crashT;
   const evs = tl.gameEvents(0, C + 30), hit1 = evs.find((e) => e.k === 'stumble'), end = evs.find((e) => e.k === 'over'), mid = tl.stateAt(hit1.t + 0.3);
   ok('driving straight on: the first vehicle costs a life (ploughed through, slowed, police on the tail)', hit1.by === 'crash' && evs.some((e) => e.k === 'wreck' && e.t === hit1.t) && mid.over === 0 && mid.g.lives === 1 && policeClose(mid.g) && mid.vel < GAME.gears[0] * 0.9, `at ${(hit1.t - C).toFixed(2)} s, ${mid.vel.toFixed(0)} u/s just after`);
   ok('… and the next hit ends the run', st.over !== 0 && end.t > hit1.t + GAME.stumbleGrace && Math.abs(st.vel) < 0.5, `${(end.t - hit1.t).toFixed(2)} s later (${st.over === 1 ? 'wrecked' : 'busted'})`);
-  ok('no attack starts in the three seconds after a hit', !evs.some((e) => (e.k === 'ramwarn' || e.k === 'lock') && e.t >= hit1.t && e.t < hit1.t + GAME.hitRest - 0.01));
+  ok('no attack starts in the two and a half seconds after a hit', !evs.some((e) => (e.k === 'ramwarn' || e.k === 'lock' || e.k === 'ictell') && e.t >= hit1.t && e.t < hit1.t + GAME.hitRest - 0.01));
   tl.add('lane', crashT + 0.3, { dir: 1 });
   ok('inputs are ignored while the run is over', tl.stateAt(crashT + 0.6).lane === 0);
   // home → start → a new run
@@ -200,6 +200,14 @@ let crashT;
   ok('warnings get shorter as the threat level rises', w0 > w1 + 0.15 && w1 >= GAME.react[1] + GAME.warn - 1e-9, `${w0.toFixed(2)} s at first, ${w1.toFixed(2)} s after five minutes`);
   ok('pincers: at five stars two units may attack together', of('pincer').length >= 1 && of('pincer').every((e) => e.t >= s5.t), `${of('pincer').length} times`);
   ok('the bot comes through five minutes of it untouched', r.stats.stumbles === 0 && !r.stats.over, `${atk.length} attacks, ${of('dodge').length} dodged`);
+  // a hit calls the others off: a lock or a warning still running when we are hit by something else is dropped
+  { const g2 = freshGame(5); g2.genU = 1e12; g2.gd = GAME.starAt[4] + 10; const o2 = [], one = () => stepGame(g2, { dt: 1 / 240, x: 0, lane: 0, vel: 100, brk: 0, nitro: 0 }, o2);
+    let n = 0; while (!o2.some((e) => e.k === 'lock') && n++ < 240 * 60) one();
+    g2.lives = 2; g2.over = 0; g2.stG = 0; g2.inv = 0; g2.polM = 0; g2.ramNext = g2.gt + 9; o2.length = 0;     // (whatever the idle car took while it waited for the lock is undone)
+    g2.veh.set([T_CAR, 0, g2.gd + 22, g2.vt, 2.4, 0, 0, 0, 999], 0);      // a car in our lane, reached while the lock is still a warning
+    for (let i = 0; i < 300 && !g2.over; i++) one();
+    const ks = o2.map((e) => e.k + (e.by ? ':' + e.by : ''));
+    ok('a hit calls the other units off: a lock still running is dropped, so one mistake is one life', g2.star >= 3 && ks.includes('stumble:crash') && ks.includes('calloff') && g2.drT < 0 && g2.lives === 1 && !g2.over && !ks.includes('stumble:heli'), ks.filter((k) => !/^(cell|pass|level|star|dodge|go)/.test(k)).slice(-5).join(',')); }
   // ignore an interceptor's signal: it swerves into us
   let hitBy = null;
   for (const e of tell) { const t2 = new Timeline(); t2.load(r.ev.filter((q) => q.t < e.t)); const k = kinds(t2, e.t, e.t + 2.2); if (k.includes('stumble:slam') || k.includes('bust:slam')) { hitBy = k; break; } }

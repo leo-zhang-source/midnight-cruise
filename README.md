@@ -63,7 +63,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 - **Any hit takes one**: driving into the back of a vehicle (you plough through it and lose speed), a sideswipe (you bounce back to your lane), the grappler, the interceptor, the helicopter.
 - With one life left the pursuit car sits off your rear quarter **for good**, its grappler runs come sooner, and the next hit ends the run: wrecked if it was a vehicle, busted if it was the police.
 - **A nitro burst shakes it off and gives the life back.** So a canister in stock is your second chance: spend it on points, or keep it. The game says so once, quietly: NITRO SHAKES THEM OFF shows under the stars for four seconds after the hit, a canister picked up on the last life says FIRE IT TO SHAKE THEM OFF, and the nitro button wears a pink ring while you hold one.
-- After a hit nothing attacks you for two and a half seconds.
+- After a hit nothing new attacks you for two and a half seconds, and a warning or a searchlight lock that was still running is called off: with two units on you, one mistake still costs one life.
 - Holding the brake for more than about 2 s brings the pursuit car onto your bumper for a moment, without costing a life.
 
 **After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability and both lives. **HOME** goes back to the home screen. A new run always starts from the home screen, and every start opens the same way: the tape rewinds and the ten-second intro plays, into the run. **SKIP INTRO** cuts it to a 0.4 s fast-forward. **RESTART** in the pause menu opens the same way.
@@ -121,7 +121,7 @@ Every frame is a pure function of scene time, the seed, the viewport and the eve
 | Parameter | What it does |
 |---|---|
 | `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
-| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with a nitro canister picked up and fired, the four presets, a music pause, then the home screen and a second start, which opens with the intro again |
+| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with two nitro canisters picked up and fired, the four presets, a music pause, then the home screen and a second start, which opens with the intro again |
 | `?seed=7` | Pin the traffic seed (each visit otherwise gets a random one, stored in its start event) |
 | `?free=1` | Free cruise: no traffic, no police and no game over; a nitro canister is refilled 7 s after you use one |
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
@@ -157,7 +157,7 @@ node tools/interact.mjs          # end-to-end input test in free mode (mouse, ke
 ```
 
 ```bash
-node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, grappler, helicopter, steering curves, rolling roadblock, weaving cruiser, nitro stock, stars, pause
+node tools/game-test.mjs         # game simulation unit tests: determinism, crash, home / restart, rewind, sideswipe, busted, grappler, helicopter, interceptor, barrage, planned attacks, steering curves, rolling roadblock, weaving cruiser, nitro stock, stars, threat level, pause
 ```
 
 ```bash
@@ -173,7 +173,7 @@ node tools/scenes.mjs renders/scenes 1280x720   # stills of the moments worth ch
 node tools/scenes.mjs renders/scenes 1280x720 1000 heli   # only the shots whose name starts with "heli"
 node tools/seq.mjs renders/scenes/seq 42.1 43.6 6   # a strip of frames from a bot run, to judge motion (a lane change, a weave, a pass)
 node tools/vary.mjs '{"rowGap":[1.2,0.75]}' 40 300   # the fairness soak with some constants overridden: how hard can it get before the bot takes hits?
-node tools/smoke.mjs             # after a build: the Pages build and both single files load a three-star moment without errors
+node tools/smoke.mjs             # after a build: the Pages build and both single files load a five-star moment without errors
 ```
 
 Open `http://localhost:8086/tools/vehicle-preview.html` to see the traffic and police bodies on a studio floor (`&rows=0,3` picks vehicles, `&views=6,2,1` the angles, `&paint=1` another colour, `&t=0.4` turns the wheels), and `http://localhost:8086/tools/heli-preview.html` for the helicopter from eight sides.
@@ -219,7 +219,9 @@ index.html            semantic shell, controls, cassette deck, VCR OSD
 css/style.css         UI styling (no CSS transitions drive animation)
 js/cue.js             THE cue sheet: timecodes, harmony, patterns — read by picture and sound
 js/timeline.js        event log + 240 Hz fixed-step simulation (speed, brake, lanes, runs, home / restart, rewind)
-js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars, the pursuit car and its grappler, the helicopter
+js/game.js            the game simulation: traffic generator, pickups, collisions, score, stars and threat level, and the police: the pursuit car and its grappler, the interceptor, the helicopter's three attacks, the cruiser that cuts you off
+js/foresight.js       the forecast the police plan on and the bot drives by: where each lane will be blocked over the next seconds, and whether a driver can still get through
+js/road.js            the shape of the highway (bends and rises), as JS for the camera and the car and as GLSL for every vertex of the world
 js/gameview.js        game layer and highway scenery: traffic, police, grappler, roadblock, helicopter, pickups, debris, city, gantries, billboards
 js/vehicles.js        the eight traffic and police vehicles after the vehicle studies: lofted hulls with cut wheel arches, chamfered blocks, tube frames, turned wheels that spin, lettering; metallic paint, glass, trim and lamp materials; one instanced mesh each
 js/heli.js            the police helicopter: one lofted body (bubble, cabin, boom) with T-tail, skids, searchlight, gun pods and blurred rotor discs

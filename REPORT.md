@@ -19,7 +19,133 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 31: a real road, a game that keeps getting harder, police that plan
+
+Four things were asked for: the coin sound off, difficulty that grows markedly and across the board with time, enemies with real intelligence and varied attacks, and much more realistic highway driving. This revision does all four. The numbers below are from `tools/bot.mjs` unless said otherwise.
+
+### 1. The coin sound is off
+
+Taking an energy cell makes no sound. The `Coin` voice and its trigger are removed from `js/audio/synth.js` and `js/ui.js`; cells still score and still earn tapes.
+
+### 2. The road
+
+The game was played on three cells of a neon grid, dead straight and dead flat. It is now a road.
+
+| | Before | Now |
+|---|---|---|
+| Surface | grid cells, cross lines every 5 units | asphalt: a grain drawn out along the direction of travel, patches of wear, an expansion joint every 30 units |
+| Lane lines | grid lines | white dashes, 5 units long every 15, blurred by speed; they brighten in the car's headlamps |
+| Edges | bright grid lines | solid edge lines, a 3-unit hard shoulder each side, a steel guardrail on posts every 15 units beyond it, reflectors on every other post (amber left, white right) |
+| Shape | straight, flat | sweeps left and right (up to 16° of heading, tightest radius about 760 units) and rises and falls over crests (±12 units) |
+| Camera | fixed heading | looks 30 units along the road, so it turns into each bend; leans slightly into it; pitches with the gradient |
+| Car | upright | sits on the gradient, leans out of the bend, points along the road |
+| Sun, city, mountains | fixed on screen | swing across as the road turns and come back |
+
+How the shape is done (`js/road.js`): the game itself is unchanged, still three straight lanes. The picture bends it. The centre line is a sum of three sine waves of unrelated lengths (2,300, 1,310 and 760 units) and the height a sum of two (2,900 and 1,170), so it never repeats and always returns to the line that leads to the sun. Every vertex of the world is moved by that function of its distance (one shared GLSL chunk in the ground, palms, vehicles, helicopter, lights, signs), the ground became a strip of 230 rows so it can follow, and the camera turns to the tangent. The first 140 units of a run are straight, so the roadside opening is as before. With reduced motion the road stays straight.
+
+Driving feel:
+
+- **The car accelerates all the way.** The road speed used to step up at each gear. It now rises without a step: 139 MPH off the line, 269 MPH as top gear engages 6.4 km in, and on to 374 MPH (was 336).
+- **The engine works through its gears.** Its note follows the revs: it climbs through each gear and falls back at the change, with a short glide so the change is heard as one.
+- **The car has weight.** It gains speed at no more than 34 units/s² (80 off the line, 170 in a nitro burst) and sheds it at no more than 64. Braking to 55 % takes about a second and getting the speed back about two; both used to be near instant.
+- **Traffic goes by with a sound.** A vehicle passed in the next lane is heard on its side; a truck is lower and longer.
+- **Ordinary traffic changes lane.** Cars and vans signal and merge from a side lane into the middle, timed like the taxi.
+- **Traffic is visible sooner.** It is laid out 6.6 s of driving ahead (it was 340 units, 4 s at top speed).
+
+### 3. Difficulty grows with time
+
+Two clocks now run. The wanted level has five stars instead of three and still follows the road since the heat was last cooled. The **threat level** is new: one more every 40 seconds, never down, shown as LV beside the stars.
+
+| With each threat level | Level 0 | Level 5 (3 min 20 s) | Level 10 |
+|---|---|---|---|
+| Length of every warning | 1.20 s | 1.03 s | 0.87 s (the floor, reached at level 9.4) |
+| Pause between attacks at the least | 1.8 s | 1.2 s | 0.6 s |
+| A unit's own interval | × 1 | × 0.67 | × 0.5 |
+| Helicopter attacks per visit | 3 | 4 | 5 |
+| Rows that are police (at five stars) | 31 % | 35 % | 39 % |
+| Weight of single-vehicle rows in the mix (the rest are pairs, convoys, lane-changers) | 0.40 | 0.31 | 0.22 |
+| Nitro canisters | every 30–45 s | 25 % further apart | 50 % further apart |
+| Least wanted level | ★ | ★★ (from level 3) | ★★★ (from level 6) |
+
+Stars arrive after 1.4, 3.4, 6.4 and 10.4 km of road. The bot reaches ★★ 22 s into a run, ★★★ at 45 s, ★★★★ at 74 s and ★★★★★ at 109 s, and spends 63 % of a five-minute run at five stars. The third nitro burst used to wipe the heat to one star; it now cools it by two.
+
+What a five-minute run holds (average of 120 runs, bot without nitro):
+
+| | Revision 29 | Now |
+|---|---|---|
+| Distance | 34.6 km | 36.6 km |
+| Grappler runs | 2–3 | 25.6 |
+| Helicopter attacks | about 6, one kind | 13.0, three kinds (6.5 one lane, 2.8 twin, 3.7 barrage) |
+| Interceptor | — | 12.9 visits, 4.6 swerves |
+| Cruisers that cut you off | — | 9.3 |
+| Two attacks at once | never | 6.0 |
+| Police rows ahead | 43 | 43 (32.0 roadblocks, 11.3 weavers), plus the 9.3 above |
+| Attacks dodged | — | 42.7 |
+
+### 4. Police that plan
+
+Before, each unit attacked on its own timer whenever a lane beside you was clear. Now there is one shared picture of the road and every decision is made on it.
+
+**The forecast** (`js/foresight.js`). A grid of three lanes by time, in steps of 0.05 s, 5.8 s ahead: where each lane will be blocked by every vehicle (with its lane speed, a roadblock's braking, a weaving cruiser followed step by step, a lane-changer's signal and move) and by every attack already under way.
+
+**The decision.** Twenty times a second, each unit that is ready lays its attack over the forecast and asks: would a driver in your lane still have a way through? The driver it assumes is slower than the car: he needs the reaction time for the level before his first move, 0.4 s for a lane change (the car takes 0.3) and 0.2 s in the new lane before the next, and everything on the forecast is taken to last 0.1 s longer at either end. If there is no way through, the unit waits. If there are several ways to attack, it takes the one that leaves the hardest way out.
+
+**The units and their attacks**
+
+| Unit | From | Attack | The way out |
+|---|---|---|---|
+| Pursuit cruiser | ★★ | the grappler: lunges up your lane from behind | change lane |
+| Helicopter | ★★★ | one lane | change lane |
+| | ★★★★ | twin searchlights: your lane and the one beside it that leaves the harder escape | the dark lane, which may be two lanes over |
+| | ★★★★★ | walking barrage: all three lanes, one after the other, 1.15 s apart | out of each lane before its turn, back into the wake |
+| Interceptor (new) | ★★★★ | comes up the hard shoulder on your side, rides level, signals, swerves into your lane: one lane from the shoulder, or straight across a side lane into the middle | the other way |
+| Cruiser ahead (new) | ★★★★ | waits in the middle lane until you are 1.8 s away, then cuts into whichever lane you are in | the lane it left |
+| Any two | ★★★★★ | pincer: a second attack while the first is under way, checked against it | whatever the two leave |
+
+**What makes it more than timers**
+
+- **They take turns**, longest-waiting unit first, and an interceptor on its way goes before the others. Without this the grappler, which is the easiest attack to find room for, took most of the openings.
+- **They learn which way you dodge.** Each dodge moves a running average. Past ±0.15 the interceptor comes up that shoulder and the twin searchlights take that lane first.
+- **They have the traffic held back for set pieces.** The interceptor's swerve, twin searchlights and the barrage are asked for 3.4 s ahead; the traffic leaves 1.5 to 3.1 s of empty road, strung with cells, and the attack comes when the gap does. Without this the barrage found an opening about 0.4 times in five minutes; with it, about 3.6.
+- **They hold off near anything unsettled.** A cruiser still weaving and a cruiser waiting to cut you off have not picked a lane, so no plan can be made round them. An attack must be over 2 s before you reach one, or 0.8 s if the attack drives you into the middle lane, from where either can still be dealt with. And no such cruiser is sent into an attack that will still be going on when you reach it.
+
+- **A hit calls the others off.** With two units attacking at five stars, being hit by one could have meant losing the second life to the other a second later. A warning or a lock still running when you are hit is dropped, and nothing new starts for 2.5 s.
+
+Each dodge of a police attack scores 300 × the multiplier and is called out (DODGED).
+
+### Checked
+
+| Check | Result |
+|---|---|
+| Bot, no nitro, 120 seeds × 5 minutes (to level 7) | no hit in any run |
+| Bot, no nitro, 16 seeds × 10 minutes (to level 15) | no hit in any run |
+| Bot using nitro, 40 seeds × 5 minutes | no hit in any run (it was 1 in 16 before) |
+| `tools/game-test.mjs` | 77 pass, 16 more than before: stars, threat level, each new unit, the barrage's order, "every attack leaves a way through" re-checked at the moment of each of the attacks in a run, warnings shortening, the car's weight, ignoring the interceptor |
+| Browser suites | game-ui 45, interact 46, touch 9, auto-env-test 8, all pass; no console errors |
+| Smoke test on the built pages | passes at a five-star moment |
+| Frame cost, 1920×1080 | 6 to 9 ms a frame (16.7 available); phone size 5 ms |
+| Audio thread, which runs the same simulation | 9.5 % of one core; 99.9 % of blocks under 0.5 ms of the 2.67 ms each has, late in a five-star run |
+| Looked at | 58 captured scenes at 1280×720 (every unit and attack, panels, home, rewind), three phone frames, one reduced-motion frame |
+
+Three things the soak found and that were fixed on the way, because they say what the margins are:
+
+1. **Attacks longer than the view.** The barrage lasts nearly 4 s; at top speed traffic was only visible 4 s ahead, so a row could appear after the attack was committed and need the lane the barrage had driven you out of. Traffic is now laid out 6.6 s ahead.
+2. **Ways through with no room to spare.** A forecast is a tenth of a second off now and then (a cruiser dropping back eases off for a moment first). Plans that depended on the exact tenth failed 3 runs in 40. The slack described above is what cured it.
+3. **The two-lane dash.** After a set piece that leaves you on one side, a roadblock that leaves only the far lane asks for two lane changes in under a second. The police's assumed driver now pauses 0.2 s between lane changes, which rules those out.
+
+### Not checked, and known limits
+
+- **I have not played it by hand or heard it.** Sound levels were measured, not listened to: the pass-by sound is at the level of the existing siren and gear sounds (−34 dB over its first 0.3 s, the music is at −16 dB), the tyre squeal 4 dB above it, the engine with wind and siren together at −32 dB. Whether the difficulty curve feels right to a person is a judgement only play can make; the bot does not tire or misread.
+- **The bot is the bar, and the bot is good.** "No hit" means a way through always exists for a driver who reads every warning at once. The reaction time the police allow (0.75 s at level 0, 0.42 s from level 9) is the knob if it proves too hard or too easy: `react` in `js/cue.js`.
+- **The interceptor often comes and goes without swerving** (4.6 swerves in 12.9 visits): it swerves only at a driver it can reach with a way out left. Staying on the far side of the road is a real defence against it.
+- **On a phone held upright the interceptor on the shoulder can be off the side of the screen** when you are in the middle lane. The call-out, the flashing corner, the warning over your lane and the chevrons across it are all on screen.
+- **Bends are in the picture only.** The car does not drift outward in a bend and nothing in the game depends on the road's shape.
+- **Hills never hide traffic in these captures**, but the rises were set by calculation (the far side of a crest drops at most 4 units in 250), not by looking at every crest.
+- The chevrons over a signalling vehicle used to point backwards (the point trailed the motion). They now lead it. This changes how the taxi's and the cruisers' signals have looked since they were added.
+
 ## Revision 30: the coin as a real square wave, loud enough to hear
+
+(The coin sound was switched off altogether in Revision 31.)
 
 The Revision 29 coin could not be heard in play. Measured inside a run it explains itself: the music and engine sit at −15 dB RMS, with −31 dB in the third-octave band around the coin's first note, and the coin's first note was −30 dB, so it was level with the music it had to be heard over. It was also a softened tone (three harmonics), not the sound the name promises.
 

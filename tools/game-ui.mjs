@@ -45,7 +45,10 @@ async function wreck(p, touch, once) {
     const st = await sim(p); if (st.over) break; if (once && st.g.lives < 2) return true;
     let best = null, bd = 1e9;
     for (let k = 0; k < st.g.veh.length / 9; k++) { const o = k * 9; if (!st.g.veh[o]) continue; const dz = st.g.veh[o + 2] - st.g.gd; if (dz > 22 && dz < bd) { bd = dz; best = Math.round(st.g.veh[o + 1]); } }
-    if (best !== null && best !== st.lane && bd < 140) await steer(p, best > st.lane ? 1 : -1, touch);
+    // (steer for it only when nothing is alongside in the lane between: the point is to drive into its back, not to sideswipe something on the way)
+    const to = best === null ? 0 : st.lane + (best > st.lane ? 1 : -1);
+    let beside = false; for (let k = 0; k < st.g.veh.length / 9; k++) { const o = k * 9; if (st.g.veh[o] && Math.abs(st.g.veh[o + 1] - to) < 0.6 && Math.abs(st.g.veh[o + 2] - st.g.gd) < 16) beside = true; }
+    if (best !== null && best !== st.lane && bd < 140 && !beside) await steer(p, best > st.lane ? 1 : -1, touch);
     await p.waitForTimeout(120);
   }
   await p.waitForTimeout(1000);   // the panel appears 0.7 s after the crash
@@ -73,7 +76,7 @@ async function wreck(p, touch, once) {
   ok('a vehicle passing in the next lane is heard on its side', (await sfx('^pass')) >= 1, `${await sfx('^pass')} so far`);
   // crash → EJECT panel → rewind
   await wreck(p);
-  s = await gs(p); ok('driving into a vehicle: WRECKED panel with the score, REWIND focused', s.over === 1 && s.panel && s.title === 'WRECKED' && s.ovScore === s.hudScore && s.ovScore !== '0' && s.focus === 'revive' && !s.pauseBtn, `score ${s.ovScore}`);
+  s = await gs(p); ok('driving into traffic until the run ends: the panel (WRECKED by a vehicle, BUSTED if the police got there first) with the score, REWIND focused', (s.over === 1 || s.over === 2) && s.panel && s.title === (s.over === 1 ? 'WRECKED' : 'BUSTED') && s.ovScore === s.hudScore && s.ovScore !== '0' && s.focus === 'revive' && !s.pauseBtn, `score ${s.ovScore} (HUD ${s.hudScore}), over ${s.over}, panel ${s.panel}, title ${s.title}, focus ${s.focus}`);
   const laneBefore = await p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).lane);
   await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(150);
   ok('lane keys do nothing while the run is over', await p.evaluate((l) => MC.tl.stateAt(MC.tl.frontier()).lane === l, laneBefore));
@@ -161,7 +164,7 @@ async function wreck(p, touch, once) {
   await pev('pointerup'); await p.waitForTimeout(100);
   ok('phone: lifting the finger releases it', (await gs(p)).brake === 'false');
   await wreck(p, true);
-  s = await gs(p); ok('phone: crash → panel fits the screen, buttons are touch-sized', s.over === 1 && s.panel && await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return r.left >= 0 && r.right <= 390 && r.top >= 0 && r.bottom <= 844 && a.height >= 44 && c.height >= 44; }));
+  s = await gs(p); ok('phone: crash → panel fits the screen, buttons are touch-sized', s.over && s.panel && await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return r.left >= 0 && r.right <= 390 && r.top >= 0 && r.bottom <= 844 && a.height >= 44 && c.height >= 44; }), `over ${s.over}, panel ${s.panel}, ` + await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return `panel ${Math.round(r.left)}…${Math.round(r.right)} × ${Math.round(r.top)}…${Math.round(r.bottom)}, buttons ${Math.round(a.height)} and ${Math.round(c.height)} high`; }));
   const hud = await p.evaluate(() => { const h = document.getElementById('ghud').getBoundingClientRect(), d = document.getElementById('deck').getBoundingClientRect(), c = document.getElementById('corner').getBoundingClientRect(); return { top: h.top, left: h.left, right: h.right, deckBottom: d.bottom, cornerBottom: c.bottom }; });
   ok('phone: HUD sits below the deck bar, inside the screen', hud.top >= hud.deckBottom - 1 && hud.left >= 0 && hud.right <= 390, JSON.stringify(hud));
   await p.tap('#revive'); await p.waitForTimeout(500);

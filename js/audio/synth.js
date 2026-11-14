@@ -394,7 +394,7 @@ class Skid extends Voice { // tyres: a cruiser swerving hard across a lane
     if ((this.n & 15) === 0) this.f.set(1250 - 380 * t / 0.45 + 60 * sin(TAU * 23 * t), 7);
     this.ph += (1180 - 300 * t / 0.45) / SR;
     const env = Math.min(1, t / 0.025) * (t < 0.3 ? 1 : exp(-(t - 0.3) / 0.07));
-    const y = (this.f.bp(this.r.next()) * 0.16 + sin(TAU * this.ph) * 0.012) * env;
+    const y = (this.f.bp(this.r.next()) * 0.085 + sin(TAU * this.ph) * 0.006) * env;
     B.sfxL[i] += y; B.sfxR[i] += y;
     return t < 0.65;
   }

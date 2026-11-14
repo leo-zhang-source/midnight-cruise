@@ -27,7 +27,9 @@ export function plan(st, opt, want) {
   if (want !== undefined && want !== st.lane && best.reach >= K) {
     const d = want > st.lane ? 1 : -1, n = st.lane + d;
     const r = free(st.lane, 0, M) && free(n, 0, M) ? go(M, n) : null;      // … and does not need a second move straight after
-    if (r && r.reach >= K && !(r.moves.length && r.moves[0].k < M + 10)) return { reach: K, moves: [{ k: 0, d }], K };
+    // (unless that move only comes once the canister, in the lane we are moving to, has been taken)
+    const soon = r && r.moves.length && r.moves[0].k < M + 10, taken = soon && n === want && opt.wantK !== undefined && r.moves[0].k >= opt.wantK;
+    if (r && r.reach >= K && (!soon || taken)) return { reach: K, moves: [{ k: 0, d }], K };
   }
   // a careful driver makes the first move of the route as early as it is safe, not at the last moment
   if (!opt.late && best.moves.length && best.moves[0].k > 0) {   // opt.late: a daring driver who moves at the last moment (close calls)
@@ -60,10 +62,10 @@ export function play(seed, seconds, opt = {}) {
     if (opt.idle && T >= opt.idle[0] && T < opt.idle[1]) continue;      // opt.idle: hands off the wheel for a while (to take a hit on purpose)
     const tb = tl.turboAt(T);
     if ((tb && tb.u < TURBO.sustain - 0.3) || T - last < 0.28) continue;   // smash through during the strong part of a nitro burst
-    let want;
-    if (opt.seek) for (let i = 0; i < NI; i++) { const o = i * IF, dz = st.g.itm[o + 2] - st.g.gd; if (st.g.itm[o] && dz > 12 && dz < 260) want = st.g.itm[o + 1]; }
+    let want, wantK;
+    if (opt.seek) for (let i = 0; i < NI; i++) { const o = i * IF, dz = st.g.itm[o + 2] - st.g.gd; if (st.g.itm[o] && dz > 12 && dz < 260) { want = st.g.itm[o + 1]; wantK = Math.ceil((dz + 3) / Math.max(1, st.vel - st.g.vt) / STEP); } }
     const safe = tb ? Math.max(0, TURBO.sustain + TURBO.recover * GAME.nitroTail + GAME.nitroGrace - tb.u - 0.15) : 0;   // coming out of a burst: plan for where it ends
-    const r = plan(st, safe ? { ...opt, safe } : opt, want);
+    const r = plan(st, safe ? { ...opt, safe, wantK } : { ...opt, wantK }, want);
     if (r.reach < r.K) stats.noRoute++;
     if (r.moves.length && r.moves[0].k === 0) { add('lane', T, { dir: r.moves[0].d }); last = T; }
   }
