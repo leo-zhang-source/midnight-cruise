@@ -502,6 +502,17 @@
     if (arpV > 0.03) arpBar(emit, ch, arpV, thr > 0.6 ? 12 : 0);
     if (lagoon > 0.05) for (let s = 0; s < 16; s += 2) emit(s * 2 + 1, { i: "pluck", n: CHORDS[ch].arp[s / 2 % 4] - 12, v: 0.5 * lagoon, d: 0.2 });
     if (calm > 0.05) for (let s = 0; s < 16; s += 3) emit(s * 2, { i: "bell", n: CHORDS[ch].arp[s / 3 % 4] + 12, v: 0.45 * calm, d: 0.9 });
+    const heat = ctx.heat || 0, edge = ctx.edge || 0, r = CHORDS[ch].root;
+    if (heat >= 3) for (let s = 0; s < 16; s++) emit(s * 2, { i: "pluck", n: r + 24 + (s % 4 === 3 ? 12 : 0), v: (s % 4 === 0 ? 0.34 : 0.22) * (edge ? 0.7 : 1), d: 0.07 });
+    if (heat >= 4 && b % 4 === 3 && b !== 23 && b !== 31) {
+      emit(24, { i: "tom", n: 48, v: 0.6 });
+      emit(27, { i: "tom", n: 45, v: 0.65 });
+      emit(30, { i: "tom", n: 41, v: 0.7 });
+    }
+    if (heat >= 5) {
+      if (b % 2 === 0) emit(0, { i: "stab", notes: CHORDS[ch].pad.map((n) => n - 12), d: 0.35, v: 0.42 });
+      if (sec !== "A2") for (let q = 0; q < 4; q++) emit(q * 8, { i: "lead", n: r + 36 + (q % 2 ? 7 : 0), d: 0.22, v: 0.2 });
+    }
     if (sec === "A2") phrase(emit, HOOK, b - 8, 8, cycle % 2 ? 12 : 0, 0.75);
     if (sec === "L" && b >= 28 && cycle % 2 === 1) phrase(emit, HOOK_B, b - 28, 4, 0, 0.7);
   }
@@ -1561,7 +1572,7 @@
           g.polLane = l;
           g.polF = 0;
           g.polW = warn;
-          go("ramwarn", { lane: l });
+          go("ramwarn", { lane: l, w: warn });
         }
       }
     } else {
@@ -1662,7 +1673,7 @@
             g.icFrom = g.icX;
             g.icTo = p;
             g.icW = warn;
-            go("ictell", { lane: p, side: a });
+            go("ictell", { lane: p, side: a, w: warn });
           }
         }
       } else if (g.icM === I_TELL) {
@@ -1775,7 +1786,7 @@
             g.drHit = 0;
             g.drS = 0;
             g.drWant = -1;
-            go("lock", { lane: pick[1], pat: pick[0], b: pick[2] });
+            go("lock", { lane: pick[1], pat: pick[0], b: pick[2], w: pick[3] });
           }
         }
       } else {
@@ -1789,7 +1800,7 @@
           if (!g.drS) learn(g.drLane);
           g.drS = n;
           g.drAcc = 0;
-          out.push({ k: "strike", lane: S[n - 1][0] });
+          out.push({ k: "strike", lane: S[n - 1][0], d: S[n - 1][2] - S[n - 1][1] });
         }
         if (on && !inp.nitro && gt >= g.inv) {
           g.drAcc += DT2;
@@ -3214,6 +3225,184 @@
       return t < 0.65;
     }
   };
+  var rnd01 = (r) => r.next() * 0.5 + 0.5;
+  var Crunch = class extends Voice {
+    // a vehicle hit hard: a body thump, a crack, sheet metal ringing, glass, debris rattling down
+    constructor(s, o, v = 1, pan = 0, big = 0) {
+      super(s, o);
+      this.v = v;
+      this.big = big;
+      this.l = panL(pan * 0.75);
+      this.r = panR(pan * 0.75);
+      const R = this.rn = new RNG(s.seed());
+      this.hp = new SVF();
+      this.hp.set(big ? 1400 : 2e3, 0.7);
+      this.lp = new SVF();
+      this.lp.set(big ? 700 : 1100, 0.8);
+      this.ph = 0;
+      this.gate = 1;
+      const base = [312, 517, 788, 1144, 1690, 2380, 3210];
+      this.md = base.map((f) => [f * (0.82 + 0.36 * rnd01(R)) * (big ? 0.78 : 1), (0.05 + 0.22 * rnd01(R)) * (big ? 1.7 : 1), 0.5 + 0.5 * rnd01(R), rnd01(R) * TAU2]);
+      this.gl = [];
+      for (let k = 0; k < (big ? 11 : 6); k++) this.gl.push([0.015 + Math.pow(rnd01(R), 1.6) * (big ? 0.7 : 0.32), 2600 + 5200 * rnd01(R), 0.4 + 0.6 * rnd01(R)]);
+      this.len = big ? 2.4 : 1.1;
+    }
+    tick(B, i, t) {
+      const R = this.rn, big = this.big, n = R.next();
+      this.ph += (big ? 58 : 74) * (0.55 + 0.45 * exp(-t / 0.09)) / SR;
+      const thump = sin(TAU2 * this.ph) * exp(-t / (big ? 0.34 : 0.17)) * Math.min(1, t / 15e-4) * (big ? 0.9 : 0.62);
+      const crack = this.hp.hp(n) * exp(-t / (big ? 0.022 : 0.011)) * (big ? 0.8 : 0.65);
+      if ((this.n & 511) === 0) this.gate = 0.25 + 0.75 * rnd01(R);
+      const crumble = this.lp.lp(n) * exp(-t / (big ? 0.6 : 0.28)) * this.gate * (big ? 0.5 : 0.32);
+      let metal = 0;
+      for (const m of this.md) metal += sin(TAU2 * m[0] * t * (1 - 0.02 * Math.min(1, t / 0.15)) + m[3]) * m[2] * exp(-t / m[1]);
+      metal *= Math.min(1, t / 2e-3) * (big ? 0.075 : 0.06);
+      let glass = 0;
+      for (const g of this.gl) {
+        const u = t - g[0];
+        if (u > 0 && u < 0.12) glass += sin(TAU2 * g[1] * u) * exp(-u / 0.028) * g[2];
+      }
+      const y = (thump + crack + crumble + metal + glass * 0.07) * this.v * 0.62;
+      B.sfxL[i] += y * this.l;
+      B.sfxR[i] += y * this.r;
+      B.rev[i] += (crack + metal + glass * 0.07) * this.v * 0.05;
+      return t < this.len;
+    }
+  };
+  var Scrape = class extends Voice {
+    // metal dragged along metal: a sideswipe, the grappler's net, a cruiser slamming in. Sparks crackle in it.
+    constructor(s, o, d = 0.42, v = 1, pan = 0) {
+      super(s, o);
+      this.d = d;
+      this.v = v;
+      this.l = panL(pan * 0.75);
+      this.r = panR(pan * 0.75);
+      this.rn = new RNG(s.seed());
+      this.f = new SVF();
+      this.g = new SVF();
+      this.g.set(5200, 1.2);
+      this.ph = 0;
+      this.sp = 0;
+      this.ph2 = 0;
+    }
+    tick(B, i, t) {
+      const R = this.rn, n = R.next(), d = this.d;
+      if ((this.n & 31) === 0) this.f.set(1500 + 900 * Math.sin(t * 37) + 500 * R.next(), 4.5);
+      if (R.next() > 0.9985) this.sp = 1;
+      this.sp *= 0.996;
+      const env = Math.min(1, t / 6e-3) * (t < d ? 1 - 0.35 * t / d : exp(-(t - d) / 0.05));
+      this.ph += (2650 + 140 * Math.sin(t * 190)) / SR;
+      this.ph2 += (88 * exp(-t / 0.05) + 40) / SR;
+      const grind = this.f.bp(n) * 0.5 * (0.6 + 0.4 * Math.abs(Math.sin(t * 61))) + this.g.bp(n) * this.sp * 0.9;
+      const squeal = sin(TAU2 * this.ph) * 0.05, hit = sin(TAU2 * this.ph2) * exp(-t / 0.06) * 0.5;
+      const y = ((grind + squeal) * env + hit) * this.v * 0.55;
+      B.sfxL[i] += y * this.l;
+      B.sfxR[i] += y * this.r;
+      return t < d + 0.3;
+    }
+  };
+  var Gunfire = class extends Voice {
+    // the helicopter's guns down one lane: a round every 1/22 s while the strike lasts, each a crack, a thud and a
+    // little room; now and then a ricochet whines off the road
+    constructor(s, o, d = 0.45, v = 1, pan = 0) {
+      super(s, o);
+      this.d = d;
+      this.v = v;
+      this.l = panL(pan * 0.8);
+      this.r = panR(pan * 0.8);
+      const R = this.rn = new RNG(s.seed());
+      this.hp = new SVF();
+      this.hp.set(2600, 0.7);
+      this.bp = new SVF();
+      this.bp.set(620, 1.4);
+      this.shots = [];
+      for (let t = 0; t < d; t += 1 / 22) this.shots.push([t + 4e-3 * R.next(), 0.75 + 0.25 * rnd01(R), rnd01(R) < 0.3 ? 0.03 + 0.06 * rnd01(R) : -1, 3400 + 1400 * rnd01(R)]);
+    }
+    tick(B, i, t) {
+      const n = this.rn.next();
+      let c = 0, b = 0, w = 0, body = 0;
+      for (const [t0, a, ric, rf] of this.shots) {
+        const u = t - t0;
+        if (u < 0) break;
+        if (u < 0.06) {
+          const e = exp(-u / 35e-4) * a;
+          c += e;
+          b += exp(-u / 0.03) * a;
+          body += sin(TAU2 * (150 - 400 * u) * u) * exp(-u / 0.022) * a;
+        }
+        const ur = u - (ric > 0 ? ric : 99);
+        if (ur > 0 && ur < 0.12) w += sin(TAU2 * (rf - 9e3 * ur) * ur) * exp(-ur / 0.05) * 0.5;
+      }
+      const y = (this.hp.hp(n) * c * 0.9 + this.bp.bp(n) * b * 0.35 + body * 0.45 + w * 0.08) * this.v * 0.5;
+      B.sfxL[i] += y * this.l;
+      B.sfxR[i] += y * this.r;
+      B.rev[i] += y * 0.12;
+      return t < this.d + 0.25;
+    }
+  };
+  var Countdown = class extends Voice {
+    // a lock-on: beeps that come faster and climb, ending exactly when the attack lands. f: its pitch (each unit has its own)
+    constructor(s, o, d = 1, f = 1900, v = 1) {
+      super(s, o);
+      this.d = d;
+      this.f = f;
+      this.v = v;
+      this.ph = 0;
+      this.b = [];
+      for (let t = 0, iv = 0.17; t < d - 0.035; t += iv, iv = Math.max(0.042, iv * 0.8)) this.b.push(t);
+    }
+    tick(B, i, t) {
+      let y = 0;
+      for (const t0 of this.b) {
+        const u = t - t0;
+        if (u < 0) break;
+        if (u < 0.03) {
+          const p = TAU2 * this.f * (1 + 0.3 * t / this.d) * u;
+          y += (sin(p) + 0.25 * sin(3 * p)) * Math.min(1, u / 2e-3) * (1 - u / 0.03);
+        }
+      }
+      y *= 0.17 * this.v;
+      B.sfxL[i] += y;
+      B.sfxR[i] += y;
+      return t < this.d;
+    }
+  };
+  var Shift = class extends Voice {
+    // a gear change: the blow-off valve's hiss and the gearbox's clunk
+    constructor(s, o) {
+      super(s, o);
+      this.rn = new RNG(s.seed());
+      this.hp = new SVF();
+      this.hp.set(2200, 0.8);
+      this.lp = new SVF();
+      this.lp.set(6500, 0.7);
+      this.ph = 0;
+    }
+    tick(B, i, t) {
+      this.ph += 95 / SR;
+      const y = this.lp.lp(this.hp.hp(this.rn.next())) * Math.min(1, t / 0.01) * exp(-t / 0.11) * 0.075 + sin(TAU2 * this.ph) * exp(-t / 0.03) * 0.22 * (t < 0.12 ? 1 : 0);
+      B.sfxL[i] += y * 0.9;
+      B.sfxR[i] += y;
+      return t < 0.5;
+    }
+  };
+  var Swish = class extends Voice {
+    // a dodge: the air you just left, a short sweep up
+    constructor(s, o, pan = 0) {
+      super(s, o);
+      this.rn = new RNG(s.seed());
+      this.f = new SVF();
+      this.l = panL(pan * 0.6);
+      this.r = panR(pan * 0.6);
+    }
+    tick(B, i, t) {
+      if ((this.n & 15) === 0) this.f.set(600 * Math.pow(6, Math.min(1, t / 0.18)), 2.2);
+      const y = this.f.bp(this.rn.next()) * Math.sin(Math.PI * Math.min(1, t / 0.22)) * 0.2;
+      B.sfxL[i] += y * this.l;
+      B.sfxR[i] += y * this.r;
+      return t < 0.22;
+    }
+  };
   var Squeal = class extends Voice {
     // tape rewind / fast-forward chatter
     constructor(s, o, d, up) {
@@ -3419,6 +3608,15 @@
       this.ring = [new Float32Array(1 << 17), new Float32Array(1 << 17)];
       this.gateUntil = -1;
       this.gateEnv = 0;
+      this.duckUntil = -1;
+      this.duckDepth = 0;
+      this.duckE = 0;
+      this.abG = 0;
+      this.abL = new SVF();
+      this.abR = new SVF();
+      this.abN = [new RNG(501), new RNG(502)];
+      this.abP = 0;
+      this.hbG = 0;
       this.comp = 0;
       this.fired = /* @__PURE__ */ new Set();
       this.arpPan = 0;
@@ -3445,6 +3643,14 @@
     seed() {
       this._seed = Math.imul(this._seed, 1664525) + 1013904223 >>> 0;
       return this._seed;
+    }
+    // the music steps back under a big hit: down by `depth` (0..1) within 8 ms, held for `hold` s, back over 0.35 s
+    duck(o, depth, hold) {
+      const u = this.frame + o + Math.round(hold * SR);
+      if (u > this.duckUntil || depth > this.duckDepth) {
+        this.duckUntil = Math.max(this.duckUntil, u);
+        this.duckDepth = Math.max(this.frame + o < this.duckUntil ? this.duckDepth : 0, depth);
+      }
     }
     openGate(o, dur) {
       this.gateUntil = Math.max(this.gateUntil, this.frame + o + Math.round(dur * SR));
@@ -3612,6 +3818,14 @@
         case "skid":
           v = new Skid(s, o);
           break;
+        case "dodge":
+          v = new Swish(s, o, n.pan || 0);
+          break;
+        case "pickup":
+          v = new Riser(s, o, 0.2, 0.4);
+          this.voices.push(new Blip(s, o, 1320, 1318.5, 0.25, 0.05, -0.2, 0.2), new Blip(s, o, 1980, 1975.5, 0.3, 0.045, 0.2, 0.26));
+          break;
+        // a nitro canister: it charges, then rings
         case "horn":
           v = new Horn(s, o);
           break;
@@ -3622,38 +3836,53 @@
         // the interceptor's siren: a fast yelp
         case "alert":
           v = new Blip(s, o, 392, 388, 0.13, 0.08);
-          this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4));
+          this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4), new Sub(s, o, 0.4));
+          if (S.crash_f) play("crash_f", { gain: 0.26, rev: 0.08 });
+          this.duck(o, 0.2, 0.15);
           break;
-        // the threat level rises
+        // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
         case "near":
           v = new Whoosh(s, o, 0.45);
           this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
           break;
         case "smash":
-          v = new Click(s, o, 1, 1);
-          this.voices.push(new Blip(s, o, 1500, 240, 0.09, 0.1), new Blip(s, o, 2600, 900, 0.05, 0.05, 0.3, 0.03));
+          v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0);
+          this.duck(o, 0.32, 0.12);
           break;
+        // a vehicle rammed in a nitro burst
         case "swipe":
-          v = new Click(s, o, 1.1, 1);
-          this.voices.push(new Blip(s, o, 260, 85, 0.1, 0.16));
+          v = new Scrape(s, o, 0.36, 1, n.pan || 0);
+          this.voices.push(new Click(s, o, 0.9, 1));
+          this.duck(o, 0.25, 0.1);
           break;
         case "crashfx":
-          v = new Impact(s, o, 0.9);
-          this.voices.push(new Click(s, o, 1.2, 1), new Blip(s, o, 900, 60, 0.35, 0.14), new Squeal(s, o, 0.5, false));
+          v = new Crunch(s, o, 1.25, 0, 1);
+          this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false));
+          this.duck(o, 0.6, 0.35);
           break;
+        // the run ends against a vehicle
+        case "wreck":
+          v = new Crunch(s, o, 1.1, n.pan || 0, 1);
+          this.voices.push(new Sub(s, o, 0.45));
+          this.duck(o, 0.5, 0.22);
+          break;
+        // ploughed through one: a life gone
         case "bust":
           v = new Blip(s, o, 620, 610, 0.16, 0.09);
           this.voices.push(new Blip(s, o, 470, 465, 0.16, 0.09, 0, 0.18), new Blip(s, o, 310, 300, 0.4, 0.1, 0, 0.36));
           break;
         case "gear":
-          v = new Blip(s, o, 660, 664, 0.08, 0.07, -0.2);
-          this.voices.push(new Blip(s, o, 990, 996, 0.14, 0.07, 0.2, 0.09));
+          v = new Shift(s, o);
           break;
         case "siren":
           v = new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4);
           this.voices.push(new Blip(s, o, 1040, 780, 0.16, 0.05, 0.4, 0.26), new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4, 0.52), new Blip(s, o, 1040, 780, 0.2, 0.05, 0.4, 0.78));
           break;
         case "lock":
+          if (n.d) {
+            v = new Countdown(s, o, n.d, n.f || 1900);
+            break;
+          }
           v = new Blip(s, o, 1900, 1890, 0.05, 0.05);
           this.voices.push(new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.14), new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.28));
           break;
@@ -3662,13 +3891,14 @@
           this.voices.push(new Click(s, o, 0.8));
           break;
         case "burst":
-          v = new Blip(s, o, 520, 150, 0.04, 0.13);
-          for (let k = 1; k < 6; k++) this.voices.push(new Blip(s, o, 520 - k * 14, 150, 0.04, 0.12, k % 2 ? 0.25 : -0.25, k * 0.075));
+          v = new Gunfire(s, o, n.d || 0.45, 1, n.pan || 0);
+          this.duck(o, 0.22, n.d || 0.45);
           break;
-        // the helicopter opens fire
+        // the helicopter opens fire down a lane
         case "hook":
-          v = new Click(s, o, 1.2, 1);
-          this.voices.push(new Blip(s, o, 1250, 420, 0.07, 0.1), new Blip(s, o, 210, 70, 0.3, 0.13, 0, 0.05));
+          v = new Scrape(s, o, 0.9, 0.8, 0);
+          this.voices.push(new Click(s, o, 1.2, 1), new Blip(s, o, 210, 70, 0.3, 0.13, 0, 0.05));
+          this.duck(o, 0.3, 0.2);
           break;
         // the grappler net bites
         case "ffwd":
@@ -3708,7 +3938,7 @@
         runClock(sg.s, 0, Math.min(160, ignTicks), (bar, emit) => ignitionBar(bar, emit));
         if (sg.C < sg.until) {
           const maxK = sg.until === Infinity ? 1e12 : Math.round((sg.until - sg.C) / TICK);
-          runClock(sg.C, 0, maxK, (bar, emit) => cruiseBar(bar, Math.floor(bar / 32), emit, { thr: st.thr, w }));
+          runClock(sg.C, 0, maxK, (bar, emit) => cruiseBar(bar, Math.floor(bar / 32), emit, { thr: st.thr, w, heat: ph.phase === "cruise" && st.run > 0 && st.g && !st.g.free && !st.over ? st.g.star : 0, edge: ph.phase === "cruise" && st.g && !st.g.free && st.g.lives < 2 && !st.over ? 1 : 0 }));
         }
         if (sg.rew !== null) this._once("rew" + si, sg.rew, f0, f1, (o) => this.trigger({ i: "rewind", d: 0.6 }, o));
         if (sg.skip !== null) this._once("ff" + si, sg.skip, f0, f1, (o) => {
@@ -3731,7 +3961,7 @@
       for (const e of tl.events) {
         if (e.type !== "sfx") continue;
         if (this._sx(e.t) >= f1) break;
-        this._once("s" + e.seq, e.t, f0, f1, (o) => this.trigger({ i: e.name }, o));
+        this._once("s" + e.seq, e.t, f0, f1, (o) => this.trigger({ ...e.p || {}, i: e.name }, o));
       }
     }
     _once(key, t, f0, f1, fn) {
@@ -3767,6 +3997,7 @@
       if (ph.phase === "rewind") lp = 900;
       if (ph.phase === "cruise" && (st.over || st.paused || T < st.hold)) lp = Math.min(lp, T < st.hold ? 900 : 1100);
       if (ph.phase === "ff") lp = 2200;
+      if (ph.phase === "cruise" && st.run > 0 && st.g && !st.g.free && st.g.lives < 2 && !st.over) lp = Math.min(lp, 2600);
       this._lpT = lp;
       const ign = MASTER.ignTrimDb, cru = MASTER.cruiseTrimDb;
       let trim = cru;
@@ -3800,7 +4031,7 @@
       this.engLp.set(ec, 0.9);
       this.windL.set(250 + vel * 22, 0.7);
       this.windR.set(280 + vel * 24, 0.7);
-      const wg = 9e-4 * Math.pow(vel, 1.1) * ambG;
+      const wg = 9e-4 * Math.pow(vel, 1.1) * ambG, whF = 700 + vel * 8, whG = ph.phase === "cruise" ? 7e-3 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;
       {
         const st = this._st, g = st.g, run = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
         const close = run && (st.over === 2 || policeClose(g));
@@ -3833,6 +4064,35 @@
             const env = Math.pow(0.5 + 0.5 * Math.cos(this.heliP * TAU2), 4), y = this.heliF.lp(this.heliR.next()) * (0.25 + env) * this.heliG;
             B.sfxL[i] += y;
             B.sfxR[i] += y * 0.85;
+          }
+        }
+      }
+      {
+        const tb = ph.phase === "cruise" ? tl.turboAt(T) : null, k = tb ? Math.max(0, Math.min(1, (tl.turboMul(T) - 1) / GAME.nitroBoost)) : 0;
+        if (k > 0 || this.abG > 1e-5) {
+          const kA = 1 - exp(-1 / (0.04 * SR)), kR = 1 - exp(-1 / (0.35 * SR));
+          this.abL.set(260 + 1500 * k, 0.9);
+          this.abR.set(300 + 1600 * k, 0.9);
+          for (let i = 0; i < N; i++) {
+            this.abG += (k - this.abG) * (k > this.abG ? kA : kR);
+            this.abP += (38 + 22 * this.abG) / SR;
+            if (this.abP >= 1) this.abP -= 1;
+            const g = this.abG, rum = Math.sin(this.abP * TAU2) * 0.5, cr = Math.abs(this.abN[0].next()) > 0.997 ? 0.6 : 0;
+            B.sfxL[i] += (this.abL.lp(this.abN[0].next()) * 0.55 + rum + cr * 0.3) * g * 0.16;
+            B.sfxR[i] += (this.abR.lp(this.abN[1].next()) * 0.55 + rum + cr * 0.3) * g * 0.16;
+          }
+        }
+      }
+      {
+        const st = this._st, g = st.g, on = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.lives < 2 ? 1 : 0;
+        if (on || this.hbG > 1e-5) {
+          const kA = 1 - exp(-1 / (0.3 * SR)), c0 = T - ph.seg.C;
+          for (let i = 0; i < N; i++) {
+            this.hbG += (on - this.hbG) * kA;
+            const u = ((c0 + i / SR) % BEAT + BEAT) % BEAT, th = (x) => x > 0 ? (Math.sin(TAU2 * 54 * x) + 0.35 * Math.sin(TAU2 * 108 * x) * exp(-x / 0.025)) * exp(-x / 0.075) * Math.min(1, x / 4e-3) : 0;
+            const y = (th(u) + 0.65 * th(u - 0.17)) * 0.26 * this.hbG;
+            B.sfxL[i] += y;
+            B.sfxR[i] += y;
           }
         }
       }
@@ -3883,8 +4143,18 @@
           mL *= g;
           mR *= g;
         }
-        const eo = this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
+        this.whP = (this.whP || 0) + whF / SR;
+        if (this.whP >= 1) this.whP -= 1;
+        const eo = Math.sin(this.whP * TAU2) * whG + this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
         const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
+        {
+          const tg = gf < this.duckUntil ? this.duckDepth : 0;
+          this.duckE += (tg - this.duckE) * (tg > this.duckE ? 26e-4 : 6e-5);
+          if (gf >= this.duckUntil && this.duckE < 1e-4) this.duckDepth = 0;
+          const dg = 1 - this.duckE;
+          mL *= dg;
+          mR *= dg;
+        }
         let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
         const pk = Math.max(Math.abs(xL), Math.abs(xR));
         const lv = 20 * Math.log10(pk + 1e-9), over = lv + 9;

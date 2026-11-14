@@ -618,7 +618,7 @@ export function stepGame(g, inp, out) {
       const l = inp.lane;
       if (fair([[l, warn + 0.05, tRam]])) {
         g.polM = P_WARN; g.polT = gt; g.polLane = l; g.polF = 0; g.polW = warn;
-        go('ramwarn', { lane: l });
+        go('ramwarn', { lane: l, w: warn });
       }
     }
   } else {
@@ -681,7 +681,7 @@ export function stepGame(g, inp, out) {
         const cells = icMoveCells(g.icX, p, warn), T = icMoveT(g.icX, p);
         if (may(cells[0][2], p === a) && (p === a || laneWin(g, a, inp.vel, warn + T * 0.12 - 0.1, warn + T * 0.85 + 0.1)) && fair(cells)) {
           g.icM = I_TELL; g.icT = gt; g.icFrom = g.icX; g.icTo = p; g.icW = warn;
-          go('ictell', { lane: p, side: a });
+          go('ictell', { lane: p, side: a, w: warn });
         }
       }
     } else if (g.icM === I_TELL) {
@@ -734,14 +734,14 @@ export function stepGame(g, inp, out) {
         else tryIt(H_LANE, l, 0);
         if (pick) {
           g.drT = gt; g.drPat = pick[0]; g.drLane = pick[1]; g.drB = pick[2]; g.drW = pick[3]; g.drAcc = 0; g.drHit = 0; g.drS = 0; g.drWant = -1;
-          go('lock', { lane: pick[1], pat: pick[0], b: pick[2] });
+          go('lock', { lane: pick[1], pat: pick[0], b: pick[2], w: pick[3] });
         }
       }
     } else {
       const u = gt - g.drT, S = heliStrikes(g.drPat, g.drLane, g.drB, g.drW), end = S[S.length - 1][2];
       let n = 0, on = 0;
       for (const [ln, t0, t1] of S) { if (u >= t0) n++; if (u >= t0 && u < t1 && Math.abs(px - ln * L) < 2.0) on = 1; }
-      if (n > g.drS) { if (!g.drS) learn(g.drLane); g.drS = n; g.drAcc = 0; out.push({ k: 'strike', lane: S[n - 1][0] }); }
+      if (n > g.drS) { if (!g.drS) learn(g.drLane); g.drS = n; g.drAcc = 0; out.push({ k: 'strike', lane: S[n - 1][0], d: S[n - 1][2] - S[n - 1][1] }); }
       if (on && !inp.nitro && gt >= g.inv) {
         g.drAcc += DT;
         if (g.drAcc >= 0.1 && !g.drHit) { g.drHit = 1; g.slow = gt + G.ramSlow; g.inv = gt + G.swipeInv; stumble(g, out, 'heli'); }

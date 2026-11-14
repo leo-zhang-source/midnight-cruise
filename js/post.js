@@ -69,7 +69,7 @@ const VHS = /* glsl */`
   precision highp float; varying vec2 vUv;
   uniform sampler2D tComp, tBloom, tFg; uniform vec2 uRes, uTex; uniform float uT, uScale, uAspect;
   uniform float uRgb, uTrack, uTrackY, uNoise, uScan, uVig, uFlash, uCrt, uBloom, uSpeed, uFfwd, uRew, uWarp, uHz;
-  uniform vec4 uGlint; uniform vec3 uFlare; uniform vec3 cA, cB;
+  uniform vec4 uGlint; uniform vec3 uFlare; uniform vec3 cA, cB, uTint; uniform float uDanger;
   float h11(float p){ p = fract(p * .1031); p *= p + 33.33; p *= p + p; return fract(p); }
   float h21(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   float rr(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -160,7 +160,9 @@ const VHS = /* glsl */`
         col += mix(cA, cB, fk / 3.0) * ring * uFlare.z * 0.18;
       }
     }
-    col += uFlash;
+    col += uFlash + uTint;
+    // the last life: the edges of the picture glow red, pulsing
+    if (uDanger > 0.001) { vec2 dq = (vUv - 0.5) * vec2(uAspect, 1.0); float e = smoothstep(0.32, 0.95, length(dq * vec2(0.85, 1.25))); col = mix(col, col * vec3(1.0, 0.45, 0.5), e * uDanger * 0.8) + vec3(1.0, 0.03, 0.12) * e * e * uDanger * 1.1; }
     col = tone(max(col, 0.0));
     // ── scanlines (~2 px spacing at 1080p, scaled) ──
     float per = max(2.0, 2.0 * uScale);
@@ -203,7 +205,7 @@ export class Post {
     this.vhs = new Pass(VHS, {
       tComp: { value: null }, tBloom: { value: null }, tFg: { value: null }, uRes: { value: new THREE.Vector2() }, uTex: { value: new THREE.Vector2() }, uT: { value: 0 }, uScale: { value: 1 }, uAspect: { value: 1 },
       uRgb: { value: 1.5 }, uTrack: { value: 0 }, uTrackY: { value: 0.5 }, uNoise: { value: 0 }, uScan: { value: 1 }, uVig: { value: 0.4 }, uFlash: { value: 0 },
-      uCrt: { value: 0 }, uBloom: { value: 1 }, uSpeed: { value: 0 }, uFfwd: { value: 0 }, uRew: { value: 0 }, uWarp: { value: 0 }, uHz: { value: 0.44 },
+      uCrt: { value: 0 }, uBloom: { value: 1 }, uSpeed: { value: 0 }, uFfwd: { value: 0 }, uRew: { value: 0 }, uWarp: { value: 0 }, uHz: { value: 0.44 }, uTint: { value: new THREE.Vector3() }, uDanger: { value: 0 },
       uGlint: { value: new THREE.Vector4() }, uFlare: { value: new THREE.Vector3() }, cA: { value: new THREE.Vector3() }, cB: { value: new THREE.Vector3() },
     });
     this.samples = 4;
@@ -257,6 +259,7 @@ export class Post {
     v.uRes.value.set(this.outW, this.outH); v.uTex.value.set(1 / this.W, 1 / this.H); v.uT.value = s.T; v.uScale.value = this.outH / 1080; v.uAspect.value = this.outW / this.outH;
     v.uRgb.value = 0.6 + 1.5 * (P.rgb - 1); v.uTrack.value = P.tracking; v.uTrackY.value = P.trackY; v.uNoise.value = P.noise; v.uScan.value = P.scan;
     v.uVig.value = P.vignette; v.uFlash.value = P.flash; v.uCrt.value = P.crt; v.uBloom.value = P.bloom; v.uSpeed.value = s.reduced ? 0 : P.speed;
+    v.uTint.value.set(...(P.tint || [0, 0, 0])); v.uDanger.value = P.danger || 0;
     v.uFfwd.value = P.ffwd; v.uRew.value = P.rewind; v.uWarp.value = P.warp; v.uHz.value = 0.5 - s.layout.shift * 0.5;
     v.uGlint.value.set(glint[0], glint[1], P.glint.i, P.glint.size * this.outH / 1080 * 1.0);
     v.uFlare.value.set(flare[0], flare[1], P.flare.i);

@@ -19,6 +19,79 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 34: sound, impact and the feel of the chase
+
+The brief was the sensory side, with the judgement left to me. What was weak, judged from the code, from measurements of every sound and from frames of the key moments:
+
+| Where | What it was | Why it fell short |
+|---|---|---|
+| Ramming a car in a nitro burst | a click and two sine sweeps, 0.3 s, centred at 480 Hz | the most rewarding moment in the game sounded like a menu button |
+| The helicopter's guns | six descending sine blips, −29 dB, 320 Hz | not gunfire; quieter than a passing car |
+| Attack warnings | three identical 1.9 kHz blips at −39 dB for every unit | nearly inaudible, the same for all three units, and no sense of how long until the hit |
+| A hit that costs a life | a random shake, a white flash | no direction, no weight, nothing that marked it as the moment it went wrong |
+| The last life | a line of text and red stars | the most tense state in the game felt like any other |
+| Speed | radial blur, fixed field of view | 550 MPH looked much like 250 |
+| Nitro | flame, field of view, a musical stinger | no physical sense of firing |
+| The music | the same at one star and at five | the chase escalates and the soundtrack does not notice |
+
+### What was built
+
+**Sound** (`js/audio/synth.js`; all synthesised)
+
+| Sound | Now | Level over its first 0.3 s (was) |
+|---|---|---|
+| Smash | **Crunch**: body thump, noise crack, seven inharmonic metal modes with their own decays, glass tinkles, debris rattle in clumps; panned to the lane; heavier for trucks and cruisers | −19 dB (−23) |
+| Ploughing through a vehicle (a life lost) | the big crunch plus a sub boom | −13 dB (it played the smash) |
+| Crash (run over) | the big crunch, an impact, the tape squeal | −13 dB (−17) |
+| Sideswipe, grappler, interceptor slam | **Scrape**: band-noise grind swept about, sparks crackling in it, a squeal, a thump | −19 dB (−22) |
+| Helicopter strike | **Gunfire**: 22 rounds a second for the length of the strike, crack + thud + body, ricochets, room; panned | −25 dB (−29); brightness 6.1 kHz (0.3) |
+| Attack warnings | **Countdown**: beeps accelerating from 0.17 s apart to 0.04, rising in pitch, ending exactly at the strike; grappler 1.25 kHz, interceptor 1.55, helicopter 1.9 | −31 dB (−39) |
+| Gear change | blow-off hiss and gearbox clunk | −29 dB |
+| Dodge | a short air swish | −32 dB (was silent) |
+| Canister | a short charge, then the chime | −33 dB |
+| Threat level up | the three tones plus a sub boom and a cymbal | |
+| Nitro burst | a sustained jet roar and rumble, following the boost, crackling | (new) |
+| Engine at speed | a turbo whine rising with speed | (new) |
+| Last life | a lub-dub heartbeat on every beat of the music; the music low-passed to 2.6 kHz | (new) |
+| Music under big hits | ducked by 2.5 to 8 dB for the length of the hit, back over 0.35 s | (new) |
+
+**Music that follows the chase** (`cruiseBar` in `js/cue.js`): from ★★★ a low 16th-note pulse on the chord root; from ★★★★ a tom run into every fourth bar; at ★★★★★ a brass stab on every other downbeat and a high root–fifth alarm on the beat (left out under the lead hook). Loudness stays within 1.4 dB from one star to five (the glue compressor holds it): the music gets denser, not louder. The limiter does at most 3 dB of gain reduction in a full five-star run, over 1 dB in 2.4 % of blocks.
+
+**Impact** (`js/director.js`, `js/gameview.js`, `js/post.js`)
+
+| | |
+|---|---|
+| Hit-stop | the picture holds and catches up: smash 35 + 60 ms, hit 90 + 140 ms, crash 140 + 200 ms (sound is not delayed). It re-simulates from the last checkpoint while it holds: 0.6 ms a frame on average, 1.6 at worst |
+| Camera | a decaying kick towards the side of the hit; gunfire within a lane and a half rattles it; field of view punches in 4.5 % on a smash, out 6 % on a hit; opens up to 8 % with speed |
+| Flashes | tinted by cause: amber smash, red police hit, white-hot crash, magenta level-up, red and blue alternating on a new star, cyan on a canister and a dodge |
+| Sparks | streaks drawn along their flight, with gravity: 30 from a smash (40 from the car), 26 along your flank on a sideswipe, 22 from the grappler or a helicopter hit |
+| Smash light | the grid under the wreck lit for 0.1 s, a ring running out to 19 units |
+| Nitro | a shockwave ring over the grid, 73 units out in 0.7 s, with a white inner ring |
+| Last life | red edges pulsing lub-dub with the heartbeat; the car trailing smoke and shedding sparks |
+| Speed | 44 streaks of light at the roadside and overhead, turned to face the camera, longer and brighter from 290 MPH up |
+| Score | jumps by up to 22 % and goes warm on a smash, a close call or a dodge |
+
+### Checked
+
+| Check | Result |
+|---|---|
+| Every new sound measured (level, length, brightness) and in a full five-star run (loudness by wanted level, limiter load) | as above |
+| Hit-stop: picture time against real time around a hit | holds 5 frames at 60 fps, catches up over 9 |
+| Frame cost, 1920×1080 | 6 to 10 ms (as before) |
+| `tools/game-test.mjs` | 82 pass |
+| Browser suites | game-ui 43, interact 41, touch 8, auto-env-test 7, all pass; no console errors |
+| Smoke tests | the three built pages pass at a five-star moment; the audio smoke test finds the worklet running with signal |
+| Looked at | a nitro burst and three smashes, a hit from the helicopter, the last life, a crash, top speed |
+
+A 30-second render of a five-star stretch with all its sounds is in the session folder as `five-star-sound-check.wav`.
+
+### Not checked, and known limits
+
+- **I have not heard any of it.** The levels are set against the existing effects and the music by measurement. The crunch in particular is synthesis: whether it reads as metal and glass or as noise is for an ear to say.
+- **The countdown beeps are one more sound** at five stars, where up to three attacks can overlap; the three pitches are there to keep them apart.
+- **Hit-stop delays the picture, not the input.** A lane change pressed during a 90 ms hold happens on time and shows when the picture catches up.
+- **The speed streaks are faint** on the two warm colour presets.
+
 ## Revision 33: a third more top speed, denser traffic later, random swerves
 
 Three things were asked for: more traffic later in a run, a higher chance of ordinary vehicles swerving, and a third more top speed. All three are done.

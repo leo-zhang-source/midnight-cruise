@@ -4,7 +4,7 @@
 // (offline reference renders + loudness measurement). Output is a pure function
 // of the sample index and the event timeline.
 // ─────────────────────────────────────────────────────────────────────────────
-import { SR, TICK, TPB, IGN, TURBO, BAR, ignitionBar, cruiseBar, turboNotes, cruiseChord, neonPower } from '../cue.js';
+import { SR, TICK, TPB, IGN, TURBO, BAR, BEAT, GAME, ignitionBar, cruiseBar, turboNotes, cruiseChord, neonPower } from '../cue.js';
 import { Timeline } from '../timeline.js';
 import { policeClose, revs } from '../game.js';
 import { REVCRASH_PEAK } from './samples.js';
@@ -410,6 +410,105 @@ class Skid extends Voice { // tyres: a cruiser swerving hard across a lane
     return t < 0.65;
   }
 }
+// ── Game impacts and weapons ─────────────────────────────────────────────────
+// Everything here is drawn from noise, sines and a few resonances: no samples. Each takes a pan (−1 left … +1 right) so a hit
+// is heard where it happened, and the big ones duck the music for a moment (see Synth.duck).
+const rnd01 = (r) => r.next() * 0.5 + 0.5;
+class Crunch extends Voice { // a vehicle hit hard: a body thump, a crack, sheet metal ringing, glass, debris rattling down
+  constructor(s, o, v = 1, pan = 0, big = 0) {
+    super(s, o); this.v = v; this.big = big; this.l = panL(pan * 0.75); this.r = panR(pan * 0.75);
+    const R = this.rn = new RNG(s.seed());
+    this.hp = new SVF(); this.hp.set(big ? 1400 : 2000, 0.7); this.lp = new SVF(); this.lp.set(big ? 700 : 1100, 0.8); this.ph = 0; this.gate = 1;
+    // the metal: inharmonic modes, each with its own decay (sheet steel and plastic, a little lower and longer for the big one)
+    const base = [312, 517, 788, 1144, 1690, 2380, 3210];
+    this.md = base.map((f) => [f * (0.82 + 0.36 * rnd01(R)) * (big ? 0.78 : 1), (0.05 + 0.22 * rnd01(R)) * (big ? 1.7 : 1), 0.5 + 0.5 * rnd01(R), rnd01(R) * TAU]);
+    // the glass: a few tinkles, spread over the first moments
+    this.gl = []; for (let k = 0; k < (big ? 11 : 6); k++) this.gl.push([0.015 + Math.pow(rnd01(R), 1.6) * (big ? 0.7 : 0.32), 2600 + 5200 * rnd01(R), 0.4 + 0.6 * rnd01(R)]);
+    this.len = big ? 2.4 : 1.1;
+  }
+  tick(B, i, t) {
+    const R = this.rn, big = this.big, n = R.next();
+    this.ph += ((big ? 58 : 74) * (0.55 + 0.45 * exp(-t / 0.09))) / SR;
+    const thump = sin(TAU * this.ph) * exp(-t / (big ? 0.34 : 0.17)) * Math.min(1, t / 0.0015) * (big ? 0.9 : 0.62);
+    const crack = this.hp.hp(n) * exp(-t / (big ? 0.022 : 0.011)) * (big ? 0.8 : 0.65);
+    if ((this.n & 511) === 0) this.gate = 0.25 + 0.75 * rnd01(R);                  // debris: the rattle comes in clumps
+    const crumble = this.lp.lp(n) * exp(-t / (big ? 0.6 : 0.28)) * this.gate * (big ? 0.5 : 0.32);
+    let metal = 0;
+    for (const m of this.md) metal += sin(TAU * m[0] * t * (1 - 0.02 * Math.min(1, t / 0.15)) + m[3]) * m[2] * exp(-t / m[1]);
+    metal *= Math.min(1, t / 0.002) * (big ? 0.075 : 0.06);
+    let glass = 0;
+    for (const g of this.gl) { const u = t - g[0]; if (u > 0 && u < 0.12) glass += sin(TAU * g[1] * u) * exp(-u / 0.028) * g[2]; }
+    const y = (thump + crack + crumble + metal + glass * 0.07) * this.v * 0.62;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r; B.rev[i] += (crack + metal + glass * 0.07) * this.v * 0.05;
+    return t < this.len;
+  }
+}
+class Scrape extends Voice { // metal dragged along metal: a sideswipe, the grappler's net, a cruiser slamming in. Sparks crackle in it.
+  constructor(s, o, d = 0.42, v = 1, pan = 0) { super(s, o); this.d = d; this.v = v; this.l = panL(pan * 0.75); this.r = panR(pan * 0.75); this.rn = new RNG(s.seed()); this.f = new SVF(); this.g = new SVF(); this.g.set(5200, 1.2); this.ph = 0; this.sp = 0; this.ph2 = 0; }
+  tick(B, i, t) {
+    const R = this.rn, n = R.next(), d = this.d;
+    if ((this.n & 31) === 0) this.f.set(1500 + 900 * Math.sin(t * 37) + 500 * R.next(), 4.5);
+    if (R.next() > 0.9985) this.sp = 1;                                           // a spark
+    this.sp *= 0.996;
+    const env = Math.min(1, t / 0.006) * (t < d ? 1 - 0.35 * t / d : exp(-(t - d) / 0.05));
+    this.ph += (2650 + 140 * Math.sin(t * 190)) / SR; this.ph2 += (88 * exp(-t / 0.05) + 40) / SR;
+    const grind = this.f.bp(n) * 0.5 * (0.6 + 0.4 * Math.abs(Math.sin(t * 61))) + this.g.bp(n) * this.sp * 0.9;
+    const squeal = sin(TAU * this.ph) * 0.05, hit = sin(TAU * this.ph2) * exp(-t / 0.06) * 0.5;
+    const y = ((grind + squeal) * env + hit) * this.v * 0.55;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r;
+    return t < d + 0.3;
+  }
+}
+class Gunfire extends Voice { // the helicopter's guns down one lane: a round every 1/22 s while the strike lasts, each a crack, a thud and a
+  // little room; now and then a ricochet whines off the road
+  constructor(s, o, d = 0.45, v = 1, pan = 0) {
+    super(s, o); this.d = d; this.v = v; this.l = panL(pan * 0.8); this.r = panR(pan * 0.8);
+    const R = this.rn = new RNG(s.seed()); this.hp = new SVF(); this.hp.set(2600, 0.7); this.bp = new SVF(); this.bp.set(620, 1.4);
+    this.shots = []; for (let t = 0; t < d; t += 1 / 22) this.shots.push([t + 0.004 * R.next(), 0.75 + 0.25 * rnd01(R), rnd01(R) < 0.3 ? 0.03 + 0.06 * rnd01(R) : -1, 3400 + 1400 * rnd01(R)]);
+  }
+  tick(B, i, t) {
+    const n = this.rn.next(); let c = 0, b = 0, w = 0, body = 0;
+    for (const [t0, a, ric, rf] of this.shots) {
+      const u = t - t0; if (u < 0) break;
+      if (u < 0.06) { const e = exp(-u / 0.0035) * a; c += e; b += exp(-u / 0.03) * a; body += sin(TAU * (150 - 400 * u) * u) * exp(-u / 0.022) * a; }
+      const ur = u - (ric > 0 ? ric : 99); if (ur > 0 && ur < 0.12) w += sin(TAU * (rf - 9000 * ur) * ur) * exp(-ur / 0.05) * 0.5;
+    }
+    const y = (this.hp.hp(n) * c * 0.9 + this.bp.bp(n) * b * 0.35 + body * 0.45 + w * 0.08) * this.v * 0.5;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r; B.rev[i] += y * 0.12;
+    return t < this.d + 0.25;
+  }
+}
+class Countdown extends Voice { // a lock-on: beeps that come faster and climb, ending exactly when the attack lands. f: its pitch (each unit has its own)
+  constructor(s, o, d = 1, f = 1900, v = 1) {
+    super(s, o); this.d = d; this.f = f; this.v = v; this.ph = 0; this.b = [];
+    for (let t = 0, iv = 0.17; t < d - 0.035; t += iv, iv = Math.max(0.042, iv * 0.8)) this.b.push(t);
+  }
+  tick(B, i, t) {
+    let y = 0;
+    for (const t0 of this.b) { const u = t - t0; if (u < 0) break; if (u < 0.03) { const p = TAU * this.f * (1 + 0.3 * t / this.d) * u; y += (sin(p) + 0.25 * sin(3 * p)) * Math.min(1, u / 0.002) * (1 - u / 0.03); } }
+    y *= 0.17 * this.v;
+    B.sfxL[i] += y; B.sfxR[i] += y;
+    return t < this.d;
+  }
+}
+class Shift extends Voice { // a gear change: the blow-off valve's hiss and the gearbox's clunk
+  constructor(s, o) { super(s, o); this.rn = new RNG(s.seed()); this.hp = new SVF(); this.hp.set(2200, 0.8); this.lp = new SVF(); this.lp.set(6500, 0.7); this.ph = 0; }
+  tick(B, i, t) {
+    this.ph += 95 / SR;
+    const y = this.lp.lp(this.hp.hp(this.rn.next())) * Math.min(1, t / 0.01) * exp(-t / 0.11) * 0.075 + sin(TAU * this.ph) * exp(-t / 0.03) * 0.22 * (t < 0.12 ? 1 : 0);
+    B.sfxL[i] += y * 0.9; B.sfxR[i] += y;
+    return t < 0.5;
+  }
+}
+class Swish extends Voice { // a dodge: the air you just left, a short sweep up
+  constructor(s, o, pan = 0) { super(s, o); this.rn = new RNG(s.seed()); this.f = new SVF(); this.l = panL(pan * 0.6); this.r = panR(pan * 0.6); }
+  tick(B, i, t) {
+    if ((this.n & 15) === 0) this.f.set(600 * Math.pow(6, Math.min(1, t / 0.18)), 2.2);
+    const y = this.f.bp(this.rn.next()) * Math.sin(Math.PI * Math.min(1, t / 0.22)) * 0.2;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r;
+    return t < 0.22;
+  }
+}
 class Squeal extends Voice { // tape rewind / fast-forward chatter
   constructor(s, o, d, up) { super(s, o); this.d = d; this.up = up; this.p = [0, 0, 0]; this.r = new RNG(s.seed()); this.hp = new SVF(); this.hp.set(2500, 0.7); }
   tick(B, i, t) {
@@ -529,6 +628,9 @@ export class Synth {
     this.hpL = new SVF(); this.hpR = new SVF(); this.hpL.set(28, 0.6); this.hpR.set(28, 0.6);
     this.ring = [new Float32Array(1 << 17), new Float32Array(1 << 17)];
     this.gateUntil = -1; this.gateEnv = 0;
+    this.duckUntil = -1; this.duckDepth = 0; this.duckE = 0;
+    this.abG = 0; this.abL = new SVF(); this.abR = new SVF(); this.abN = [new RNG(501), new RNG(502)]; this.abP = 0;   // the afterburner of a nitro burst
+    this.hbG = 0;                                                                                                      // the heartbeat on the last life
     this.comp = 0;
     this.fired = new Set();
     this.arpPan = 0;
@@ -542,6 +644,8 @@ export class Synth {
   }
   setSample(name, L, R) { this.smp[name] = { L, R: R || L }; }
   seed() { this._seed = (Math.imul(this._seed, 1664525) + 1013904223) >>> 0; return this._seed; }
+  // the music steps back under a big hit: down by `depth` (0..1) within 8 ms, held for `hold` s, back over 0.35 s
+  duck(o, depth, hold) { const u = this.frame + o + Math.round(hold * SR); if (u > this.duckUntil || depth > this.duckDepth) { this.duckUntil = Math.max(this.duckUntil, u); this.duckDepth = Math.max(this.frame + o < this.duckUntil ? this.duckDepth : 0, depth); } }
   openGate(o, dur) { this.gateUntil = Math.max(this.gateUntil, this.frame + o + Math.round(dur * SR)); }
   event(e) { this.tl.add(e.type, e.t, e); }
 
@@ -597,20 +701,23 @@ export class Synth {
       case 'passBL': v = new Pass(s, o, -1, 1); break;
       case 'passBR': v = new Pass(s, o, 1, 1); break;
       case 'skid': v = new Skid(s, o); break;
+      case 'dodge': v = new Swish(s, o, n.pan || 0); break;
+      case 'pickup': v = new Riser(s, o, 0.2, 0.4); this.voices.push(new Blip(s, o, 1320, 1318.5, 0.25, 0.05, -0.2, 0.2), new Blip(s, o, 1980, 1975.5, 0.3, 0.045, 0.2, 0.26)); break;   // a nitro canister: it charges, then rings
       case 'horn': v = new Horn(s, o); break;
       case 'yelp': v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5); for (let k = 1; k < 8; k++) this.voices.push(new Blip(s, o, k % 2 ? 900 : 1250, k % 2 ? 1250 : 900, 0.09, 0.05, k % 2 ? -0.5 : 0.5, k * 0.13)); break;   // the interceptor's siren: a fast yelp
-      case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4)); break;   // the threat level rises
+      case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4), new Sub(s, o, 0.4)); if (S.crash_f) play('crash_f', { gain: 0.26, rev: 0.08 }); this.duck(o, 0.2, 0.15); break;   // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
-      case 'smash': v = new Click(s, o, 1.0, 1); this.voices.push(new Blip(s, o, 1500, 240, 0.09, 0.1), new Blip(s, o, 2600, 900, 0.05, 0.05, 0.3, 0.03)); break;
-      case 'swipe': v = new Click(s, o, 1.1, 1); this.voices.push(new Blip(s, o, 260, 85, 0.1, 0.16)); break;
-      case 'crashfx': v = new Impact(s, o, 0.9); this.voices.push(new Click(s, o, 1.2, 1), new Blip(s, o, 900, 60, 0.35, 0.14), new Squeal(s, o, 0.5, false)); break;
+      case 'smash': v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0); this.duck(o, 0.32, 0.12); break;                    // a vehicle rammed in a nitro burst
+      case 'swipe': v = new Scrape(s, o, 0.36, 1, n.pan || 0); this.voices.push(new Click(s, o, 0.9, 1)); this.duck(o, 0.25, 0.1); break;
+      case 'crashfx': v = new Crunch(s, o, 1.25, 0, 1); this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false)); this.duck(o, 0.6, 0.35); break;   // the run ends against a vehicle
+      case 'wreck': v = new Crunch(s, o, 1.1, n.pan || 0, 1); this.voices.push(new Sub(s, o, 0.45)); this.duck(o, 0.5, 0.22); break;   // ploughed through one: a life gone
       case 'bust': v = new Blip(s, o, 620, 610, 0.16, 0.09); this.voices.push(new Blip(s, o, 470, 465, 0.16, 0.09, 0, 0.18), new Blip(s, o, 310, 300, 0.4, 0.1, 0, 0.36)); break;
-      case 'gear': v = new Blip(s, o, 660, 664, 0.08, 0.07, -0.2); this.voices.push(new Blip(s, o, 990, 996, 0.14, 0.07, 0.2, 0.09)); break;
+      case 'gear': v = new Shift(s, o); break;
       case 'siren': v = new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4); this.voices.push(new Blip(s, o, 1040, 780, 0.16, 0.05, 0.4, 0.26), new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4, 0.52), new Blip(s, o, 1040, 780, 0.2, 0.05, 0.4, 0.78)); break;
-      case 'lock': v = new Blip(s, o, 1900, 1890, 0.05, 0.05); this.voices.push(new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.14), new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.28)); break;
+      case 'lock': if (n.d) { v = new Countdown(s, o, n.d, n.f || 1900); break; } v = new Blip(s, o, 1900, 1890, 0.05, 0.05); this.voices.push(new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.14), new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.28)); break;
       case 'zap': v = new Blip(s, o, 2600, 180, 0.12, 0.1); this.voices.push(new Click(s, o, 0.8)); break;
-      case 'burst': v = new Blip(s, o, 520, 150, 0.04, 0.13); for (let k = 1; k < 6; k++) this.voices.push(new Blip(s, o, 520 - k * 14, 150, 0.04, 0.12, (k % 2 ? 0.25 : -0.25), k * 0.075)); break;   // the helicopter opens fire
-      case 'hook': v = new Click(s, o, 1.2, 1); this.voices.push(new Blip(s, o, 1250, 420, 0.07, 0.1), new Blip(s, o, 210, 70, 0.3, 0.13, 0, 0.05)); break;                                                // the grappler net bites
+      case 'burst': v = new Gunfire(s, o, n.d || 0.45, 1, n.pan || 0); this.duck(o, 0.22, n.d || 0.45); break;   // the helicopter opens fire down a lane
+      case 'hook': v = new Scrape(s, o, 0.9, 0.8, 0); this.voices.push(new Click(s, o, 1.2, 1), new Blip(s, o, 210, 70, 0.3, 0.13, 0, 0.05)); this.duck(o, 0.3, 0.2); break;   // the grappler net bites
       case 'ffwd': v = new Squeal(s, o, n.d ?? 0.4, true); break;
       default: return;
     }
@@ -642,7 +749,7 @@ export class Synth {
       runClock(sg.s, 0, Math.min(160, ignTicks), (bar, emit) => ignitionBar(bar, emit));
       if (sg.C < sg.until) {
         const maxK = sg.until === Infinity ? 1e12 : Math.round((sg.until - sg.C) / TICK);
-        runClock(sg.C, 0, maxK, (bar, emit) => cruiseBar(bar, Math.floor(bar / 32), emit, { thr: st.thr, w }));
+        runClock(sg.C, 0, maxK, (bar, emit) => cruiseBar(bar, Math.floor(bar / 32), emit, { thr: st.thr, w, heat: ph.phase === 'cruise' && st.run > 0 && st.g && !st.g.free && !st.over ? st.g.star : 0, edge: ph.phase === 'cruise' && st.g && !st.g.free && st.g.lives < 2 && !st.over ? 1 : 0 }));
       }
       // automatic transport SFX
       if (sg.rew !== null) this._once('rew' + si, sg.rew, f0, f1, (o) => this.trigger({ i: 'rewind', d: 0.6 }, o));
@@ -662,7 +769,7 @@ export class Synth {
     for (const e of tl.events) {
       if (e.type !== 'sfx') continue;
       if (this._sx(e.t) >= f1) break;
-      this._once('s' + e.seq, e.t, f0, f1, (o) => this.trigger({ i: e.name }, o));
+      this._once('s' + e.seq, e.t, f0, f1, (o) => this.trigger({ ...(e.p || {}), i: e.name }, o));
     }
   }
   _once(key, t, f0, f1, fn) {
@@ -697,6 +804,7 @@ export class Synth {
     if (ph.phase === 'rewind') lp = 900;
     if (ph.phase === 'cruise' && (st.over || st.paused || T < st.hold)) lp = Math.min(lp, T < st.hold ? 900 : 1100);
     if (ph.phase === 'ff') lp = 2200;
+    if (ph.phase === 'cruise' && st.run > 0 && st.g && !st.g.free && st.g.lives < 2 && !st.over) lp = Math.min(lp, 2600);   // the last life: the music goes muffled under the heartbeat
     this._lpT = lp;
     // trims
     const ign = MASTER.ignTrimDb, cru = MASTER.cruiseTrimDb;
@@ -734,7 +842,7 @@ export class Synth {
     } else this.engF = ef;
     this.engLp.set(ec, 0.9);
     this.windL.set(250 + vel * 22, 0.7); this.windR.set(280 + vel * 24, 0.7);
-    const wg = 0.0009 * Math.pow(vel, 1.1) * ambG;
+    const wg = 0.0009 * Math.pow(vel, 1.1) * ambG, whF = 700 + vel * 8, whG = ph.phase === 'cruise' ? 0.007 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;   // and at speed a turbo whine
     // the police siren, behind us for the whole run: distant while they hang back, loud and fast when they are on the tail
     {
       const st = this._st, g = st.g, run = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
@@ -763,6 +871,32 @@ export class Synth {
           this.heliP += 11.5 / SR; if (this.heliP >= 1) this.heliP -= 1;
           const env = Math.pow(0.5 + 0.5 * Math.cos(this.heliP * TAU), 4), y = this.heliF.lp(this.heliR.next()) * (0.25 + env) * this.heliG;
           B.sfxL[i] += y; B.sfxR[i] += y * 0.85;
+        }
+      }
+    }
+    // a nitro burst roars: a jet of filtered noise and a low rumble, following the boost
+    {
+      const tb = ph.phase === 'cruise' ? tl.turboAt(T) : null, k = tb ? Math.max(0, Math.min(1, (tl.turboMul(T) - 1) / GAME.nitroBoost)) : 0;
+      if (k > 0 || this.abG > 1e-5) {
+        const kA = 1 - exp(-1 / (0.04 * SR)), kR = 1 - exp(-1 / (0.35 * SR)); this.abL.set(260 + 1500 * k, 0.9); this.abR.set(300 + 1600 * k, 0.9);
+        for (let i = 0; i < N; i++) {
+          this.abG += (k - this.abG) * (k > this.abG ? kA : kR);
+          this.abP += (38 + 22 * this.abG) / SR; if (this.abP >= 1) this.abP -= 1;
+          const g = this.abG, rum = Math.sin(this.abP * TAU) * 0.5, cr = Math.abs(this.abN[0].next()) > 0.997 ? 0.6 : 0;   // (and it crackles)
+          B.sfxL[i] += (this.abL.lp(this.abN[0].next()) * 0.55 + rum + cr * 0.3) * g * 0.16; B.sfxR[i] += (this.abR.lp(this.abN[1].next()) * 0.55 + rum + cr * 0.3) * g * 0.16;
+        }
+      }
+    }
+    // the last life: a heartbeat on every beat of the music, lub-dub, low and close
+    {
+      const st = this._st, g = st.g, on = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.lives < 2 ? 1 : 0;
+      if (on || this.hbG > 1e-5) {
+        const kA = 1 - exp(-1 / (0.3 * SR)), c0 = T - ph.seg.C;
+        for (let i = 0; i < N; i++) {
+          this.hbG += (on - this.hbG) * kA;
+          const u = ((c0 + i / SR) % BEAT + BEAT) % BEAT, th = (x) => (x > 0 ? (Math.sin(TAU * 54 * x) + 0.35 * Math.sin(TAU * 108 * x) * exp(-x / 0.025)) * exp(-x / 0.075) * Math.min(1, x / 0.004) : 0);
+          const y = (th(u) + 0.65 * th(u - 0.17)) * 0.26 * this.hbG;
+          B.sfxL[i] += y; B.sfxR[i] += y;
         }
       }
     }
@@ -802,8 +936,11 @@ export class Synth {
         }
       } else if (mus.since + i / SR < 0.15) { const g = (mus.since + i / SR) / 0.15; mL *= g; mR *= g; }
       // ambience
-      const eo = this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
+      this.whP = (this.whP || 0) + whF / SR; if (this.whP >= 1) this.whP -= 1;
+      const eo = Math.sin(this.whP * TAU) * whG + this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
       const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
+      // the music ducks under a big hit
+      { const tg = gf < this.duckUntil ? this.duckDepth : 0; this.duckE += (tg - this.duckE) * (tg > this.duckE ? 0.0026 : 0.00006); if (gf >= this.duckUntil && this.duckE < 1e-4) this.duckDepth = 0; const dg = 1 - this.duckE; mL *= dg; mR *= dg; }
       let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
       // glue compressor (stereo linked, gentle)
       const pk = Math.max(Math.abs(xL), Math.abs(xR));

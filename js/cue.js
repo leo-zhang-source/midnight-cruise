@@ -346,6 +346,14 @@ export function cruiseBar(bar, cycle, emit, ctx) {
   if (arpV > 0.03) arpBar(emit, ch, arpV, thr > 0.6 ? 12 : 0);
   if (lagoon > 0.05) for (let s = 0; s < 16; s += 2) emit(s * 2 + 1, { i: 'pluck', n: CHORDS[ch].arp[(s / 2) % 4] - 12, v: 0.5 * lagoon, d: 0.2 });
   if (calm > 0.05) for (let s = 0; s < 16; s += 3) emit(s * 2, { i: 'bell', n: CHORDS[ch].arp[(s / 3) % 4] + 12, v: 0.45 * calm, d: 0.9 });
+  // The chase: layers that follow the wanted level (heat = stars, 0 off a run) and the last life (edge)
+  const heat = ctx.heat || 0, edge = ctx.edge || 0, r = CHORDS[ch].root;
+  if (heat >= 3) for (let s = 0; s < 16; s++) emit(s * 2, { i: 'pluck', n: r + 24 + (s % 4 === 3 ? 12 : 0), v: (s % 4 === 0 ? 0.34 : 0.22) * (edge ? 0.7 : 1), d: 0.07 });   // a low pulse in 16ths
+  if (heat >= 4 && b % 4 === 3 && b !== 23 && b !== 31) { emit(24, { i: 'tom', n: 48, v: 0.6 }); emit(27, { i: 'tom', n: 45, v: 0.65 }); emit(30, { i: 'tom', n: 41, v: 0.7 }); }   // toms into every fourth bar
+  if (heat >= 5) {
+    if (b % 2 === 0) emit(0, { i: 'stab', notes: CHORDS[ch].pad.map((n) => n - 12), d: 0.35, v: 0.42 });                           // a brass hit on every other downbeat
+    if (sec !== 'A2') for (let q = 0; q < 4; q++) emit(q * 8, { i: 'lead', n: r + 36 + (q % 2 ? 7 : 0), d: 0.22, v: 0.2 });           // and an alarm: root and fifth, high, on the beat
+  }
   // Lead
   if (sec === 'A2') phrase(emit, HOOK, b - 8, 8, cycle % 2 ? 12 : 0, 0.75);
   if (sec === 'L' && b >= 28 && cycle % 2 === 1) phrase(emit, HOOK_B, b - 28, 4, 0, 0.7);

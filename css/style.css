@@ -173,7 +173,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ── game HUD ── */
 #ghud { position: fixed; left: 50%; top: max(20px, 4.2vh); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .35); visibility: hidden; pointer-events: none; white-space: nowrap; }
 .gh-main { display: flex; align-items: baseline; gap: calc(var(--u) * .9); }
-.gh-score { font-weight: 700; font-size: calc(var(--u) * 2.7); letter-spacing: .06em; font-variant-numeric: tabular-nums; line-height: 1; color: #fff; text-shadow: 0 0 10px rgba(255, 63, 180, .75), 0 2px 0 rgba(20, 4, 40, .9); }
+.gh-score { display: inline-block; transform-origin: 50% 70%; font-weight: 700; font-size: calc(var(--u) * 2.7); letter-spacing: .06em; font-variant-numeric: tabular-nums; line-height: 1; color: #fff; text-shadow: 0 0 10px rgba(255, 63, 180, .75), 0 2px 0 rgba(20, 4, 40, .9); }
 .gh-mult { font-family: "VT323", monospace; font-size: calc(var(--u) * 2.2); line-height: 1; color: var(--acid); text-shadow: 0 0 8px rgba(184, 255, 46, .6); }
 .gh-sub { display: flex; align-items: center; gap: calc(var(--u) * 1.3); font-family: "VT323", monospace; font-size: calc(var(--u) * 1.5); line-height: 1; color: var(--ink); text-shadow: 0 0 6px rgba(0, 0, 0, .9); }
 .gh-cells { display: inline-flex; align-items: center; gap: .4em; }

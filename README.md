@@ -114,6 +114,22 @@ Heat from hits cools by one star every 12 s once 10 s pass without an incident, 
 
 **Fairness.** Every row leaves a lane open within one lane of the previous opening, and rows are spaced for the speed you are really doing, with room for their stagger. The lanes run at different speeds, so each vehicle starts behind or ahead of its place by what its lane will gain or lose, and the speed difference between lanes follows how fast you are closing: a row closes up to its planned stagger when you reach it whether you come in slowed by a hit, at cruising speed or in a nitro burst (a vehicle that changes lane takes up its new lane's speed and leaves its row). A taxi or a crossing cruiser is in its new lane about half a second before you arrive; a weaving cruiser takes its lane at least 1.2 s before, and the row after it leaves the middle lane open. Warnings are timed for the speed you would be doing flat out, so being slowed on the way in never shortens one. No police attack and no lane change in the traffic happens unless the forecast of the road leaves a way through it (see *How the police think*): one that also ends in the lane the next row of traffic will count on. Traffic is laid out 6.6 s of driving ahead, so the forecast covers the whole of even the longest attack. `tools/bot.mjs`, which drives by the same forecast but is told nothing in advance, drives 120 different seeds for 5 minutes each (to threat level 15, three quarters of it at five stars), 12 for 10 minutes, and 80 for 5 minutes firing every nitro canister it finds, without taking a single hit. That is the bar for every change to the numbers.
 
+**How it sounds and hits.** Every sound is synthesised, no samples beyond the drum kit:
+
+- **Hits.** Ramming a vehicle in a nitro burst is a crunch: a body thump, a crack, sheet metal ringing at its own inharmonic pitches, glass, debris rattling down, heard on the side it happened. Ploughing through one or crashing is the same, bigger. A sideswipe, the grappler's net and an interceptor slamming in grind metal on metal with sparks in it. Big hits duck the music for a moment.
+- **The guns.** The helicopter's strike is a burst of rounds down the lane, 22 a second, each a crack and a thud, with the odd ricochet whining off the road, panned to where it lands.
+- **Countdowns.** Every attack's warning beeps faster and higher and ends exactly when it lands: the grappler low, the interceptor in the middle, the helicopter high, so you know which it is without looking.
+- **The car.** The engine climbs through each gear and falls back at the change, with the hiss and clunk of the shift; at speed a turbo whine comes in. A nitro burst roars like a jet.
+- **The music follows the chase.** From three stars a low pulse runs under it, from four toms drive into every fourth bar, at five a brass hit lands on every other downbeat and a high alarm motif plays. On the last life the music goes muffled and a heartbeat thumps on the beat.
+
+And it hits on screen:
+
+- **Hit-stop.** The picture holds for a few frames on every impact and then catches up: a smash 35 ms, a hit that costs a life 90 ms, a crash 140 ms.
+- **The camera** kicks towards the side a hit came from, the lens punches in on a smash and out on a hit, gunfire close by rattles it, and the faster you go the wider it opens.
+- **Light.** Smashes throw sparks and light the grid under them with a ring running out from the wreck; a sideswipe sprays sparks along your flank; a nitro burst sends a shockwave over the grid; flashes are tinted by what they were (amber smash, red police hit, white-hot crash, magenta level-up). Streaks of light rush past at the roadside at speed.
+- **The last life** is a state you can see: the edges of the picture glow red in time with the heartbeat and the car trails smoke and sheds sparks until a nitro burst gives the life back.
+- With reduced motion the hit-stop, camera kicks and lens punches are off and the flashes are dimmed.
+
 **Pause.** `P` pauses the run like a VCR: the game clock stops and the music carries on, muffled. The run also pauses by itself when the tab is hidden or the window loses focus, and stays paused until you resume.
 
 Each visit gets its own traffic. `?seed=7` pins it, and `?free=1` is the plain cruise with no traffic and no police.

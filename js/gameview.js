@@ -138,6 +138,9 @@ function makeGlows() {
           vec2 p = q * 1.35; float ch = 0.0;
           for (int k = 0; k < 2; k++) { float x = p.x + 0.42 - float(k) * 0.62; float d = abs(x - (0.34 - abs(p.y) * 0.62)); ch += smoothstep(0.14, 0.06, d) * step(abs(p.y), 0.56); }
           a = ring + ch * step(r, 0.74) + exp(-r * r * 3.0) * 0.25;
+        } else if (t > 10.5) {                       // 11 · a ring (shockwaves): its width is the parameter
+          float r = length(q), w = max(vM.w, 0.02);
+          a = exp(-pow((r - (1.0 - w)) / w, 2.0)) + exp(-r * r * 2.0) * 0.08;
         } else {                                     // 10 · searchlight cone from −V (the lamp) to +V (the road): narrow and bright, then wide and thin
           float v = q.y * 0.5 + 0.5, w = mix(0.07, 1.0, v), x = abs(q.x) / w;
           a = (smoothstep(1.0, 0.0, x) * 0.7 + smoothstep(1.0, 0.82, x) * 0.3) * mix(1.0, 0.3, v) * smoothstep(0.0, 0.03, v);
@@ -536,9 +539,25 @@ export class GameView {
           this.glow(tx, 0.05, cz - 1, 2.2, 0, 0, 0, 0, 5.5, c, 2, (0.25 + 0.35 * k) * f);
         }
       }
-      // ── debris: smashed vehicles and the wrecked car shatter into shards of light ──
+      // ── debris: smashed vehicles and the wrecked car shatter into shards of light; every hit throws sparks, and a smash lights the
+      //    road under it for a moment ──
+      const SPARK = [1, 0.62, 0.22], HOTW = [1, 0.9, 0.65];
+      const sparks = (bx, by, bz, a, n, seed, spread, back, life, k0 = 1) => {
+        for (let k = 0; k < n; k++) {
+          const h1 = hash1(seed + k * 5.3), h2 = hash1(seed + k * 9.1 + 2), h3 = hash1(seed + k * 2.7 + 5), al = a / (life * (0.5 + 0.5 * h3));
+          if (al >= 1) continue;
+          const vx = (h1 - 0.5) * spread, vy = 2 + 7 * h2, vz = back * (0.6 + 0.8 * h3) + (h2 - 0.5) * spread * 0.5;
+          const x = bx + vx * a, y = by + vy * a - 14 * a * a, z = bz + vz * a; if (y < 0.03) continue;
+          const len = 0.25 + 0.05 * Math.hypot(vx, vy - 28 * a, vz);                     // drawn out along its flight, longer the faster it goes
+          const dx = vx, dy = vy - 28 * a, dz = vz, m = Math.hypot(dx, dy, dz) || 1;
+          this.glow(x - dx / m * len * 0.5, y - dy / m * len * 0.5, z - dz / m * len * 0.5, 0.08, 0, 0, dx / m * len * 0.5, dy / m * len * 0.5, dz / m * len * 0.5, k % 3 ? SPARK : HOTW, 8, 4.5 * (1 - al) * k0);
+        }
+      };
       for (const b of G.bursts) {
-        const n = b.car ? 26 : 18, life = b.car ? 1.1 : 0.7, a = b.age;
+        const a = b.age;
+        if (b.kind === 'scrape') { sparks(b.x, 0.55, cz + 0.3, a, 26, b.seed, 5, 34, 0.45); this.sprite(b.x, 0.6, cz, 1.4, SPARK, Math.max(0, 1.6 - a * 6)); continue; }   // along the side we rubbed
+        if (b.kind === 'sparks') { sparks(b.x, 0.5, cz + b.dz, a, 22, b.seed, 7, 26, 0.5); continue; }
+        const n = b.car ? 26 : 18, life = b.car ? 1.1 : 0.7;
         if (a >= life) continue;
         const cA = b.car ? P.neon : b.type === T_TAXI ? [1, 0.82, 0.12] : b.type >= T_BLOCK ? [1, 0.15, 0.2] : edge, cB = b.car ? P.gridAlt : b.type >= T_BLOCK ? [0.2, 0.4, 1] : edge2;
         for (let k = 0; k < n; k++) {
@@ -550,6 +569,37 @@ export class GameView {
           this.box(x, y, z, sz, sz, sz * (1 + 2 * h2), k % 2 ? cA : cB, 1, 1 - a / life, 2.4);
         }
         this.sprite(b.x, 1.0, cz - b.dz, 3 + 10 * a, b.car ? P.neon : cA, Math.max(0, 1.8 - a * 5));
+        sparks(b.x, 0.9, cz - b.dz, a, b.car ? 40 : 30, b.seed + 0.5, 12, 18, 0.6, b.car ? 1.3 : 1);
+        const fl = Math.exp(-a / 0.12);                                                     // the flash lights the road around it, and a ring runs out over the grid
+        this.glow(b.x, 0.06, cz - b.dz, 9, 0, 0, 0, 0, 11, b.car ? [1, 0.7, 0.4] : [1, 0.5, 0.2], 2, 0.9 * fl);
+        const R = 2 + 17 * Math.sqrt(a);
+        this.glow(b.x, 0.07, cz - b.dz, R, 0, 0, 0, 0, R, b.car ? P.neon : cA, 11, 1.1 * (1 - a / life) * (1 - a / life), 0, 0.07);
+      }
+      // ── a nitro burst: a shockwave runs out over the grid from the car as it fires ──
+      if (G.shock !== undefined && G.shock < 0.7) {
+        const u = G.shock, R = 3 + 70 * Math.pow(u, 0.7), k = (1 - u / 0.7);
+        this.glow(s.car.x, 0.08, cz, R, 0, 0, 0, 0, R, NITRO, 11, 2.2 * k * k, 0, 0.06);
+        this.glow(s.car.x, 0.08, cz, R * 0.7, 0, 0, 0, 0, R * 0.7, [1, 1, 1], 11, 0.9 * k * k * k, 0, 0.04);
+      }
+      // ── the last life: the car smokes and sheds sparks ──
+      if (G.smoke) {
+        for (let k = 0; k < 10; k++) {
+          const ph = (T * 1.7 + k / 10) % 1, h = hash1(Math.floor(T * 1.7 + k / 10) * 3.1 + k);
+          this.sprite(s.car.x + (h - 0.5) * 0.8 + ph * (h - 0.5) * 2, 0.9 + ph * 2.6, cz + 1.6 + ph * 16, 0.7 + ph * 3.2, [0.62, 0.44, 0.7], 0.5 * (1 - ph) * Math.min(1, ph * 6));
+        }
+        const fl = Math.floor(T * 22); if (hash1(fl * 1.7) < 0.35) sparks(s.car.x + (hash1(fl) - 0.5) * 1.6, 0.25, cz + 1.6, (T * 22 - fl) / 22, 4, fl * 7.3, 3, 20, 0.25);
+      }
+      // ── speed: streaks of light rush past at the sides of the road and overhead, longer and brighter the faster we go ──
+      if (G.speedK > 0.01) {
+        const k = G.speedK, len = 4 + Math.abs(s.road.vel) * 0.07, SP = 220;
+        for (let i = 0; i < 44; i++) {
+          const h1 = hash1(i * 3.7 + 1), h2 = hash1(i * 5.1 + 2), side = i % 2 ? 1 : -1;
+          const d = mod(i * 41.3 - pos, SP), z = 20 - d, f = smooth(d / 30) * smooth((SP - d) / 60) * k;
+          if (f < 0.01) continue;
+          const x = side * (9 + 18 * h1), y = 0.4 + 9 * h2 * h2, w = 0.09 + 0.07 * h1;
+          const cx = s.cam ? s.cam.x : 0, cy = s.cam ? s.cam.y : 2.6, ax = cx - x, ay = cy - y, am = Math.hypot(ax, ay) || 1;   // the ribbon turned to face us
+          this.glow(x, y, z + len / 2, -ay / am * w, ax / am * w, 0, 0, 0, -len / 2, i % 3 ? P.gridAlt : P.neon, 8, 2.4 * f);
+        }
       }
     }
 

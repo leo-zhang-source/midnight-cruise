@@ -33,7 +33,7 @@ export class UI {
   }
 
   ev(type, data = {}) { return this.app.addEvent(type, data); }
-  sfx(name) { this.ev('sfx', { name }); }
+  sfx(name, p) { this.ev('sfx', p ? { name, p } : { name }); }
 
   phase() { return this.app.tl.phaseAt(this.app.now()).phase; }
 
@@ -157,28 +157,36 @@ export class UI {
   announce(T) {
     if (this.annT === undefined || T < this.annT || T - this.annT > 0.5) { this.annT = T; return; }
     const evs = this.app.tl.gameEvents(this.annT, T); this.annT = T;
+    if (!evs.length) return;
+    // where it happened, left or right of the car (−1 … +1), so it is heard there
+    const cx = this.app.tl.stateAt(T).x, pan = (lane) => Math.max(-1, Math.min(1, (lane * 5 - cx) / 7.5));
+    const r2 = (x) => Math.round(x * 100) / 100;
     for (const e of evs) {
       const k = e.k;
       if (k === 'near') this.sfx('near');
       else if (k === 'pass') this.sfx('pass' + (e.big ? 'B' : '') + (e.side < 0 ? 'L' : 'R'));
-      else if (k === 'smash' || k === 'wreck') this.sfx('smash');
+      else if (k === 'smash') this.sfx('smash', { pan: r2(pan(e.lane)), v: e.type >= 5 ? 1.05 : e.type === 3 ? 1 : 0.85 });
+      else if (k === 'wreck') this.sfx('wreck', { pan: r2(pan(e.lane)) });
       else if (k === 'shake') this.sfx('chime');
-      else if (k === 'swipe') this.sfx('swipe');
+      else if (k === 'swipe') this.sfx('swipe', { pan: r2(Math.max(-1, Math.min(1, -e.dir * 0.8))) });
       else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = (e.kind === 2 ? 'Busted.' : 'Crashed.') + ' Press R to rewind the tape, or H for the home screen.'; }
       else if (k === 'gear') this.sfx('gear');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
       else if (k === 'stumble' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
-      else if (k === 'ramwarn' || k === 'lock' || k === 'ictell') this.sfx('lock');
+      else if (k === 'ramwarn') this.sfx('lock', { d: r2(e.w), f: 1250 });            // each unit's countdown has its own pitch: the grappler low,
+      else if (k === 'ictell') this.sfx('lock', { d: r2(e.w), f: 1550 });             // the interceptor in the middle,
+      else if (k === 'lock') this.sfx('lock', { d: r2(e.w), f: 1900 });               // the helicopter high
       else if (k === 'block' || k === 'weave') this.sfx('siren');
       else if (k === 'icwarn') this.sfx('yelp');
       else if (k === 'cutin') this.sfx('horn');
       else if (k === 'slam' || k === 'mirror') this.sfx('skid');
       else if (k === 'level') { if (e.n) this.sfx('alert'); }
       else if (k === 'clear') this.sfx('chime');
-      else if (k === 'strike') this.sfx('burst');
-      else if (k === 'shove') this.sfx('smash');
+      else if (k === 'dodge') this.sfx('dodge');
+      else if (k === 'strike') this.sfx('burst', { d: r2(e.d || 0.45), pan: r2(pan(e.lane)) });
+      else if (k === 'shove') this.sfx('smash', { pan: 0, v: 1.05 });
       else if (k === 'go') this.sfx('whoosh');
-      else if (k === 'item') { this.sfx('chime'); this.sfx('gear'); }
+      else if (k === 'item') this.sfx('pickup');
       else if (k === 'tape' || k === 'full') this.sfx('chime');
       else if (k === 'revive') this.sfx('rewindlong');
     }
@@ -343,6 +351,7 @@ export class UI {
     set('gear', Gm && Gm.on ? Gm.gear : 0, (g) => { E.gear.textContent = g ? 'G' + g : ''; });
     if (on) {
       set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
+      set('gBump', (Gm.bump || 0).toFixed(2), (v) => { E.gScore.style.transform = +v ? `scale(${(1 + 0.22 * v).toFixed(3)})` : ''; E.gScore.style.color = +v > 0.3 ? '#fff6c8' : ''; });   // points in a lump: the score jumps
       set('gMult', Gm.mult.toFixed(1), (v) => { E.gMult.textContent = '×' + v; });
       set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
       set('gStars', Gm.star + (Gm.lives < 2 ? 'h' : ''), () => { E.gStars.dataset.n = Gm.star; E.gStars.dataset.hot = Gm.lives < 2 ? '1' : '0'; });
