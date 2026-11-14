@@ -5,7 +5,7 @@
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
 import { GAME } from '../js/cue.js';
-import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_CAR, T_VAN, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, STEADY, CAR_HL, H_TWIN, H_WALK, I_OFF, NASTY, freshGame, stepGame, laneV, laneRate, gameBase, baseAt, heliStrikes, revs, sway, reactAt } from '../js/game.js';
+import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_CAR, T_VAN, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, STEADY, CAR_HL, H_TWIN, H_WALK, I_OFF, NASTY, HALF_W, CAR_HW, jink, freshGame, stepGame, laneV, laneRate, gameBase, baseAt, heliStrikes, revs, sway, reactAt } from '../js/game.js';
 import { threatGrid, wayThrough } from '../js/foresight.js';
 import { play } from './bot.mjs';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
@@ -223,9 +223,9 @@ let crashT;
   const tl = fresh(); tl.add('lane', C + 5, { dir: 1 });
   tl.add('turbo', C + 5.5);
   ok('nitro is refused with no canister in stock', tl.turboAt(C + 6) === null && tl.turboReady(C + 6) === 0 && tl.stateAt(C + 6).g.nstock === 0);
-  const r = play(7, 240, { nitro: true, seek: true });   // canisters are 30 to 45 s apart in top gear, and not every one can be reached
+  const r = play(11, 300, { nitro: true, seek: true });   // canisters are 30 to 45 s apart in top gear (further later), and not every one can be reached
   const t2 = new Timeline(); t2.load(r.ev);
-  const ev = t2.gameEvents(0, C + 240), items = ev.filter((e) => e.k === 'item'), ns = t2.nitros(C + 240);
+  const ev = t2.gameEvents(0, C + 300), items = ev.filter((e) => e.k === 'item'), ns = t2.nitros(C + 300);
   ok('canisters are picked up on the road and can be fired', items.length >= 2 && ns.length >= 1 && ns.length <= items.length, `${items.length} picked up, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
   const n0 = ns[0], st = t2.stateAt(n0.I + 1.0), basev = t2.stateAt(n0.p - 0.1).vel;
   ok('nitro impact lands on the half-beat grid, 0.2–0.45 s after the press', n0.I - n0.p >= 0.2 - 1e-9 && n0.I - n0.p <= 0.45 + 1e-9 && Math.abs(((n0.I - C) / 0.25) - Math.round((n0.I - C) / 0.25)) < 1e-6, `wind-up ${(n0.I - n0.p).toFixed(3)} s`);
@@ -306,8 +306,12 @@ let crashT;
     others.length >= 30 && others.every((x) => smooth(x) && x.hit.T - x.end.T > 0.2), `${others.length} lane changes by cars and vans in 200 s; in lane ${Math.min(...others.map((x) => x.hit.T - x.end.T)).toFixed(2)} s or more before we reach them`);
   { const first = others.filter((x) => x.m[0].lv < 2), late = others.filter((x) => x.m[0].lv > 7), avg = (a, f) => a.reduce((s, x) => s + f(x), 0) / a.length;
     ok('lane changes get more sudden as the level rises: a shorter signal, a quicker move', first.length > 0 && late.length > 3 && avg(late, (x) => x.m[0].bl) < avg(first, (x) => x.m[0].bl) - 0.1 && avg(late, (x) => x.mt) < avg(first, (x) => x.mt) - 0.06, `signal ${avg(first, (x) => x.m[0].bl).toFixed(2)} → ${avg(late, (x) => x.m[0].bl).toFixed(2)} s, move ${avg(first, (x) => x.mt).toFixed(2)} → ${avg(late, (x) => x.mt).toFixed(2)} s`); }
-  { const sw = (lv) => { let m = 0; for (let t = 0; t < 30; t += 0.05) m = Math.max(m, Math.abs(sway(T_CAR, 7, t, lv))); return m * 5; };
-    ok('everyone wanders across their lane, further as the level rises, never out of it', sw(0) > 0.15 && sw(10) > sw(0) * 2.5 && sw(30) <= GAME.sway[2] * 5 + 1e-9 && GAME.sway[2] * 5 + 1.05 < 2.5, `${sw(0).toFixed(2)} units at level 0, ${sw(10).toFixed(2)} at level 10, ${sw(30).toFixed(2)} at most`); }
+  { const base = (lv) => { let m = 0; for (let t = 0; t < 30; t += 0.05) m = Math.max(m, Math.abs(sway(T_CAR, 7, t, lv) - jink(7, t))); return m * 5; };
+    ok('everyone wanders across their lane, further as the level rises', base(0) > 0.15 && base(10) > base(0) * 2.5 && base(30) <= GAME.sway[2] * 5 + 1e-9, `${base(0).toFixed(2)} units at level 0, ${base(10).toFixed(2)} at level 10, ${base(30).toFixed(2)} at most`);
+    // … and now and then one swerves hard and straight back: more of them later, never far enough to touch a car in the next lane
+    const share = (t0) => { let on = 0, n = 0, m = 0; for (let id = 1; id < 300; id++) for (let t = t0; t < t0 + 20; t += 0.02) { const j = Math.abs(jink(id, t)); if (j > 0.05) on++; n++; m = Math.max(m, Math.abs(sway(T_CAR, id, t, t / GAME.lvEvery))); } return [on / n, m * 5]; };
+    const [s0] = share(5), [s1, m1] = share(300), J = GAME.jink;
+    ok('random swerves: a few at first, many more later, and never within reach of the next lane', s0 > 0.002 && s1 > s0 * 4 && m1 <= (GAME.sway[2] + J.amp[2]) * 5 + 1e-9 && m1 + HALF_W[T_VAN] + CAR_HW < 5 - 0.6, `${(100 * s0).toFixed(1)} % of the time at the start, ${(100 * s1).toFixed(1)} % after five minutes; at most ${m1.toFixed(2)} units off the lane centre`); }
   // a rolling roadblock: cruisers that drive with the traffic and brake as we come up
   const blocks = of(T_BLOCK), ev = tl.gameEvents(0, C + 200);
   const braking = blocks.filter((t) => !t.some((q) => q.fl & STEADY)), steady = blocks.filter((t) => t[0].fl & STEADY && t[0].a === 0);

@@ -59,8 +59,8 @@
     // the speed at which each gear engages: the car accelerates steadily from one to the next
     gearAt: [0, 600, 1500, 2800, 4400, 6400],
     // run distance at which each gear engages
-    creep: [400, 60],
-    // in top gear it keeps gaining: +1 u/s per 400 units, up to +60 (413 MPH)
+    creep: [300, 117],
+    // in top gear it keeps gaining: +1 u/s per 300 units, up to +117 (550 MPH, a third more than before)
     accel: 34,
     launch: 80,
     brake: 64,
@@ -71,7 +71,7 @@
     // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
     nitroBoost: 0.85,
     nitroTail: 0.55,
-    nitroGrace: 0.7,
+    nitroGrace: 1,
     nitroMax: 3,
     nitroFirst: 480,
     nitroEvery: [1800, 2700],
@@ -86,6 +86,9 @@
     // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
     rowGap: [1.1, 0.85],
     // seconds between rows at the closing speed (first gear → top gear). A little more room than before: the traffic now moves about in it
+    dens: [0.015, 0.2],
+    // … and the rows close up as the threat level rises: −1.5 % per level, at most −20 % (0.68 s in top gear:
+    //   the closest rows have ever been and stayed passable; −30 % lost a run in 120)
     nearT: 0.32,
     draftT: 0.9,
     // close-call and slipstream windows, in seconds of closing time
@@ -133,12 +136,16 @@
     //   sudden) and never so late that it is not across cutLate s before we arrive
     // flowFar: only vehicles we reach within this many seconds drift (and only ones far enough off to be straight again before their chance to cut in)
     // flowClear: none changes lane within this many seconds (of our arrival) of a cruiser that has not picked its lane yet
+    // jink: now and then a car, van or taxi swerves hard towards a lane line and straight back, more of them as the level rises. Each one
+    //   has, every jinkWin s, a jinkP chance ([at level 0, more per level, at most]) of a swerve of jinkAmp lanes ([…]) lasting jinkDur s ([…, the
+    //   least, less per level]). With the wander it never comes within reach of a car in the next lane (0.2 + 0.24 lanes at most)
+    jink: { win: 2, p: [0.04, 0.03, 0.55], amp: [0.12, 0.012, 0.24], dur: [0.8, 0.45, 0.025] },
     sway: [0.04, 0.011, 0.2],
     swayRate: 0.03,
     sigBlink: [0.45, 0.12, 0.022],
     sigMove: [0.85, 0.5, 0.023],
     flow: [2.6, 0.45, 0.16],
-    cut: [11, 0.5, 1.1],
+    cut: [11, 0.3, 1.1],
     flowFar: 5.6,
     cutLead: [1.6, 0.8, 0.07],
     cutLate: 0.7,
@@ -588,7 +595,8 @@
         continue;
       }
       const lf = g.veh[o + 1];
-      for (let l = -1; l <= 1; l++) if (Math.abs(lf - l) * ROAD.lane < HALF_W[type] + CAR_HW + 0.3) for (let k = k0; k <= k1; k++) blocked[l + 1][k] = 1;
+      const home = (g.veh[o + 5] >> 9 & 3) - 1;
+      for (let l = -1; l <= 1; l++) if (l === home || Math.abs(lf - l) * ROAD.lane < HALF_W[type] + CAR_HW + 0.3) for (let k = k0; k <= k1; k++) blocked[l + 1][k] = 1;
     }
     const grid = { blocked, K };
     if (opt.police !== false) policeCells(g, (l, t0, t1) => markCells(grid, l, t0, t1));
@@ -642,9 +650,9 @@
   }
 
   // ../js/game.js
-  var NV = 44;
+  var NV = 64;
   var VF = 11;
-  var NC = 30;
+  var NC = 40;
   var CF = 5;
   var NI = 4;
   var IF = 3;
@@ -719,8 +727,25 @@
   var taxiAtFor = (lv) => blinkAt(lv) + moveAt(lv) + 0.5;
   function sway(type, id, gt, lv, k = 0) {
     if (type > T_TAXI) return 0;
-    const A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * (type === T_TRUCK ? 0.33 : 1), w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
-    return A * (k ? w * Math.cos(p) : Math.sin(p));
+    const tr = type === T_TRUCK ? 0.33 : 1, A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * tr, w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
+    return A * (k ? w * Math.cos(p) : Math.sin(p)) + jink(id, gt, k) * tr;
+  }
+  var h01 = (a, b) => {
+    let t = Math.imul(a ^ 2654435769, 2246822507) ^ Math.imul(b + 1663821227, 3266489909);
+    t ^= t >>> 15;
+    t = Math.imul(t, 739982445);
+    t ^= t >>> 12;
+    return (t >>> 0) / 4294967296;
+  };
+  function jink(id, gt, k = 0) {
+    const J = GAME.jink, off = id % 13 * 0.37, n = Math.floor((gt + off) / J.win);
+    if (n < 2) return 0;
+    const lw = Math.min(GAME.lvCap, (n * J.win - off) / GAME.lvEvery);
+    if (h01(id, n) >= Math.min(J.p[2], J.p[0] + J.p[1] * lw)) return 0;
+    const D = Math.max(J.dur[1], J.dur[0] - J.dur[2] * lw), u0 = h01(id + 7919, n) * (J.win - D), m = (gt + off - n * J.win - u0) / D;
+    if (m <= 0 || m >= 1) return 0;
+    const A = Math.min(J.amp[2], J.amp[0] + J.amp[1] * lw) * (h01(id + 104729, n) < 0.5 ? -1 : 1), sn = Math.sin(Math.PI * m);
+    return k ? A * Math.PI * Math.sin(2 * Math.PI * m) / D : A * sn * sn;
   }
   function freshGame(seed = 1986, free = 0) {
     return {
@@ -961,7 +986,7 @@
     let u = g.genU;
     const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];
     const kf = clamp2((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);
-    const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf;
+    const tg = (G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf) * (1 - Math.min(G.dens[1], G.dens[0] * Math.min(G.lvCap, g.gt / G.lvEvery)));
     const side = () => rnd(g) < 0.5 ? -1 : 1;
     if (g.gapWant > 0 && i >= 3) {
       const D = g.gapWant, n = Math.max(2, Math.round(D * w / 34));

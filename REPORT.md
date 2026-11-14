@@ -19,6 +19,57 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 33: a third more top speed, denser traffic later, random swerves
+
+Three things were asked for: more traffic later in a run, a higher chance of ordinary vehicles swerving, and a third more top speed. All three are done.
+
+| | Revision 32 | Now |
+|---|---|---|
+| Top speed | 413 MPH (172 u/s) | 550 MPH (229 u/s), a third more |
+| … reached | about 3 min in | about 5 min in (41.5 km): the car keeps gaining the whole run |
+| Speed at 1 / 2 / 3 / 4 / 5 min (measured) | — | 243 / 310 / 379 / 463 / 546 MPH |
+| Rows of traffic in top gear | 0.85 s apart throughout | 0.85 s, closing up 1.5 % a level to 0.68 s from level 14 |
+| Vehicles passed in the next lane, per minute (1st … 5th minute, measured) | 37 41 41 39 42 | 37 44 45 51 59 |
+| Swerves (a sudden swerve towards a lane line and back) | none | each vehicle, every 2 s: a 4 % chance at level 0, 55 % from level 17 |
+| … how big, how quick | — | 0.6 units in 0.8 s at first, 1.2 units in 0.45 s at the most |
+| Share of time a vehicle is mid-swerve | — | 1.3 % at the start, 8 % after five minutes |
+| Grace after a nitro burst | 0.7 s | 1.0 s |
+
+**Swerves** are decided per vehicle and per two-second window from a hash, so they are the same however the timeline is stepped, rewound or replayed. With the wander, a vehicle is at most 2.2 units off its lane centre: its body then reaches 0.7 units into the next lane, and a car there is still 0.8 units clear of it. The forecast now always counts a vehicle in the lane it belongs to, however far it is swerving.
+
+**Density had to be capped at 20 %.** Rows 30 % closer cost one run in 120 (a weaving cruiser followed by a row that a lane change had left nowhere to go). 0.68 s in top gear is the closest rows have ever been and stayed passable.
+
+**Denser traffic leaves less room for everything else.** Cut-ins and police attacks need gaps, and denser rows have fewer:
+
+| Per minute, 3rd … 5th minute (40 runs) | Revision 32 | Now |
+|---|---|---|
+| Cut-ins aimed at you | 8.3 10.5 10.6 | 7.4 6.7 6.3 |
+| Police attacks | 17.8 19.3 22.8 | 16.1 14.9 15.8 |
+| Vehicles passed close by | 41 39 42 | 45 51 59 |
+
+So late in a run there is more traffic and it is faster and swervier, with somewhat fewer deliberate incidents. A tighter planning margin (half the slack) gave back nearly all the cut-ins and attacks, but lost one run in 120 and one in 40 with nitro, so it was not kept.
+
+**The nitro grace.** A burst at the new top speed peaks at about 1,000 MPH (the speedometer stops at 999). Coming out of it, the car needs longer to settle than before: with 0.7 s of grace the nitro bot was hit in one run in 40. With 1.0 s, none in 80.
+
+### Checked
+
+| Check | Result |
+|---|---|
+| Bot, no nitro, 120 seeds × 5 minutes | no hit in any run |
+| Bot, no nitro, 12 seeds × 10 minutes | no hit in any run |
+| Bot firing every canister, 80 seeds × 5 minutes | no hit in any run |
+| `tools/game-test.mjs` | 82 pass (new: random swerves; the wander test split from it) |
+| Browser suites | game-ui 43, interact 41, touch 8, auto-env-test 7, all pass; no console errors |
+| Smoke test on the built pages | passes at a five-star moment on all three |
+| Audio thread (runs the same simulation, now with up to 64 vehicles) | 99.9 % of blocks under 0.5 ms of the 2.67 ms each has, late in a run |
+| Looked at | frames at 455 and 543 MPH, level 11 and 14, with a car mid-swerve beside the player |
+
+### Not checked, and known limits
+
+- **Not played by hand.** 550 MPH is fast: whether the grid and the traffic still read at that speed is for a person to judge. The road speed is `gears` + `creep` in `js/cue.js`.
+- **Cut-ins are down** late in a run, as above. If the deliberate blocking matters more than the density, `dens` is the number to lower.
+- **The speedometer stops at 999** in a nitro burst at top speed.
+
 ## Revision 32: no brake, the grid back, traffic that turns on you, a much steeper climb
 
 Six things were asked for after Revision 31. All six are done.
