@@ -17,8 +17,8 @@ let s = await p.evaluate(() => MC.state()); ok('tap on the right half → right 
 await ev('pointerdown', 60, 8); await ev('pointerup', 60, 8); await ev('pointerdown', 60, 8); await ev('pointerup', 60, 8); await p.waitForTimeout(500);
 s = await p.evaluate(() => MC.state()); ok('two taps on the left half → left lane', Math.abs(s.steer + 1) < 0.05, `x=${s.steer.toFixed(2)} lanes`);
 ok('no BRAKE control on screen: NITRO is the only drive button', !(await p.$('#brake')) && (await p.locator('#drivebar button').count()) === 1 && (await p.locator('#turbo').isVisible()));
-await ev('pointerdown', 195, 9); await ev('pointercancel', 195, 9); await p.waitForTimeout(300);
-s = await p.evaluate(() => MC.state()); ok('a cancelled touch changes nothing', Math.abs(s.steer + 1) < 0.05 && s.thr > 0.9, `x=${s.steer.toFixed(2)} lanes, drive=${s.thr.toFixed(2)}`);
+await ev('pointerdown', 320, 9); await ev('pointercancel', 320, 9); await p.waitForTimeout(450);
+s = await p.evaluate(() => MC.state()); ok('a lane change is made on the press: a touch the system then cancels has moved one lane, no more, and the car drives on', Math.abs(s.steer) < 0.05 && s.thr > 0.9, `x=${s.steer.toFixed(2)} lanes, drive=${s.thr.toFixed(2)}`);
 const tgt = await p.evaluate(() => [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null || getComputedStyle(b).visibility !== 'hidden').map((b) => { const r = b.getBoundingClientRect(); return [b.id || b.className, Math.round(r.width), Math.round(r.height)]; }).filter(([, w, h]) => w > 0 && (w < 44 || h < 24)));
 ok('visible touch targets ≥ 44px (minimise bar key exempt)', tgt.every(([n]) => String(n).includes('deck-min')), JSON.stringify(tgt));
 await b.close();

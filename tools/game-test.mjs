@@ -102,7 +102,7 @@ let crashT;
   const t2 = new Timeline(); t2.load(base); t2.add('lane', hit.T, { dir: hit.dir });
   const st = t2.stateAt(hit.T + 0.8), ev = kinds(t2, hit.T, hit.T + 0.8);
   ok('sideswipe: bounces back to the lane we came from', ev.includes('swipe') && !st.over && st.lane === hit.lane && Math.abs(st.x - hit.lane * 5) < 0.8, `events ${ev.join(',')}`);
-  ok('sideswipe = a life lost: half a star of heat, combo reset, police on the tail', ev.includes('stumble:swipe') && st.g.lives === 1 && st.g.star === 1 && Math.abs(st.g.heat - 1 - GAME.heatSwipe) < 0.05 && st.g.combo <= 3 && policeClose(st.g) && st.g.polZ > -9, `police ${(-st.g.polZ).toFixed(1)} behind`);
+  ok('sideswipe = a life lost: half a star of heat, combo reset, police on the tail', ev.includes('stumble:swipe') && st.g.lives === 1 && st.g.heat >= t2.stateAt(hit.T - 0.01).g.heat + GAME.heatSwipe - 0.05 && st.g.star === Math.floor(st.g.heat + 1e-9) && st.g.combo <= 3 && policeClose(st.g) && st.g.polZ > -9, `police ${(-st.g.polZ).toFixed(1)} behind`);
   // the police stay there for good … until a nitro burst shakes them off and gives the life back
   const t5 = new Timeline(); t5.load(base); t5.add('lane', hit.T, { dir: hit.dir });
   const hold = t5.stateAt(hit.T + 1.0); t5._st.g.nstock = 1;      // hand it a canister (edit the live state)

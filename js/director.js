@@ -80,7 +80,7 @@ const POP = {
   nuse: (e) => [`NITRO ${e.n}/${GAME.nitroClear} TO COOL THE HEAT`, 'info'], clear: () => ['HEAT COOLED', 'good'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'],
   lock: (e) => [e.pat === H_WALK ? (e.b > 0 ? 'BARRAGE LEFT → RIGHT · SLIP IN BEHIND IT' : 'BARRAGE RIGHT → LEFT · SLIP IN BEHIND IT') : e.pat === H_TWIN ? 'TWIN SEARCHLIGHTS · TAKE THE DARK LANE' : 'SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
-  icwarn: (e) => [`INTERCEPTOR ON THE ${e.side < 0 ? 'LEFT' : 'RIGHT'} SHOULDER`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
+  icwarn: (e) => [`INTERCEPTOR COMING UP ON YOUR ${e.side < 0 ? 'LEFT' : 'RIGHT'}`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
   mirror: () => ['CRUISER CUTTING YOU OFF', 'bad'], pincer: () => ['PINCER', 'bad'], dodge: (e) => [`DODGED +${e.pts}`, 'good'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
   draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR RAMMED OFF' : 'SHOVED THE POLICE BACK', 'hot'],

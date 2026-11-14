@@ -19,6 +19,113 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 32: no brake, the grid back, traffic that turns on you, a much steeper climb
+
+Six things were asked for after Revision 31. All six are done.
+
+| Asked for | What was done |
+|---|---|
+| Remove the brake | Gone: the button, the Space and ↓ keys while driving (Space still starts and resumes), the rule that lingering on it brought the police up, the hint line, the control row. The car drives flat out. |
+| The road surface back to the neon grid | The asphalt, lane dashes, shoulder and guardrail of Revision 31 are removed. The road is three cells of the grid between the bright rails again, with the reflector posts on the rails. The bends and rises stay: the grid bends with the road. |
+| The pass-by sound cannot be heard | Rebuilt and raised by 10.6 dB (measured below). |
+| Still too easy, and it gets harder too slowly | The threat level now rises every 20 s instead of 40, its effects run further, stars come sooner, and three units may attack at once late on (table below). |
+| Traffic that is always moving, more and more; less and less reaction time; vehicles that deliberately block you, more and more suddenly | New: every vehicle wanders in its lane, vehicles change lane all the time, and some cut in on you on purpose. All three grow with the level, and the time you are given to react falls to 0.28 s. |
+| The helicopter's three-lane attack: the order cannot be read | It now lights and fires on one lane at a time, quickly, and chevrons across the road show which way it is going. |
+
+### The traffic
+
+Until now traffic was rows of vehicles that held their lanes, apart from a taxi or a merging car at a planned moment. Now:
+
+| | Level 0 | Level 7 (2 min 20 s) | Level 15 (5 min) |
+|---|---|---|---|
+| Wander across the lane, either way | 0.2 units | 0.6 units | 1.0 unit (the most; a car is 2 wide, a lane 5) |
+| A lane change: signal, then the move | 0.45 s, 0.85 s | 0.30 s, 0.69 s | 0.12 s, 0.50 s |
+| Lane changes around you, per minute (measured in the first, third and fifth minute) | 11 | 21 | 35 |
+| … of which cut-ins aimed at you | 4.4 | 8.1 | 9.9 |
+| Time from a cut-in's signal to reaching it (measured) | 2.81 s | 2.19 s | 1.67 s |
+| Reaction time everything allows you | 0.72 s | 0.48 s | 0.28 s (the floor, from level 13) |
+
+**Cut-ins.** A vehicle in the lane beside yours waits until its moment and cuts into your lane; or, if the forecast says you are about to change lane, a vehicle beside that lane cuts into it instead. It picks the latest moment that still leaves you the reaction time, plus a margin that shrinks with the level. It is marked: red chevrons, larger the further away it is, and a horn. 63 % of cut-ins went into the lane the car was in, the rest into the lane it needed next.
+
+**Why they are fair.** A lane change is a decision like a police attack: it is laid over the forecast and made only if a driver given the reaction time for the level, a slightly slow lane change and a tenth of a second of slack still has a way through. One thing is new in that test: the way through must end in the lane the next row of traffic was laid out to count on. Without that, a vehicle changing lane far ahead could leave you on the wrong side of a row that had not been laid out yet.
+
+**What it cost.** Rows of traffic are a little further apart (1.1 to 0.85 s, was 1.05 to 0.68 s). With the old spacing there was no room for anything to change lane fairly: cut-ins were 16 in five minutes. With the new spacing they are 41, and every police unit attacks more often as well, because their attacks need the same room.
+
+Two things had to be fixed before cut-ins grew with the level rather than dying away:
+
+1. The vehicles drifting between lanes for no reason were using up the ones that could have cut in: a vehicle that has just moved cannot move again at once. In the last minute of a run only ten free vehicles a minute came into range. Drifting is now done far enough ahead to be over before a vehicle's chance to cut in comes.
+2. Making cut-ins later narrows the window in which one can start, down to a third of a second at the top level, where almost none found room. The margin now stops shrinking at 0.8 s.
+
+### The climb
+
+| | Revision 31 | Now |
+|---|---|---|
+| Threat level rises every | 40 s | 20 s |
+| Stars arrive after | 1.4, 3.4, 6.4, 10.4 km | 1, 2.4, 4.4, 7 km |
+| The bot reaches ★★ / ★★★ / ★★★★ / ★★★★★ at | 22 / 45 / 74 / 109 s | 16 / 34 / 55 / 78 s |
+| Warnings | 1.20 s falling to 0.87 s over 6 min | 1.17 s falling to 0.73 s over 4 min 20 s |
+| Least pause between attacks | 0.6 s | 0.35 s |
+| A unit's own interval at its shortest | half | a third (level 20) |
+| Attacks at once | two at five stars | two at five stars, three from level 14 |
+| Least wanted level | ★★ from 2 min, ★★★ from 4 min | ★★ from 80 s, ★★★ from 160 s, ★★★★ from 280 s |
+| Top speed | 374 MPH | 413 MPH, reached sooner |
+| Nitro canisters at their scarcest | 50 % further apart | 60 % |
+
+What a five-minute run holds (bot without nitro, 40 runs):
+
+| | Revision 31 | Now |
+|---|---|---|
+| Grappler runs | 25.6 | 35.3 |
+| Helicopter attacks | 13.0 (6.5 / 2.8 / 3.7 by kind) | 27.3 (12.2 one lane / 7.1 twin / 8.0 barrage) |
+| Interceptor swerves | 4.6 | 8.4 |
+| Cruisers that cut you off | 9.3 | 11.1 |
+| Two or three attacks at once | 6.0 | 18.1 |
+| Cut-ins by traffic | — | 41.1 |
+| Other lane changes around you | about 4 (taxis and merges) | 79.7 |
+| Police attacks dodged | 42.7 | 70.3 |
+| Share of the run at five stars | 63 % | 73 % |
+| Distance | 36.6 km | 39.6 km |
+
+### The barrage
+
+Before: all three lanes were lit from the start, with targets that differed only in how fast they blinked, and the strikes came 1.15 s apart. Now: only the lane about to be hit is lit; the next lights the moment that one is fired on; the strikes are 0.35 s long and 1.05 s apart; chevrons across the road ahead run the way the barrage is walking; the call-out says BARRAGE LEFT → RIGHT or RIGHT → LEFT. Twin searchlights are unchanged.
+
+The gap between strikes could not be made shorter than this. With 0.6 s between the end of one and the start of the next there was no opening at all in forty five-minute runs: a driver has to wait for the lane behind the barrage to be clear, change into it and be out of the next one in that time. 0.7 s is the least that works.
+
+### The pass-by sound
+
+| | Revision 31 | Now |
+|---|---|---|
+| Level over its first 0.3 s | −34.3 dB | −23.7 dB |
+| Against the music in its own bands | not measured (below it) | 5.1 dB above at 2 kHz, 6.7 dB above at 3.15 kHz |
+| Peak | 0.11 | 0.44 |
+| Shape | a low rush, 0.26 s | brighter, a clearer fall in pitch, 0.34 s (a truck 0.55 s and lower) |
+
+For scale: the coin that could be heard was 9 dB above the music in its band; the music as a whole is at −15.7 dB. The horn on a cut-in is at −28 dB, the level of the near-miss sound.
+
+### Checked
+
+| Check | Result |
+|---|---|
+| Bot, no nitro, 40 seeds × 5 minutes (to level 15) | no hit in any run |
+| Bot, no nitro, 12 seeds × 10 minutes (to level 30, everything at its limit) | no hit in any run |
+| Bot using nitro, 40 seeds × 5 minutes | no hit in any run |
+| `tools/game-test.mjs` | 81 pass. New or rewritten: no brake, the wander, lane changes steered and across in time, lane changes getting more sudden, cut-ins into our lane and getting later, the reaction floor, every attack and cut-in re-checked for a way through |
+| Browser suites | game-ui 43, interact 41, touch 8, auto-env-test 7, all pass (fewer than before: the brake's checks are gone); no console errors |
+| Smoke test on the built pages | passes at a five-star moment on all three |
+| Looked at | a cut-in and the barrage frame by frame at 960×540; the grid road in a bend |
+
+Two faults found and fixed on the way: with the reaction time at its floor the helicopter never attacked again (its warning was one twentieth of a second too short for the planner's own arithmetic, so it stopped after about four minutes in every long run); and a vehicle finishing a lane change jumped sideways by the width of its wander for one step.
+
+### Not checked, and known limits
+
+- **I have not played it or heard it.** The levels above are measurements. Whether 0.28 s is survivable for a person is exactly the kind of thing only play shows; the bot reads every signal the instant it appears. If the top is now too hard or still too easy, the two numbers that matter are `react` (how little time you get) and `lvEvery` (how fast the level rises) in `js/cue.js`.
+- **Cut-ins stop growing after about four minutes** (10 a minute): by then the window in which one can start fairly is as short as it can usefully be.
+- **Traffic further than 5.6 s ahead does not change lane**, only wanders. Far off it still looks like rows.
+- **The chevrons that show the barrage's direction are orange on an orange road in two of the four colour presets** and are easy to miss there; the lit lane and the call-out carry the order.
+- **Rows are further apart than before.** If the road now feels emptier between incidents, `rowGap` is the number; closing it up costs cut-ins.
+- **The wander is steady, not a reaction to you**: a vehicle drifting towards your lane is not about to enter it unless it signals.
+
 ## Revision 31: a real road, a game that keeps getting harder, police that plan
 
 Four things were asked for: the coin sound off, difficulty that grows markedly and across the board with time, enemies with real intelligence and varied attacks, and much more realistic highway driving. This revision does all four. The numbers below are from `tools/bot.mjs` unless said otherwise.

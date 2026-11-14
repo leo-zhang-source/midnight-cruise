@@ -59,16 +59,15 @@
     // the speed at which each gear engages: the car accelerates steadily from one to the next
     gearAt: [0, 600, 1500, 2800, 4400, 6400],
     // run distance at which each gear engages
-    creep: [640, 44],
-    // in top gear it keeps gaining: +1 u/s per 640 units, up to +44 (374 MPH)
+    creep: [400, 60],
+    // in top gear it keeps gaining: +1 u/s per 400 units, up to +60 (413 MPH)
     accel: 34,
     launch: 80,
     brake: 64,
     nitroAccel: 170,
-    // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and sheds at most `brake` u/s²
-    brakeMul: 0.55,
-    brakeLinger: 2.2,
-    // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
+    // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and, when a hit slows it, sheds at most `brake` u/s²
+    coast: 0.55,
+    // off the throttle (paused, or pulling away after a rewind) the car is at 55 % of its speed
     // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
     nitroBoost: 0.85,
     nitroTail: 0.55,
@@ -79,21 +78,19 @@
     nitroFree: 7,
     // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
     aheadT: 6.6,
-    fairAhead: 5.8,
-    // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police plan 5.8 s ahead
+    fairAhead: 6.8,
+    // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police and the traffic plan on all of it
     ahead: 340,
     firstRow: 175,
     despawn: 30,
     // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-    rowGap: [1.05, 0.68],
-    // seconds between rows at the gear's closing speed (gear 1 → 6)
+    rowGap: [1.1, 0.85],
+    // seconds between rows at the closing speed (first gear → top gear). A little more room than before: the traffic now moves about in it
     nearT: 0.32,
     draftT: 0.9,
     // close-call and slipstream windows, in seconds of closing time
     taxiAt: 1.8,
-    taxiBlink: 0.45,
-    taxiMove: 0.85,
-    // a taxi (or a crossing cruiser) signals 1.8 s before you reach it, then steers across one lane: in place 0.5 s ahead of you
+    // the longest a planned lane change starts ahead of you (level 0; see sigBlink, sigMove): in place 0.5 s ahead of you
     introT: 2.8,
     introHold: 1.1,
     introClose: 1.7,
@@ -113,27 +110,45 @@
     // Five stars now: 1 = the pursuit car · 2 = roadblocks, weaving cruisers, the grappler · 3 = the helicopter · 4 = an interceptor on
     // your flank, cruisers that cut you off, twin searchlights · 5 = all of it, two attacks at a time, the walking barrage.
     // starAt: road since the heat was last cleared at which each star arrives. The third nitro burst clears clearDrop stars.
-    starAt: [0, 1400, 3400, 6400, 10400],
+    starAt: [0, 1e3, 2400, 4400, 7e3],
     nitroClear: 3,
     clearDrop: 2,
-    // The threat level rises by one every lvEvery seconds of a run and never comes down. With it: from level starFloorLv[1] there are
-    // never fewer than two stars, from starFloorLv[2] never fewer than three; the police attack sooner (intervals ÷ (1 + cadence × level));
-    // a driver is given less time to see an attack coming (react: seconds at level 0, the least it ever gets, lost per level);
-    // more of the traffic comes in pairs and convoys and more of it changes lane; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
-    lvEvery: 40,
-    starFloorLv: [0, 3, 6],
+    // The threat level rises by one every lvEvery seconds of a run and never comes down. With it: the stars have a floor (from level
+    // starFloorLv[1] never fewer than two, then three, then four); the police attack sooner (intervals ÷ (1 + cadence × level), level counted
+    // up to lvCap); a driver is given less time to see anything coming (react: seconds at level 0, the least it ever gets, lost per level);
+    // more of the traffic comes in pairs and convoys; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
+    lvEvery: 20,
+    lvCap: 20,
+    starFloorLv: [0, 4, 8, 14],
     cadence: 0.1,
-    react: [0.75, 0.42, 0.035],
-    nitroLv: 0.05,
-    nitroLvMax: 1.5,
-    // rest: the pause after one attack before the next may start (at level 0, the least, lost per level) · fairSwitch: the police plan with a
-    // lane change this slow, a little slower than the car really is, and fairPause in the new lane before the next one · weaveFree: an attack must be over this long before we reach a weaving cruiser
+    react: [0.72, 0.28, 0.034],
+    nitroLv: 0.04,
+    nitroLvMax: 1.6,
+    // The traffic is alive, and more so with every level.
+    // sway: every car, van and taxi wanders across its lane: [lanes at level 0, more per level, at most] (a truck a third of that)
+    // sigBlink, sigMove: a lane change is signalled, then steered: [seconds at level 0, the least, lost per level] — so they get more sudden
+    // flow: seconds between lane changes somewhere in the traffic ahead (drift): [at level 0, the least, lost per level]
+    // cut: seconds between lane changes aimed at us: a vehicle beside our lane cuts into it, or into the lane we need next. It picks its
+    //   moment: no sooner than it has to (cutLead s more than a driver needs: [at level 0, the least, lost per level], so it gets more
+    //   sudden) and never so late that it is not across cutLate s before we arrive
+    // flowFar: only vehicles we reach within this many seconds drift (and only ones far enough off to be straight again before their chance to cut in)
+    // flowClear: none changes lane within this many seconds (of our arrival) of a cruiser that has not picked its lane yet
+    sway: [0.04, 0.011, 0.2],
+    swayRate: 0.03,
+    sigBlink: [0.45, 0.12, 0.022],
+    sigMove: [0.85, 0.5, 0.023],
+    flow: [2.6, 0.45, 0.16],
+    cut: [11, 0.5, 1.1],
+    flowFar: 5.6,
+    cutLead: [1.6, 0.8, 0.07],
+    cutLate: 0.7,
+    flowClear: 0.8,
     // set pieces: for an interceptor's swerve, twin searchlights or a barrage the police have the traffic held back: gapFor[interceptor, twin, barrage]
     // seconds of empty road, asked for gapLead seconds before the unit is due; if no opening has come gapWait seconds after that, the helicopter settles for one lane
     gapFor: [1.7, 1.5, 3.1],
     gapLead: 3.4,
     gapWait: 5,
-    rest: [1.8, 0.6, 0.12],
+    rest: [1.8, 0.35, 0.11],
     fairSwitch: 0.4,
     fairPause: 0.2,
     fairSlack: 2,
@@ -166,7 +181,7 @@
     ramSlowMul: 0.7,
     // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
     blockP: [0, 0, 0.18, 0.23, 0.27, 0.31],
-    blockLv: 8e-3,
+    blockLv: 6e-3,
     // share of rows that are police units ahead of you, by star; more per threat level
     // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
     // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
@@ -198,9 +213,11 @@
     drEvery: 3.5,
     drStrike: 0.45,
     // its attacks: one lane (from three stars); two lanes at once, the one you are in and the one it expects you to dodge to (from four);
-    // the walking barrage, lane after lane across the road with drGap between them: you dodge back into its wake (five). drWarn2: extra warning for those.
+    // the walking barrage, one lane after another across the road, each lit only as its turn comes: you dodge back into its wake (five).
     // heliPat: by star, the shares of [twin, barrage] (the rest are single lanes)
-    drGap: 0.7,
+    // (the barrage: walkStrike s on a lane, walkGap s before the next)
+    walkStrike: 0.35,
+    walkGap: 0.7,
     heliPat: [[0, 0], [0, 0], [0, 0], [0, 0], [0.45, 0], [0.35, 0.35]],
     // the interceptor (from four stars): a second, faster cruiser that comes up the hard shoulder, where there is never traffic (icV: closing speed),
     // on the side we are on, and draws level with us. When it sees its moment it signals for the length of a warning and swerves into our lane:
@@ -237,7 +254,7 @@
     rewindSec: 3,
     reviveHold: 1.3
   };
-  var ROAD = { lane: 5, rail: 7.5, shoulder: 10.5, traffic: 5, trail: 10.9 };
+  var ROAD = { lane: 5, rail: 7.5, traffic: 5, trail: 10.9 };
   var LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 46e-4, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
   var THROTTLE = { rise: 0.32, fall: 0.2 };
   var FLICK = [
@@ -508,7 +525,7 @@
   function threatGrid(g, vel, opt = {}) {
     const STEP = FS_STEP, horizon = opt.horizon ?? 4, K = Math.round(horizon / STEP);
     const blocked = [new Uint8Array(K + 2), new Uint8Array(K + 2), new Uint8Array(K + 2)];
-    const base = gameBase(g), vFast = Math.max(vel, baseAt(g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base));
+    const base = gameBase(g), vFast = Math.max(vel, baseAt(g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base)), lvNow = lvOf(g);
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = g.veh[o];
       if (!type) continue;
@@ -562,8 +579,8 @@
       }
       const cr = crossing(g.veh, o);
       if (cr) {
-        const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.gd + 2 * vel)) - g.vt) * GAME.taxiAt) / Math.max(1, vFast - v));
-        const kEnd = Math.ceil((tSig + GAME.taxiBlink + GAME.taxiMove * 0.6 + 0.05) / STEP);
+        const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.gd + 2 * vel)) - g.vt) * taxiAtFor(lvNow)) / Math.max(1, vFast - v));
+        const kEnd = Math.ceil((tSig + (b > 0 ? g.veh[o + 9] + g.veh[o + 10] * 0.6 : blinkAt(lvNow) + moveAt(lvNow) * 0.6) + 0.05) / STEP);
         for (let k = k0; k <= k1; k++) {
           blocked[cr[1] + 1][k] = 1;
           if (k <= kEnd) blocked[cr[0] + 1][k] = 1;
@@ -591,7 +608,7 @@
     }
     return grid;
   }
-  function searcher(grid, M, hold = 0, pause = 0) {
+  function searcher(grid, M, hold = 0, pause = 0, end = null) {
     const { blocked, K } = grid, memo = /* @__PURE__ */ new Map();
     const free = (l, k0, k1) => {
       for (let k = k0; k <= Math.min(K, k1); k++) if (blocked[l + 1][k]) return false;
@@ -599,7 +616,7 @@
     };
     const better = (a, b) => !b || a.reach > b.reach || a.reach === b.reach && a.moves.length < b.moves.length;
     const go = (k, l) => {
-      if (k >= K) return { reach: K, moves: [] };
+      if (k >= K) return { reach: end === null || l === end ? K : K - 1, moves: [] };
       const key = k * 4 + l + 1;
       if (memo.has(key)) return memo.get(key);
       let res = { reach: k, moves: [] };
@@ -619,14 +636,14 @@
     };
     return { go, free, K };
   }
-  function wayThrough(grid, lane, react, tSwitch = 0.34, pause = 0) {
-    const s = searcher(grid, Math.round(tSwitch / FS_STEP), Math.round(react / FS_STEP), Math.round(pause / FS_STEP)), r = s.go(0, lane);
+  function wayThrough(grid, lane, react, tSwitch = 0.34, pause = 0, end = null) {
+    const s = searcher(grid, Math.round(tSwitch / FS_STEP), Math.round(react / FS_STEP), Math.round(pause / FS_STEP), end), r = s.go(0, lane);
     return r.reach >= grid.K ? 1 + r.moves.length : 0;
   }
 
   // ../js/game.js
   var NV = 44;
-  var VF = 9;
+  var VF = 11;
   var NC = 30;
   var CF = 5;
   var NI = 4;
@@ -671,6 +688,7 @@
   var ANN = 256;
   var STEADY = 2048;
   var MIRROR = 4096;
+  var NASTY = 8192;
   var fromLane = (fl) => (fl >> 9 & 3) - 1;
   var crosses = (veh, o) => veh[o] !== T_TRUCK && veh[o] !== T_WEAVE && veh[o + 6] !== 0;
   var crossing = (veh, o) => crosses(veh, o) ? [fromLane(veh[o + 5]), fromLane(veh[o + 5]) + veh[o + 6]] : null;
@@ -693,6 +711,17 @@
     return k === 0 ? s > 0 ? sCurve(m) : 1 - sCurve(m) : k === 1 ? s * sCurveD(m) / M : s * sCurveA(m) / (M * M);
   }
   var clamp2 = (x, a, b) => x < a ? a : x > b ? b : x;
+  var ramp = (r, lv, up) => up ? Math.min(r[1], r[0] + r[2] * lv) : Math.max(r[1], r[0] - r[2] * lv);
+  var lvOf = (g) => g.gt / GAME.lvEvery;
+  var reactAt = (lv) => ramp(GAME.react, lv);
+  var blinkAt = (lv) => ramp(GAME.sigBlink, lv);
+  var moveAt = (lv) => ramp(GAME.sigMove, lv);
+  var taxiAtFor = (lv) => blinkAt(lv) + moveAt(lv) + 0.5;
+  function sway(type, id, gt, lv, k = 0) {
+    if (type > T_TAXI) return 0;
+    const A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * (type === T_TRUCK ? 0.33 : 1), w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
+    return A * (k ? w * Math.cos(p) : Math.sin(p));
+  }
   function freshGame(seed = 1986, free = 0) {
     return {
       seed,
@@ -731,7 +760,11 @@
       bias: 0,
       dodges: 0,
       gapWant: 0,
-      // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
+      flowNext: 6,
+      cutNext: 12,
+      flowN: 0,
+      cuts: 0,
+      // … the traffic's next lane change, how many so far, how many aimed at us                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
       heat: 1,
       heatGt: -1e9,
       star: 1,
@@ -744,8 +777,7 @@
       pcl: 0,
       stG: 0,
       slow: 0,
-      brkAcc: 0,
-      // tail-close until (lingering on the brake), stumble grace until, slowed until
+      // tail-close until, stumble grace until, slowed until
       polM: P_TAIL,
       polT: 0,
       polLane: 0,
@@ -819,9 +851,9 @@
   var gameBase = (g) => baseAt(g.gd);
   var aheadFor = (g) => Math.max(GAME.ahead, (gameBase(g) - g.vt) * GAME.aheadT);
   function heliStrikes(pat, l, b, W) {
-    const G = GAME, S = G.drStrike, P2 = S + G.drGap;
+    const G = GAME, S = G.drStrike, Q = G.walkStrike, P2 = Q + G.walkGap;
     if (pat === H_TWIN) return [[l, W, W + S], [b, W, W + S]];
-    if (pat === H_WALK) return [[-b, W, W + S], [0, W + P2, W + P2 + S], [b, W + 2 * P2, W + 2 * P2 + S]];
+    if (pat === H_WALK) return [[-b, W, W + Q], [0, W + P2, W + P2 + Q], [b, W + 2 * P2, W + 2 * P2 + Q]];
     return [[l, W, W + S]];
   }
   var REACH_P = POL_HL + CAR_HL + 0.8;
@@ -893,6 +925,8 @@
       veh[o + 6] = a;
       veh[o + 7] = b;
       veh[o + 8] = g.nid++;
+      veh[o + 9] = 0;
+      veh[o + 10] = 0;
       if (type < T_TAXI) veh[o + 2] += breathe(veh[o + 8], g.gt);
       return i;
     }
@@ -944,8 +978,8 @@
     }
     const adj = (l) => l === 0 ? side() : 0;
     const third = (a, b) => -(a + b);
-    const lv = Math.min(12, g.gt / G.lvEvery);
-    const block = i >= 3 && rnd(g) < Math.min(0.4, G.blockP[g.star] + (g.star >= 2 ? G.blockLv * lv : 0));
+    const lv = Math.min(14, g.gt / G.lvEvery);
+    const block = i >= 3 && rnd(g) < Math.min(0.42, G.blockP[g.star] + (g.star >= 2 ? G.blockLv * lv : 0));
     const eta = (u + g.tr - g.gd) / Math.max(1, gameBase(g) - g.vt + G.blockSlow), calm = eta > busyFor(g) + G.weaveFree + 0.3;
     const weaver = block && rnd(g) < G.weaveP[g.star] && calm;
     const mirror = block && !weaver && rnd(g) < G.mirrorP[g.star] && calm;
@@ -1106,6 +1140,16 @@
     }
     return false;
   }
+  function nearUndecided(g, vel, eta, clear) {
+    const veh = g.veh, G = GAME;
+    for (let i = 0; i < NV; i++) {
+      const o = i * VF;
+      if (!veh[o] || !(veh[o] === T_WEAVE && !(veh[o + 5] & COMMIT) || veh[o + 5] & MIRROR)) continue;
+      const e = (veh[o + 2] - g.gd - veh[o + 4] - CAR_HL) / Math.max(1, Math.max(vel, gameBase(g)) - veh[o + 3] + (veh[o] === T_BLOCK ? G.blockSlow : 0));
+      if (e > -0.5 && Math.abs(e - eta) < clear) return true;
+    }
+    return false;
+  }
   function laneWin(g, l, vel, t0, t1) {
     const veh = g.veh, L = ROAD.lane, base = gameBase(g), vF = Math.max(vel, baseAt(g.gd + vel * t1)) * 1.02, vS = Math.max(1, Math.min(vel, base));
     for (let i = 0; i < NV; i++) {
@@ -1168,26 +1212,29 @@
     const up = gd - g.tr;
     for (let n = 0; g.genU < up + aheadFor(g) && n < 6; n++) genRow(g);
     let mult = gameMult(g);
-    const lv = gt / G.lvEvery, react = Math.max(G.react[1], G.react[0] - G.react[2] * lv), warn = react + G.warn, cad = 1 / (1 + G.cadence * Math.min(lv, 12));
+    const lv = gt / G.lvEvery, react = reactAt(lv), warn = react + G.warn, cad = 1 / (1 + G.cadence * Math.min(lv, G.lvCap));
+    const endLane = g.mid ? null : g.path;
     let grid0 = null;
     const fair = (cells) => {
       const c = copyGrid(grid0 || (grid0 = widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack)));
       for (const [l, t0, t1] of cells) markCells(c, l, t0, t1);
-      return wayThrough(c, inp.lane, react, G.fairSwitch, G.fairPause);
+      return wayThrough(c, inp.lane, react, G.fairSwitch, G.fairPause, endLane);
     };
-    const veh = g.veh, vFull = Math.max(inp.vel, baseAt(gd + 2 * inp.vel)), lr = laneRate(g, inp.vel);
+    const veh = g.veh, vFull = Math.max(inp.vel, baseAt(gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv);
     let draft = 0;
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
       if (!type) continue;
-      if (type === T_BLOCK && veh[o + 5] & MIRROR && veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - g.vt) * G.taxiAt) {
+      if (type === T_BLOCK && veh[o + 5] & MIRROR && veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - g.vt) * tAt) {
         veh[o + 5] &= ~MIRROR;
         const q = inp.lane;
         if (q !== 0) {
           veh[o + 6] = q;
           veh[o + 7] = gt;
+          veh[o + 9] = blinkAt(lv);
+          veh[o + 10] = moveAt(lv);
           veh[o + 5] |= STEADY;
-          if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), q, react, G.fairSwitch, G.fairPause)) {
+          if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), q, react, G.fairSwitch, G.fairPause, endLane)) {
             grid0 = null;
             g.blkEv = gt;
             out.push({ k: "mirror", lane: q });
@@ -1202,16 +1249,22 @@
         const from = fromLane(veh[o + 5]);
         if (veh[o + 7] === 0) {
           const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL);
-          if (gap0 < (vFull - g.vt) * G.taxiAt) veh[o + 7] = gt;
+          if (gap0 < (vFull - g.vt) * tAt) {
+            veh[o + 7] = gt;
+            veh[o + 9] = blinkAt(lv);
+            veh[o + 10] = moveAt(lv);
+          }
+          veh[o + 1] = from + sway(type, veh[o + 8], gt, lv);
         } else {
-          const m = (gt - veh[o + 7] - G.taxiBlink) / G.taxiMove;
+          const m = (gt - veh[o + 7] - veh[o + 9]) / veh[o + 10];
           if (m >= 1) {
-            veh[o + 1] = from + veh[o + 6];
+            veh[o + 1] = from + veh[o + 6] + sway(type, veh[o + 8], gt, lv);
+            veh[o + 5] = veh[o + 5] & ~(3 << 9 | NASTY) | from + veh[o + 6] + 1 << 9;
             veh[o + 6] = 0;
             veh[o + 7] = -gt;
-          } else if (m > 0) veh[o + 1] = from + veh[o + 6] * sCurve(m);
+          } else veh[o + 1] = from + (m > 0 ? veh[o + 6] * sCurve(m) : 0) + sway(type, veh[o + 8], gt, lv);
         }
-      }
+      } else if (type <= T_TAXI) veh[o + 1] = fromLane(veh[o + 5]) + sway(type, veh[o + 8], gt, lv);
       let fl = veh[o + 5];
       if (type !== T_BLOCK) veh[o + 3] = g.vt + laneV(veh[o + 1]) * lr + (type < T_TAXI ? breathe(veh[o + 8], gt, 1) : 0);
       if (type === T_WEAVE) {
@@ -1359,7 +1412,7 @@
     const wd = gd - g.wd0;
     let floor = 1;
     while (floor < 5 && wd >= G.starAt[floor]) floor++;
-    floor = Math.max(floor, lv >= G.starFloorLv[2] ? 3 : lv >= G.starFloorLv[1] ? 2 : 1);
+    floor = Math.max(floor, lv >= G.starFloorLv[3] ? 4 : lv >= G.starFloorLv[2] ? 3 : lv >= G.starFloorLv[1] ? 2 : 1);
     if (g.heat < floor) g.heat = floor;
     else if (g.heat > floor && gt - g.heatGt > G.heatHold) g.heat = Math.max(floor, g.heat - DT2 / G.heatDecay);
     const star = Math.min(5, Math.floor(g.heat + 1e-9));
@@ -1368,16 +1421,10 @@
       g.star = star;
       if (star > g.starMax) g.starMax = star;
     }
-    if (inp.brk) g.brkAcc += DT2;
-    else g.brkAcc = Math.max(0, g.brkAcc - 2 * DT2);
-    if (g.brkAcc > G.brakeLinger && gt >= g.pcl - 1) {
-      if (gt >= g.pcl) out.push({ k: "tail" });
-      g.pcl = gt + 1.6;
-    }
     const think = gt >= g.aiNext;
     if (think) g.aiNext = gt + 0.05;
     let act = (g.polM !== P_TAIL ? 1 : 0) + (g.drT >= 0 ? 1 : 0) + (g.icM === I_TELL || g.icM === I_SLAM || g.icM === I_HOLD ? 1 : 0);
-    const settled = Math.abs(px - inp.lane * L) < 1, maxAtk = star >= 5 ? 2 : 1;
+    const settled = Math.abs(px - inp.lane * L) < 1, maxAtk = star >= 5 ? lv >= G.starFloorLv[3] ? 3 : 2 : 1;
     const may = (dur, toMid) => think && settled && act < maxAtk && gt >= g.atkGap && !inp.nitro && gt > G.introT + 4 && !hazardPending(g, inp.vel, dur, toMid);
     const go = (k, e) => {
       if (act) out.push({ k: "pincer" });
@@ -1408,6 +1455,72 @@
         out.push({ k: "dodge", pts: Math.round(G.ptsDodge * mult) });
       }
     };
+    if (think && gt > G.introT + 2 && (gt >= g.flowNext || gt >= g.cutNext)) {
+      const p = inp.lane, bl = blinkAt(lv), mv = moveAt(lv), rel = Math.max(1, Math.max(inp.vel, gameBase(g)) - g.vt), cutFar = bl + mv + react + ramp(G.cutLead, lv);
+      for (const nasty of [1, 0]) {
+        if (gt < (nasty ? g.cutNext : g.flowNext) || nasty && !settled) continue;
+        if (nasty) g.cutNext = gt + 0.1;
+        else g.flowNext = gt + 0.15;
+        let need = p;
+        if (nasty) {
+          const r = searcher(grid0 || (grid0 = widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack)), Math.round(G.fairSwitch / FS_STEP)).go(0, p);
+          if (r.moves.length && r.moves[0].k * FS_STEP < 2) need = p + r.moves[0].d;
+        }
+        const cand = [];
+        let n = 0;
+        for (let i = 0; i < NV; i++) {
+          const o = i * VF, type = veh[o];
+          if (type !== T_CAR && type !== T_VAN && type !== T_TAXI) continue;
+          if (veh[o + 6] !== 0 || veh[o + 7] < 0 && gt + veh[o + 7] < 0.6) continue;
+          const from = fromLane(veh[o + 5]), eta = (veh[o + 2] - gd - veh[o + 4] - CAR_HL) / rel;
+          let t, k;
+          if (nasty) {
+            if (eta < bl + 0.6 * mv + G.cutLate || eta > cutFar) continue;
+            if (Math.abs(from - p) === 1) t = p;
+            else if (need !== p && from !== need && Math.abs(from - need) === 1) t = need;
+            else continue;
+            k = eta;
+          } else {
+            if (eta < cutFar + bl + mv + 0.8 || eta > G.flowFar) continue;
+            t = from === 0 ? (veh[o + 8] + g.flowN) % 2 ? 1 : -1 : 0;
+            k = (veh[o + 8] * 7 + g.flowN * 3) % 11 + n++ * 0.01;
+          }
+          let room = true;
+          for (let j = 0; j < NV && room; j++) {
+            const q = j * VF;
+            if (j !== i && veh[q] && Math.abs(veh[q + 2] - veh[o + 2]) < veh[q + 4] + veh[o + 4] + 7) {
+              const cr = crossing(veh, q);
+              if (Math.abs(veh[q + 1] - t) < 0.75 || cr && cr[1] === t || veh[q] === T_WEAVE) room = false;
+            }
+          }
+          if (room) cand.push([k, o, t]);
+        }
+        cand.sort((a, b) => a[0] - b[0]);
+        for (let c = 0; c < Math.min(3, cand.length); c++) {
+          const pick = cand[c][1], to = cand[c][2];
+          if (nearUndecided(g, inp.vel, (veh[pick + 2] - gd) / rel, G.flowClear)) continue;
+          const from = fromLane(veh[pick + 5]);
+          veh[pick + 6] = to - from;
+          veh[pick + 7] = gt;
+          veh[pick + 9] = bl;
+          veh[pick + 10] = mv;
+          if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), p, react, G.fairSwitch, G.fairPause, endLane)) {
+            grid0 = null;
+            g.flowN++;
+            if (nasty) {
+              g.cuts++;
+              veh[pick + 5] |= NASTY;
+              g.cutNext = gt + ramp(G.cut, lv) * (0.6 + 0.8 * rnd(g));
+            } else g.flowNext = gt + ramp(G.flow, lv) * (0.6 + 0.8 * rnd(g));
+            out.push({ k: nasty ? "cutin" : "drift", lane: to, from });
+            break;
+          } else {
+            veh[pick + 6] = 0;
+            veh[pick + 7] = 0;
+          }
+        }
+      }
+    }
     const eK = (tau) => 1 - Math.exp(-DT2 / tau);
     if (g.polM === P_TAIL) {
       const close = policeClose(g);
@@ -1589,7 +1702,7 @@
     if (star >= 3) {
       if (!g.hOn && g.drT < 0 && gt >= g.hNext) {
         g.hOn = 1;
-        g.hLeft = G.heliPasses + Math.min(2, Math.floor(lv / 4));
+        g.hLeft = G.heliPasses + Math.min(3, Math.floor(lv / 5));
         g.hSide = -g.hSide;
         g.drNext = gt + G.heliSettle;
         g.drWant = -1;
@@ -1613,12 +1726,12 @@
           let pick = null, hard = 0;
           const tryIt = (pat, ln, b) => {
             for (const late of pat ? G.drLate : [0]) {
-              const S = heliStrikes(pat, ln, b, warn + 0.1 + late);
+              const S = heliStrikes(pat, ln, b, warn + 0.15 + late);
               if (!may(S[S.length - 1][2], pat === H_LANE && ln !== 0)) return;
               const n = fair(S.map(([x, t0, t1]) => [x, t0 - 0.1, t1 + 0.05]));
               if (n > hard) {
                 hard = n;
-                pick = [pat, ln, b, warn + 0.1 + late];
+                pick = [pat, ln, b, warn + 0.15 + late];
               }
             }
           };
@@ -1699,7 +1812,6 @@
   var freshState = () => ({
     pos: 0,
     vel: 5.5,
-    brkOn: 0,
     thrA: 0,
     thr: 0,
     lane: 0,
@@ -2036,7 +2148,6 @@
       g.pcl = 0;
       g.stG = 0;
       g.slow = 0;
-      g.brkAcc = 0;
       g.lives = 2;
       g.polM = P_TAIL;
       g.polZ = Math.min(g.polZ, -GAME.polFar + 2);
@@ -2102,8 +2213,7 @@
       while (this._ei < ev.length && ev[this._ei].t <= T) {
         const e = ev[this._ei++];
         const ok = cruise && !st.over && T >= st.hold && !st.paused;
-        if (e.type === "brk") st.brkOn = e.on ? 1 : 0;
-        else if (e.type === "env") {
+        if (e.type === "env") {
           st.cur = e.preset;
           st.autoT0 = T;
           st.autoPos0 = st.pos;
@@ -2144,7 +2254,7 @@
         st.autoPos0 = st.pos;
       }
       if (!(cruise && T < st.hold)) {
-        const thrT = live && !st.brkOn ? 1 : 0;
+        const thrT = live ? 1 : 0;
         const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
         st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
         st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
@@ -2173,7 +2283,7 @@
         st.nOn = nOn ? 1 : 0;
         const out = this._out;
         out.length = 0;
-        stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, brk: st.brkOn, nitro: nOn }, out);
+        stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, nitro: nOn }, out);
         for (const o of out) {
           o.t = T;
           this._gev.push(o);
@@ -2201,7 +2311,7 @@
           vt = 0;
           tauV = 0.1;
         } else {
-          const g = st.g, tm = this.turboMul(T), dm = GAME.brakeMul + (1 - GAME.brakeMul) * st.thr;
+          const g = st.g, tm = this.turboMul(T), dm = GAME.coast + (1 - GAME.coast) * st.thr;
           let k = tm > 1 ? Math.max(dm, tm) : dm * tm;
           if (g.gt < g.slow) k *= GAME.ramSlowMul;
           const intro = !g.free && g.gt < GAME.introHold;
@@ -2248,7 +2358,6 @@
         thr: lerp(a.thr, b.thr, f),
         steer: lerp(a.steer, b.steer, f),
         steerV: lerp(a.steerV, b.steerV, f),
-        brkOn: b.brkOn,
         lane: b.lane,
         x: lerp(a.x, b.x, f),
         xv: lerp(a.xv, b.xv, f),
@@ -3020,22 +3129,46 @@
     }
   };
   var Pass = class extends Voice {
-    // a vehicle goes by in the next lane: a rush of air on that side, its pitch falling as it passes
+    // a vehicle goes by in the next lane: a rush of air on that side, its pitch falling as it passes.
+    // Loud enough to be heard over the music: it sits where the mix is thin (1 to 3 kHz) and is well clear of it there.
     constructor(s, o, side, big) {
       super(s, o);
       this.big = big;
       this.r = new RNG(s.seed());
       this.f = new SVF();
-      this.l = panL(side * 0.8);
-      this.rg = panR(side * 0.8);
+      this.g = new SVF();
+      this.l = panL(side * 0.85);
+      this.rg = panR(side * 0.85);
     }
     tick(B, i, t) {
-      const d = this.big ? 0.5 : 0.26;
-      if ((this.n & 15) === 0) this.f.set((this.big ? 300 : 520) + (this.big ? 900 : 1700) * exp(-t / (d * 0.45)), 1.1);
-      const y = this.f.bp(this.r.next()) * Math.min(1, t / 0.03) * exp(-t / (d * 0.5)) * (this.big ? 0.4 : 0.27);
+      const d = this.big ? 0.55 : 0.34;
+      if ((this.n & 15) === 0) {
+        const c = (this.big ? 380 : 650) + (this.big ? 1500 : 2500) * exp(-t / (d * 0.4));
+        this.f.set(c, 1.7);
+        this.g.set(c * 0.5, 0.9);
+      }
+      const x = this.r.next(), env = Math.min(1, t / 0.035) * exp(-t / (d * 0.5));
+      const y = (this.f.bp(x) + this.g.bp(x) * 0.5) * env * (this.big ? 0.5 : 0.48);
       B.sfxL[i] += y * this.l;
       B.sfxR[i] += y * this.rg;
       return t < d * 3;
+    }
+  };
+  var Horn = class extends Voice {
+    // a car horn, as something cuts in ahead: two reedy notes a third apart, its pitch falling a little as we close on it
+    constructor(s, o) {
+      super(s, o);
+      this.a = new Saw(0);
+      this.b = new Saw(0.3);
+      this.f = new SVF();
+      this.f.set(2400, 0.9);
+    }
+    tick(B, i, t) {
+      const d = 0.3, bend = 1 - 0.035 * Math.min(1, t / d), env = Math.min(1, t / 0.012) * (t < d ? 1 : exp(-(t - d) / 0.045));
+      const y = this.f.lp(this.a.run(415 * bend) + this.b.run(523 * bend)) * 0.05 * env;
+      B.sfxL[i] += y;
+      B.sfxR[i] += y;
+      return t < d + 0.3;
     }
   };
   var Skid = class extends Voice {
@@ -3453,6 +3586,9 @@
           break;
         case "skid":
           v = new Skid(s, o);
+          break;
+        case "horn":
+          v = new Horn(s, o);
           break;
         case "yelp":
           v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5);
