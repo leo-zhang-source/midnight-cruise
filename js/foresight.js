@@ -8,7 +8,7 @@
 // lane at that time, would be overlapping something.
 // ─────────────────────────────────────────────────────────────────────────────
 import { GAME, ROAD } from './cue.js';
-import { NV, VF, T_TAXI, T_BLOCK, T_WEAVE, HALF_W, CAR_HL, CAR_HW, COMMIT, SIDE, STEADY, weave, breathe, gameBase, baseAt, laneV, laneRate, crossing, policeCells } from './game.js';
+import { NV, VF, T_TAXI, T_BLOCK, T_WEAVE, HALF_W, CAR_HL, CAR_HW, COMMIT, SIDE, STEADY, weave, breathe, gameBase, baseAt, laneV, laneRate, crossing, policeCells, lvOf, blinkAt, moveAt, taxiAtFor } from './game.js';
 
 export const FS_STEP = 0.05;
 // g: game state · vel: the car's speed now · opt.horizon: seconds to look ahead (4) · opt.police: include the police's
@@ -18,7 +18,7 @@ export function threatGrid(g, vel, opt = {}) {
   const blocked = [new Uint8Array(K + 2), new Uint8Array(K + 2), new Uint8Array(K + 2)];
   // how soon the car can be `d` ahead of where it is relative to a vehicle doing v: at the fastest it will go inside the
   // horizon (the road speed rises with distance); and how late: at the slower of its speed now and its cruising speed
-  const base = gameBase(g), vFast = Math.max(vel, baseAt(g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base));
+  const base = gameBase(g), vFast = Math.max(vel, baseAt(g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base)), lvNow = lvOf(g);
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = g.veh[o]; if (!type) continue;
     // ordinary traffic eases a little ahead of and behind its place in the row: plan with that place and allow for the drift
@@ -58,8 +58,9 @@ export function threatGrid(g, vel, opt = {}) {
     // for the whole pass, the lane it leaves only until its move is over
     const cr = crossing(g.veh, o);
     if (cr) {
-      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.gd + 2 * vel)) - g.vt) * GAME.taxiAt) / Math.max(1, vFast - v));
-      const kEnd = Math.ceil((tSig + GAME.taxiBlink + GAME.taxiMove * 0.6 + 0.05) / STEP);                     // it is clear of the lane it leaves a little past half-way across
+      // (one already signalling carries its own times; one still to start will use the times of the level then, about those of now)
+      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.gd + 2 * vel)) - g.vt) * taxiAtFor(lvNow)) / Math.max(1, vFast - v));
+      const kEnd = Math.ceil((tSig + (b > 0 ? g.veh[o + 9] + g.veh[o + 10] * 0.6 : blinkAt(lvNow) + moveAt(lvNow) * 0.6) + 0.05) / STEP);                     // it is clear of the lane it leaves a little past half-way across
       for (let k = k0; k <= k1; k++) { blocked[cr[1] + 1][k] = 1; if (k <= kEnd) blocked[cr[0] + 1][k] = 1; }
       continue;
     }
@@ -89,12 +90,12 @@ export function widen(grid, n) {
 // A lane change takes M steps, during which both lanes must be clear. hold: no lane change may start before this step
 // (the time a driver needs to see what is coming and react). pause: after a lane change, this many steps in the new lane
 // before the next one may start (nobody dashes across two lanes without a breath between).
-export function searcher(grid, M, hold = 0, pause = 0) {
+export function searcher(grid, M, hold = 0, pause = 0, end = null) {
   const { blocked, K } = grid, memo = new Map();
   const free = (l, k0, k1) => { for (let k = k0; k <= Math.min(K, k1); k++) if (blocked[l + 1][k]) return false; return true; };
   const better = (a, b) => !b || a.reach > b.reach || (a.reach === b.reach && a.moves.length < b.moves.length);
   const go = (k, l) => {
-    if (k >= K) return { reach: K, moves: [] };
+    if (k >= K) return { reach: end === null || l === end ? K : K - 1, moves: [] };       // (end: the lane to finish in, if it matters)
     const key = k * 4 + l + 1;
     if (memo.has(key)) return memo.get(key);
     let res = { reach: k, moves: [] };
@@ -113,7 +114,7 @@ export function searcher(grid, M, hold = 0, pause = 0) {
 }
 // Is there a way through from `lane`, given react seconds before the first move and tSwitch seconds per lane change?
 // → 0 if not; else 1 + the number of lane changes it takes (so 1 = stay where you are)
-export function wayThrough(grid, lane, react, tSwitch = 0.34, pause = 0) {
-  const s = searcher(grid, Math.round(tSwitch / FS_STEP), Math.round(react / FS_STEP), Math.round(pause / FS_STEP)), r = s.go(0, lane);
+export function wayThrough(grid, lane, react, tSwitch = 0.34, pause = 0, end = null) {
+  const s = searcher(grid, Math.round(tSwitch / FS_STEP), Math.round(react / FS_STEP), Math.round(pause / FS_STEP), end), r = s.go(0, lane);
   return r.reach >= grid.K ? 1 + r.moves.length : 0;
 }

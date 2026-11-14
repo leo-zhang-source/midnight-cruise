@@ -11,7 +11,7 @@ export const SIM_HZ = 240;
 export const DT = 1 / SIM_HZ;
 
 const freshState = () => ({
-  pos: 0, vel: 5.5, brkOn: 0, thrA: 0, thr: 0, lane: 0, laneS: 0, x: 0, xv: 0, yaw: 0, yawV: 0, camX: 0, camXv: 0, steer: 0, steerV: 0,
+  pos: 0, vel: 5.5, thrA: 0, thr: 0, lane: 0, laneS: 0, x: 0, xv: 0, yaw: 0, yawV: 0, camX: 0, camXv: 0, steer: 0, steerV: 0,
   cur: 0, autoOn: 1, autoT0: 0, autoPos0: 0,
   // the game: run counter, the cruise segment it belongs to, game-over kind (1 crashed, 2 busted) and time,
   // rewind in progress until `hold` (replaying scene time rwA back to rwB), spare tapes, revives used this run,
@@ -240,7 +240,7 @@ export class Timeline {
     }
     st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;
     const g = st.g;
-    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.brkAcc = 0; g.lives = 2;
+    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.lives = 2;
     g.polM = P_TAIL; g.polZ = Math.min(g.polZ, -GAME.polFar + 2); g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
     g.icM = 0; g.icZ = -60; g.icNext = Math.max(g.icNext, g.gt + 6); g.aiNext = 0; g.atkGap = g.gt + 3; g.drWant = -1;
     st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
@@ -273,8 +273,7 @@ export class Timeline {
     while (this._ei < ev.length && ev[this._ei].t <= T) {
       const e = ev[this._ei++];
       const ok = cruise && !st.over && T >= st.hold && !st.paused;
-      if (e.type === 'brk') st.brkOn = e.on ? 1 : 0;
-      else if (e.type === 'env') { st.cur = e.preset; st.autoT0 = T; st.autoPos0 = st.pos; }
+      if (e.type === 'env') { st.cur = e.preset; st.autoT0 = T; st.autoPos0 = st.pos; }
       else if (e.type === 'auto') { st.autoOn = e.on ? 1 : 0; st.autoT0 = T; st.autoPos0 = st.pos; }
       else if (e.type === 'lane') { if (ok) st.lane = Math.max(-1, Math.min(1, st.lane + (e.dir > 0 ? 1 : -1))); }
       else if (e.type === 'turbo') {
@@ -301,7 +300,7 @@ export class Timeline {
       st.autoT0 = T; st.autoPos0 = st.pos;
     }
     if (!(cruise && T < st.hold)) {           // (frozen during a rewind)
-      const thrT = live && !st.brkOn ? 1 : 0;   // drive amount: 1 = flat out, falls while the brake is held
+      const thrT = live ? 1 : 0;   // drive amount: 1 = flat out (there is no brake); it falls while the run is paused or over
       const tau = thrT > st.thrA ? THROTTLE.rise : THROTTLE.fall;
       st.thrA += (thrT - st.thrA) * (1 - Math.exp(-DT / tau));
       st.thr += (st.thrA - st.thr) * (1 - Math.exp(-DT / 0.12));
@@ -327,7 +326,7 @@ export class Timeline {
       if (st.nOn && !nOn) g.inv = Math.max(g.inv, g.gt + GAME.nitroGrace);
       st.nOn = nOn ? 1 : 0;
       const out = this._out; out.length = 0;
-      stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, brk: st.brkOn, nitro: nOn }, out);
+      stepGame(g, { dt: DT, x: st.x, lane: st.lane, vel: st.vel, nitro: nOn }, out);
       for (const o of out) {
         o.t = T; this._gev.push(o);
         if (o.k === 'swipe') { st.lane = o.back; st.xv = o.dir * GAME.swipeKick; }
@@ -341,7 +340,7 @@ export class Timeline {
       else if (st.over) { vt = 0; tauV = st.over === 2 ? 0.7 : 0.3; }
       else if (st.paused) { vt = 0; tauV = 0.1; }
       else {
-        const g = st.g, tm = this.turboMul(T), dm = GAME.brakeMul + (1 - GAME.brakeMul) * st.thr;
+        const g = st.g, tm = this.turboMul(T), dm = GAME.coast + (1 - GAME.coast) * st.thr;
         let k = tm > 1 ? Math.max(dm, tm) : dm * tm;
         if (g.gt < g.slow) k *= GAME.ramSlowMul;
         const intro = !g.free && g.gt < GAME.introHold;       // the police have you at the roadside; then you floor it
@@ -380,7 +379,7 @@ export class Timeline {
     if (this._T === 0) return copy(b);
     return {
       pos: lerp(a.pos, b.pos, f), vel: lerp(a.vel, b.vel, f), thr: lerp(a.thr, b.thr, f),
-      steer: lerp(a.steer, b.steer, f), steerV: lerp(a.steerV, b.steerV, f), brkOn: b.brkOn, lane: b.lane,
+      steer: lerp(a.steer, b.steer, f), steerV: lerp(a.steerV, b.steerV, f), lane: b.lane,
       x: lerp(a.x, b.x, f), xv: lerp(a.xv, b.xv, f), yaw: lerp(a.yaw, b.yaw, f), yawV: lerp(a.yawV, b.yawV, f), camX: lerp(a.camX, b.camX, f),
       cur: b.cur, autoOn: b.autoOn, autoT0: b.autoT0, autoPos0: b.autoPos0,
       // the game: `g` is a copy of the game state, `gf` how far T is between the last two steps

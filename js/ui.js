@@ -12,7 +12,7 @@ export class UI {
     this.app = app;
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
-      skip: $('skip'), drivebar: $('drivebar'), brake: $('brake'), brakeRing: $('brake-ring'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
+      skip: $('skip'), drivebar: $('drivebar'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
       deck: $('deck'), deckBar: $('deck-bar'), deckMin: $('deck-min'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
@@ -27,7 +27,6 @@ export class UI {
     this.meterBars = [...this.el.lcdMeter.children];
     this.el.spdBar.innerHTML = '<i></i>'.repeat(14);
     this.spdSegs = [...this.el.spdBar.children];
-    this.keyBrake = false; this.btnBrake = false;
     this.win = { n: 0, ei: 0, st: null };
     this.cache = {};
     this.bind();
@@ -38,30 +37,11 @@ export class UI {
 
   phase() { return this.app.tl.phaseAt(this.app.now()).phase; }
 
-  // The car drives flat out by itself; the brake is the only pedal.
-  setBrake(on) {
-    // compare with the last brake event sent (not with the simulation, which may not have reached it yet:
-    // a press and release inside one frame must still release)
-    const ev = this.app.tl.events; let cur = false;
-    for (let i = ev.length - 1; i >= 0; i--) if (ev[i].type === 'brk') { cur = !!ev[i].on; break; }
-    if (!!on === cur) return;
-    this.ev('brk', { on: !!on });
-  }
-  refreshBrake() { this.setBrake(this.keyBrake || this.btnBrake); }
-
   bind() {
     const E = this.el;
     E.start.addEventListener('click', () => this.app.start());
     E.skip.addEventListener('click', () => this.skip());
-    // BRAKE: hold to slow down (pointer capture so the release is never missed)
-    const bDown = (e) => { e.preventDefault(); try { E.brake.setPointerCapture(e.pointerId); } catch (_) {} this.btnBrake = true; this.refreshBrake(); };
-    const bUp = () => { if (!this.btnBrake) return; this.btnBrake = false; this.refreshBrake(); };
-    E.brake.addEventListener('pointerdown', bDown);
-    for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) E.brake.addEventListener(t, bUp);
-    E.brake.addEventListener('contextmenu', (e) => e.preventDefault());
-    E.brake.addEventListener('keydown', (e) => { if ((e.key === 'Enter') && !e.repeat) { this.btnBrake = true; this.refreshBrake(); } });
-    E.brake.addEventListener('keyup', (e) => { if (e.key === 'Enter') { this.btnBrake = false; this.refreshBrake(); } });
-    E.turbo.addEventListener('pointerdown', (e) => e.preventDefault());   // a pointer press must not leave the focus here: Space is the brake
+    E.turbo.addEventListener('pointerdown', (e) => e.preventDefault());   // a pointer press must not leave the focus here (Space would then press the button again)
     E.turbo.addEventListener('click', () => this.turbo());
     E.pause.addEventListener('click', () => this.pause(true));
     E.resume.addEventListener('click', () => this.pause(false));
@@ -91,18 +71,16 @@ export class UI {
       this.lane(e.clientX < innerWidth / 2 ? -1 : 1);
     });
     // keyboard
-    const interactive = (t) => t && t !== document.body && t !== E.brake && t.matches && t.matches('button, input, a, [tabindex]');
+    const interactive = (t) => t && t !== document.body && t.matches && t.matches('button, input, a, [tabindex]');
     addEventListener('keydown', (e) => {
       const k = e.key, down = k === 'ArrowDown', space = k === ' ' || e.code === 'Space';
-      if (space || down) {                                   // the brake; Space also starts and resumes
+      if (space || down) {                                   // Space starts and resumes (the car has no brake: it drives flat out)
         if (space && interactive(document.activeElement)) return;      // a focused button takes Space itself
         e.preventDefault();
         if (e.repeat) return;
         const ph = this.phase();
         if (ph === 'idle' || ph === 'home') { if (space) this.app.start(); return; }
         if (this.isPaused()) { if (space) this.pause(false); return; }
-        if (this.overState()) return;
-        this.keyBrake = true; this.refreshBrake();
         return;
       }
       if (e.repeat) return;
@@ -122,14 +100,11 @@ export class UI {
       }
       else if (/^[1-4]$/.test(k) && ph !== 'idle' && ph !== 'home') E.presets[+k - 1].click();
     });
-    addEventListener('keyup', (e) => {
-      if (e.key === ' ' || e.code === 'Space' || e.key === 'ArrowDown') { this.keyBrake = false; this.refreshBrake(); }
-    });
-    const release = () => { this.keyBrake = false; this.btnBrake = false; this.refreshBrake(); this.pause(true, true); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
+    const release = () => { this.pause(true, true); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
     this.setMin(true);   // the deck starts minimised; its title-bar key expands it
-    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Hold Brake to slow down'; document.body.classList.add('touch'); }
+    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Nitro when you carry a canister'; document.body.classList.add('touch'); }
   }
 
   setMin(m) {
@@ -192,7 +167,7 @@ export class UI {
       else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = (e.kind === 2 ? 'Busted.' : 'Crashed.') + ' Press R to rewind the tape, or H for the home screen.'; }
       else if (k === 'gear') this.sfx('gear');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
-      else if (k === 'stumble' || k === 'tail' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
+      else if (k === 'stumble' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
       else if (k === 'ramwarn' || k === 'lock' || k === 'ictell') this.sfx('lock');
       else if (k === 'block' || k === 'weave') this.sfx('siren');
       else if (k === 'icwarn') this.sfx('yelp');
@@ -292,12 +267,10 @@ export class UI {
     set('homeS', U.home && this.last >= 0 ? this.last + '|' + this.best : '', (v) => { E.homeScore.hidden = !v; if (v) { E.hsLast.textContent = this.last.toLocaleString('en-US'); E.hsBest.textContent = this.best.toLocaleString('en-US'); } });
     set('homeF', U.home && st > 0.9 ? 1 : 0, (v) => { if (v) { try { E.start.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
     set('skip', U.skip, (v) => E.skip.classList.toggle('on', !!v));
-    // drive controls: the brake ring shows how hard the car is braking, the nitro button how many canisters are aboard
+    // drive controls: the nitro button shows how many canisters are aboard
     const ca = U.controls;
     set('ctrl', ca.toFixed(3), () => { E.drivebar.style.opacity = ca; E.drivebar.style.visibility = ca > 0.01 ? 'visible' : 'hidden'; E.drivebar.style.transform = `translateY(${(1 - ca) * 28}px)`; E.drivebar.style.pointerEvents = ca > 0.6 ? 'auto' : 'none'; });
     const active = s.phase === 'cruise', Gq = U.g;
-    set('brk', (U.thr).toFixed(3), (v) => { E.brakeRing.style.strokeDashoffset = CIRC * (1 - +v); });
-    set('brkp', U.drive ? 'true' : 'false', (v) => E.brake.setAttribute('aria-pressed', v));
     const stock = active && Gq && Gq.on ? Gq.nstock : 0, ready = active && U.ready >= 1;
     const boosting = active && Gq && Gq.on && this.app.tl.turboAt(T) ? 1 : 0;
     set('trb', stock, (n) => { E.turboRing.style.strokeDashoffset = CIRC * (1 - Math.min(1, n / GAME.nitroMax)); E.turbo.dataset.n = n; });

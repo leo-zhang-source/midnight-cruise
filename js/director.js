@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor } from './game.js';
+import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
@@ -78,7 +78,6 @@ const POP = {
   stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : e.by === 'slam' ? 'SLAMMED' : e.by === 'crash' ? 'CRASH' : 'SIDESWIPE') + ' · ONE LIFE LEFT', 'bad'],
   shake: () => ['SHOOK THEM OFF · TWO LIVES', 'good'],
   nuse: (e) => [`NITRO ${e.n}/${GAME.nitroClear} TO COOL THE HEAT`, 'info'], clear: () => ['HEAT COOLED', 'good'],
-  tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'],
   lock: (e) => [e.pat === H_WALK ? 'BARRAGE · DODGE BACK INTO ITS WAKE' : e.pat === H_TWIN ? 'TWIN SEARCHLIGHTS · TAKE THE DARK LANE' : 'SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
   icwarn: (e) => [`INTERCEPTOR ON THE ${e.side < 0 ? 'LEFT' : 'RIGHT'} SHOULDER`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
@@ -105,7 +104,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     const mover = type !== T_TRUCK && type !== T_WEAVE;          // a taxi, a car or van, a cruiser: it may steer across a lane
     if (mover && a !== 0) {     // it will steer across a lane, or is doing so
       wander = 0;
-      if (b > 0) { const m = (gt - b - G.taxiBlink) / G.taxiMove; vx = a * L * sCurveD(m) / G.taxiMove; ax = a * L * sCurveA(m) / (G.taxiMove * G.taxiMove); }
+      if (b > 0) { const mt = veh[o + 10], m = (gt - b - veh[o + 9]) / mt; vx = a * L * sCurveD(m) / mt; ax = a * L * sCurveA(m) / (mt * mt); }
     } else if (mover && b < 0) {             // it has just arrived in its new lane: a wag of the tail as it straightens up
       const u = gt + b; wag = Math.sign(lane) * 0.06 * Math.exp(-u * 4.5) * Math.sin(u * 13); wander = smooth(u / 2.5);
     } else if (type === T_WEAVE) {
@@ -114,9 +113,8 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
       else { const ph = gt + b; vx = a * L * weave(ph, 1); ax = a * L * weave(ph, 2); sweep = a; }
     }
     let x = lane * L - back * vx;
-    if (wander > 0) {                                    // nobody holds a lane dead straight
-      const p1 = gt * 0.55 + id * 2.4, p2 = gt * 1.3 + id * 1.1;
-      x += wander * (0.24 * Math.sin(p1) + 0.1 * Math.sin(p2)); vx += wander * (0.132 * Math.cos(p1) + 0.13 * Math.cos(p2));
+    if (!police) vx += L * sway(type, id, gt, lvOf(g), 1);       // nobody holds a lane dead straight: the wander is in the simulation (`lane` has it); here, the heading that goes with it
+    if (wander > 0) {
       if (police) { const p3 = gt * 2.3 + id * 1.9; x += wander * 0.75 * Math.sin(p3); vx += wander * 0.75 * 2.3 * Math.cos(p3); }   // a cruiser holding a lane snakes across it to cover it
     }
     const slow = type === T_BLOCK ? sat((g.vt + laneV(lane) * laneRate(g, sv.vel) - v) / G.blockSlow) : 0;      // a rolling roadblock on the brakes
@@ -246,7 +244,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     crt: 0, fgA: 1, tracking: 0, trackY: 0.5, noise: 0.045, rgb: 1, flash: 0, shake: [0, 0], vignette: 0.42, bloom: 1, scan: 1,
     glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, ffwd: 0, rewind: 0, warp: 0,
   };
-  const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, cassette: 1, cassetteT: 99, controls: 1, start: 0, skip: 0, replay: 0, ready: 1, drive: sim.brkOn && ph.phase === 'cruise' ? 1 : 0, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
+  const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, cassette: 1, cassetteT: 99, controls: 1, start: 0, skip: 0, replay: 0, ready: 1, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
   let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0, game = null, trafficI = 1;
   let scenery = ph.phase === 'ign' || ph.phase === 'ff' ? smooth(lin(ph.it ?? 0, 2, 5)) : ph.phase === 'rewind' ? 0.5 : ph.phase === 'home' ? 1 : 0;
 

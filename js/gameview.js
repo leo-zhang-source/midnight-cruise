@@ -60,10 +60,6 @@ function makeSolids() {
           vec3 fill = uGround * 1.5 + vC * 0.03 + uSky * 0.22 * step(0.5, vN.y);
           col = fill + vC * (e * 1.5 + ribs);
         } else if (vM.x < 1.5) col = vC;                                                                   // emissive
-        else if (vM.x > 3.5) {                                                                              // galvanised steel: the guardrail's beam, two ridges catching the sky
-          float rid = an.x > 0.5 ? smoothstep(0.07, 0.0, abs(abs(q.y) - 0.085)) : 0.0;
-          col = uGround * 3.0 + uSky * (0.75 * step(0.5, vN.y) + 0.34 * an.x + 1.0 * rid) + vC * 0.1;
-        }
         else col = uGround * 1.6 + uSky * (0.16 * step(0.5, vN.y) + 0.07 * an.x) + vC * 0.05;              // plain dark structure
         // fade: far things come out of the haze, lights and debris dim (no dither: nothing flickers)
         if (vM.x > 0.5 && vM.x < 1.5) col *= vM.y; else col = mix(uFog, col, vM.y);
@@ -284,12 +280,12 @@ function makePanel(w, h, tex) {
 }
 
 const RED = [2.2, 0.14, 0.22], TAIL = [1.5, 0.1, 0.16], AMBER = [2.2, 1.1, 0.1], CELL = [0.72, 1.0, 0.2], NITRO = [0.35, 0.85, 1.0], LAMP = [1.0, 0.95, 0.8];
-const DARK = [0.2, 0.2, 0.3], STEEL = [0.5, 0.55, 0.7];
+const DARK = [0.2, 0.2, 0.3];
 const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2];
 const BB_SPAN = 4800, BB = [{ z0: 700, side: 1 }, { z0: 2300, side: -1 }, { z0: 3900, side: 1 }];      // a billboard every 1600 units
 const GA_SPAN = 4800, GA = [1500, 3900];                                                              // a sign gantry every 2400
 const SG_SPAN = 4800, SG = [{ z0: 1100, side: 1, k: 0 }, { z0: 3250, side: 1, k: 1 }, { z0: 4450, side: -1, k: 2 }];   // roadside signs
-const POST_S = 15;                                                                                    // reflector posts on the rails
+const POST_S = 30;                                                                                    // reflector posts on the rails
 const mod = (a, n) => ((a % n) + n) % n, V1 = new THREE.Vector3();
 // each body: where its tail lamps are (tz behind its middle, ty up, tx = 0: one bar across; else a lamp each side), how much road
 // it lights and in what colour, and the paints it comes in (the fixed-colour ones take none)
@@ -352,7 +348,7 @@ export class GameView {
     su.cFill.value.set(...P.mountFill).multiplyScalar(1.4); su.cFog.value.set(...P.fog); su.cA.value.set(...P.post); su.cB.value.set(...P.post2);
 
     // ── scenery: overhead sign gantries ──
-    const gx = ROAD.trail + 0.7;                 // the gantry's legs stand behind the guardrail
+    const gx = ROAD.trail + 0.7;                 // the gantry's legs stand clear of the strip outside the rails (the interceptor comes up it)
     GA.forEach((z0, i) => {
       const d = mod(z0 - pos, GA_SPAN), z = 30 - d, m = this.signs[i], f = Math.min(1, (1500 - d) / 300) * sc;
       m.visible = f > 0.01;
@@ -366,16 +362,12 @@ export class GameView {
       for (const l of [-1, 0, 1]) this.box(l * L, 6.6, z + 0.2, 0.9, 0.09, 0.2, [0.2, 1, 0.5], 1, f, 1.4);     // green lane lamps
     });
 
-    // ── scenery: the highway's furniture. A steel guardrail beyond each hard shoulder: a post every POST_S, the beam between
-    //    them, a reflector on every other post (amber on the left, white on the right) ──
+    // ── scenery: the highway's furniture. Reflector posts on the rails ──
     if (sc > 0.003) {
-      const n0 = Math.ceil(pos / POST_S);
-      for (const side of [-1, 1]) for (let k = 0; k < 30; k++) {
-        const d = mod(-pos, POST_S) + k * POST_S, z = 30 - d, f = smooth((440 - d) / 110) * sc;
+      for (const side of [-1, 1]) for (let k = 0; k < 14; k++) {
+        const d = mod(-pos, POST_S) + k * POST_S, z = 30 - d, f = smooth((430 - d) / 100) * sc;
         if (f < 0.01) continue;
-        const x = side * (ROAD.trail + 0.14);
-        this.box(x + side * 0.1, 0.4, z, 0.12, 0.8, 0.14, DARK, 3, f); this.box(x, 0.6, z + POST_S / 2, 0.07, 0.32, POST_S, STEEL, 4, f);
-        if ((n0 + k) % 2 === 0) this.sprite(x - side * 0.08, 0.86, z, 0.28, side < 0 ? [1, 0.72, 0.2] : [1, 1, 1], 0.8 * f);
+        this.box(side * (R + 0.35), 0.45, z, 0.1, 0.9, 0.1, DARK, 3, f); this.sprite(side * (R + 0.35), 0.84, z, 0.3, side < 0 ? [1, 0.72, 0.2] : [1, 1, 1], 0.9 * f);
       }
     }
     // ── scenery: roadside signs on two posts ──

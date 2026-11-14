@@ -52,7 +52,7 @@ export const ENV_XFADE = 1.6;
 export const AUTO_ENV = { time: 40, dist: 5200 };
 // ── The game: a police chase down the highway into the city (all values in road units and seconds) ──
 // Same-direction traffic shares ONE speed, so formations never close up and a row that was passable when it was
-// generated stays passable. The car always drives flat out; the brake buys reaction time but lets the police close in.
+// generated stays passable. The car always drives flat out: there is no brake.
 export const GAME = {
   mph: 2.4,                                      // speedometer: road units per second → MPH
   // Traffic keeps pace with the road: it drives at trafficK of your cruising speed (64 MPH in gear 1, 124 in gear 6), and
@@ -64,16 +64,16 @@ export const GAME = {
   breathe: 1.5,                                  // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
   gears: [58, 67, 77, 88, 100, 112],             // the speed at which each gear engages: the car accelerates steadily from one to the next
   gearAt: [0, 600, 1500, 2800, 4400, 6400],    // run distance at which each gear engages
-  creep: [640, 44],                              // in top gear it keeps gaining: +1 u/s per 640 units, up to +44 (374 MPH)
-  accel: 34, launch: 80, brake: 64, nitroAccel: 170,   // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and sheds at most `brake` u/s²
-  brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
+  creep: [400, 60],                              // in top gear it keeps gaining: +1 u/s per 400 units, up to +60 (413 MPH)
+  accel: 34, launch: 80, brake: 64, nitroAccel: 170,   // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and, when a hit slows it, sheds at most `brake` u/s²
+  coast: 0.55,                                   // off the throttle (paused, or pulling away after a rewind) the car is at 55 % of its speed
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
   nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
-  aheadT: 6.6, fairAhead: 5.8,                   // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police plan 5.8 s ahead
+  aheadT: 6.6, fairAhead: 6.8,                   // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police and the traffic plan on all of it
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
-  rowGap: [1.05, 0.68],                           // seconds between rows at the gear's closing speed (gear 1 → 6)
+  rowGap: [1.1, 0.85],                            // seconds between rows at the closing speed (first gear → top gear). A little more room than before: the traffic now moves about in it
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
-  taxiAt: 1.8, taxiBlink: 0.45, taxiMove: 0.85,  // a taxi (or a crossing cruiser) signals 1.8 s before you reach it, then steers across one lane: in place 0.5 s ahead of you
+  taxiAt: 1.8,                                   // the longest a planned lane change starts ahead of you (level 0; see sigBlink, sigMove): in place 0.5 s ahead of you
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
   swipeInv: 0.5, swipeKick: 9, reviveInv: 2.0,
   // police. Stars: 1 = a pursuit car behind you (always), 2 = roadblocks and the grappler, 3 = the helicopter's searchlight and fire.
@@ -87,25 +87,33 @@ export const GAME = {
   // Five stars now: 1 = the pursuit car · 2 = roadblocks, weaving cruisers, the grappler · 3 = the helicopter · 4 = an interceptor on
   // your flank, cruisers that cut you off, twin searchlights · 5 = all of it, two attacks at a time, the walking barrage.
   // starAt: road since the heat was last cleared at which each star arrives. The third nitro burst clears clearDrop stars.
-  starAt: [0, 1400, 3400, 6400, 10400], nitroClear: 3, clearDrop: 2,
-  // The threat level rises by one every lvEvery seconds of a run and never comes down. With it: from level starFloorLv[1] there are
-  // never fewer than two stars, from starFloorLv[2] never fewer than three; the police attack sooner (intervals ÷ (1 + cadence × level));
-  // a driver is given less time to see an attack coming (react: seconds at level 0, the least it ever gets, lost per level);
-  // more of the traffic comes in pairs and convoys and more of it changes lane; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
-  lvEvery: 40, starFloorLv: [0, 3, 6], cadence: 0.1, react: [0.75, 0.42, 0.035], nitroLv: 0.05, nitroLvMax: 1.5,
-  // rest: the pause after one attack before the next may start (at level 0, the least, lost per level) · fairSwitch: the police plan with a
-  // lane change this slow, a little slower than the car really is, and fairPause in the new lane before the next one · weaveFree: an attack must be over this long before we reach a weaving cruiser
+  starAt: [0, 1000, 2400, 4400, 7000], nitroClear: 3, clearDrop: 2,
+  // The threat level rises by one every lvEvery seconds of a run and never comes down. With it: the stars have a floor (from level
+  // starFloorLv[1] never fewer than two, then three, then four); the police attack sooner (intervals ÷ (1 + cadence × level), level counted
+  // up to lvCap); a driver is given less time to see anything coming (react: seconds at level 0, the least it ever gets, lost per level);
+  // more of the traffic comes in pairs and convoys; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
+  lvEvery: 20, lvCap: 20, starFloorLv: [0, 4, 8, 14], cadence: 0.1, react: [0.72, 0.28, 0.034], nitroLv: 0.04, nitroLvMax: 1.6,
+  // The traffic is alive, and more so with every level.
+  // sway: every car, van and taxi wanders across its lane: [lanes at level 0, more per level, at most] (a truck a third of that)
+  // sigBlink, sigMove: a lane change is signalled, then steered: [seconds at level 0, the least, lost per level] — so they get more sudden
+  // flow: seconds between lane changes somewhere in the traffic ahead (drift): [at level 0, the least, lost per level]
+  // cut: seconds between lane changes aimed at us: a vehicle beside our lane cuts into it, or into the lane we need next. It picks its
+  //   moment: no sooner than it has to (cutLead s more than a driver needs) and never so late that it is not across cutLate s before we arrive
+  // flowFar: only vehicles we reach within this many seconds drift · flowLate: one is in its new lane at least this long before we arrive
+  // flowClear: none changes lane within this many seconds (of our arrival) of a cruiser that has not picked its lane yet
+  sway: [0.04, 0.011, 0.2], swayRate: 0.03, sigBlink: [0.45, 0.12, 0.022], sigMove: [0.85, 0.5, 0.023],
+  flow: [2.6, 0.45, 0.16], cut: [5, 0.5, 0.45], flowFar: 5.4, flowLate: 0.3, cutLead: 1.6, cutLate: 0.75, flowClear: 0.8,
   // set pieces: for an interceptor's swerve, twin searchlights or a barrage the police have the traffic held back: gapFor[interceptor, twin, barrage]
   // seconds of empty road, asked for gapLead seconds before the unit is due; if no opening has come gapWait seconds after that, the helicopter settles for one lane
   gapFor: [1.7, 1.5, 3.1], gapLead: 3.4, gapWait: 5,
-  rest: [1.8, 0.6, 0.12], fairSwitch: 0.4, fairPause: 0.2, fairSlack: 2, weaveFree: 2.0, blockRoom: 0.15,   // fairSlack: … and with everything on the road lasting this many twentieths of a second longer, before and after
+  rest: [1.8, 0.35, 0.11], fairSwitch: 0.4, fairPause: 0.2, fairSlack: 2, weaveFree: 2.0, blockRoom: 0.15,   // fairSlack: … and with everything on the road lasting this many twentieths of a second longer, before and after
   // every warning lasts the reaction time plus `warn` (so warnings shorten as the level rises: 1.2 s at level 0, 0.87 s at its shortest);
   // the helicopter may hold its fire up to drLate longer, to strike at the moment that leaves the fewest ways out
   warn: 0.45, drLate: [0, 0.25, 0.5, 0.75],
   heatSwipe: 0.5, heatSmash: 0, heatCruiser: 0.5, heatHold: 10, heatDecay: 12,
   stumbleGrace: 1.2, hitInv: 1.0, hitRest: 2.5, polClose: 6.5, polFar: 19, chaseZ: 8.5, chaseX: 2.4, chaseRam: 0.6,   // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
   ramFirst: 4, ramEvery: [5.5, 8.5], ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-  blockP: [0, 0, 0.18, 0.23, 0.27, 0.31], blockLv: 0.008,   // share of rows that are police units ahead of you, by star; more per threat level
+  blockP: [0, 0, 0.18, 0.23, 0.27, 0.31], blockLv: 0.006,   // share of rows that are police units ahead of you, by star; more per threat level
   // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
   // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
   // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
@@ -121,9 +129,10 @@ export const GAME = {
   heliPasses: 3, heliSettle: 2.5, heliAway: [10, 16],
   drEvery: 3.5, drStrike: 0.45,
   // its attacks: one lane (from three stars); two lanes at once, the one you are in and the one it expects you to dodge to (from four);
-  // the walking barrage, lane after lane across the road with drGap between them: you dodge back into its wake (five). drWarn2: extra warning for those.
+  // the walking barrage, one lane after another across the road, each lit only as its turn comes: you dodge back into its wake (five).
   // heliPat: by star, the shares of [twin, barrage] (the rest are single lanes)
-  drGap: 0.7, heliPat: [[0, 0], [0, 0], [0, 0], [0, 0], [0.45, 0], [0.35, 0.35]],
+  // (the barrage: walkStrike s on a lane, walkGap s before the next)
+  walkStrike: 0.35, walkGap: 0.7, heliPat: [[0, 0], [0, 0], [0, 0], [0, 0], [0.45, 0], [0.35, 0.35]],
   // the interceptor (from four stars): a second, faster cruiser that comes up the hard shoulder, where there is never traffic (icV: closing speed),
   // on the side we are on, and draws level with us. When it sees its moment it signals for the length of a warning and swerves into our lane:
   // from the shoulder into the lane beside it, or, if we are in the middle, straight across that lane (when the traffic leaves a gap) and into us.
@@ -138,7 +147,7 @@ export const GAME = {
 // Road layout (world units, x across): a three-lane highway. Lanes are `lane` wide (a car is ~2 wide, a truck ~2.8),
 // centred on −lane, 0, +lane. The grid cell equals the lane width, so grid lines fall on the lane edges and on the
 // cyan rails (±1.5·lane). `traffic`: the ambient tail lights of the intro sit in the outer lanes.
-export const ROAD = { lane: 5.0, rail: 7.5, shoulder: 10.5, traffic: 5.0, trail: 10.9 };   // shoulder: where the asphalt ends; the guardrail stands at `trail`
+export const ROAD = { lane: 5.0, rail: 7.5, traffic: 5.0, trail: 10.9 };   // trail: the roadside light trails, beyond the strip outside the rail that the interceptor uses
 // Lane change feel (sim, 240 Hz): the lateral move is a critically damped spring on a lightly smoothed target
 // (≈ 0.21 s to 90 %), so a second press mid-move retargets with the velocity it already has. The drift is
 // visual only: body yaw follows the lateral speed (capped at yawMax, so a two-lane dash stays slight) through an
@@ -148,7 +157,7 @@ export const LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 0.0046, yawMax: 0.16, yawW:
 // Title exit once cruising starts (cruise time, s): the neon flickers out, the 1986 plate wipes shut,
 // the chrome word pulls toward the camera and then recedes to the horizon. After that the road stays clear.
 export const TITLE_EXIT = { neon: [0.2, 0.62], plate: [0.25, 0.7], chrome: [0.3, 1.35] };
-export const THROTTLE = { rise: 0.32, fall: 0.2 };   // drive amount: back to full speed after braking / brake bites
+export const THROTTLE = { rise: 0.32, fall: 0.2 };   // drive amount: back to full speed after a pause or a rewind / easing off
 
 export const PRESETS = ['SUNSET', 'BLUE HOUR', 'AFTERGLOW', 'LAGOON'];
 
