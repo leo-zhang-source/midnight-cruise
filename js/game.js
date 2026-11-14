@@ -55,14 +55,14 @@ export function freshGame(seed = 1986, free = 0) {
     vt: GAME.trafficK * GAME.gears[0], tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: 0,
     nstock: free ? 1 : 0, nfree: 0,
-    lvN: 0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0,                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
+    lvN: 0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0, gapWant: 0,                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
     heat: 1, heatGt: -1e9, star: 1, nUse: 0, wd0: 0,                                 // nitro bursts since the heat was last cleared, and the road position where it was
     lives: 2, nz: 0,                                                                 // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
     pcl: 0, stG: 0, slow: 0, brkAcc: 0,                                              // tail-close until (lingering on the brake), stumble grace until, slowed until
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
     drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0, drPat: 0, drB: 0, drWant: -1, drW: 1.2, polW: 1.2,   // … its attack (pattern, second lane or direction), the length of its warning; of the pursuit car's
     // the interceptor: mode, since when, its side, where it is (z ahead of us, x in lanes), the move it is making (from, to, its warning, 1 = into our lane)
-    icM: I_OFF, icT: 0, icA: 1, icZ: -60, icX: 0, icFrom: 0, icTo: 0, icW: 1, icNext: 0, icF: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
+    icM: I_OFF, icT: 0, icA: 1, icZ: -60, icX: 0, icFrom: 0, icTo: 0, icW: 1, icNext: 0, icAsk: 0, icF: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
     hOn: 0, hNext: 0, hLeft: 0, hSide: 1,                                            // helicopter visits: on station, when it is next due, attacks left this visit, which side it flies in from
     hx: 0, sx: 0, sk: 0, ha: 0, hb: 0,                                               // helicopter x, searchlight spot x, how locked the light is (0..1), how far it has arrived (0..1), its bank
     inv: 0, draft: 0, draftEv: -1e9, goEv: 0, blkEv: -1e9, over: 0,
@@ -182,6 +182,12 @@ function genRow(g) {
   const kf = clamp((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);   // how far through the gears we are, 0..1
   const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf;
   const side = () => (rnd(g) < 0.5 ? -1 : 1);
+  if (g.gapWant > 0 && i >= 3) {         // the police have asked for room: the traffic is held back for a set piece. Cells are strung across the gap.
+    const D = g.gapWant, n = Math.max(2, Math.round(D * w / 34)); g.gapWant = 0;
+    for (let k = 0, l = p; k < n; k++) { cellLine(g, l, u + 12 + k * 34, 4, 6); l = l === 0 ? side() : 0; }
+    g.path = 0; g.mid = 1; g.lastPat = 0; g.genU = u + w * D;
+    return;
+  }
   const adj = (l) => (l === 0 ? side() : 0);                 // a lane next to l
   const third = (a, b) => -(a + b);                           // the lane that is neither a nor b (lanes sum to 0)
   const lv = Math.min(12, g.gt / G.lvEvery);                  // the threat level: with it more police ahead, more pairs and convoys, more lane-changers
@@ -573,9 +579,10 @@ export function stepGame(g, inp, out) {
   //    driver usually dodges to, so the usual way out is the one it takes away), draws level, and works its way across towards us a lane at
   //    a time. Each move is signalled for the length of a warning and only made if it leaves us a way through. ──
   if (g.icM === I_OFF) {
-    if (star >= 4 && turn(g.icNext) && think && gt > G.introT + 4) {
+    if (star >= 4 && gt >= g.icNext && !g.icAsk) { g.icAsk = 1; g.gapWant = Math.max(g.gapWant, G.gapFor[0]); g.icNext = gt + G.gapLead; }   // it has the traffic held back, and sets off so as to be level when the gap comes
+    else if (star >= 4 && turn(g.icNext) && think && gt > G.introT + 4) {
       g.icA = inp.lane !== 0 ? inp.lane : g.bias > 0.15 ? 1 : g.bias < -0.15 ? -1 : g.hSide;
-      g.icM = I_COME; g.icT = gt; g.icZ = G.icZ0; g.icX = g.icA * G.icShoulder; g.icF = 0;
+      g.icM = I_COME; g.icT = gt; g.icZ = G.icZ0; g.icX = g.icA * G.icShoulder; g.icF = 0; g.icAsk = 0;
       out.push({ k: 'icwarn', side: g.icA });
     }
   } else {
@@ -629,9 +636,12 @@ export function stepGame(g, inp, out) {
   } else if (g.hOn) { g.hOn = 0; g.hNext = gt + 4; }
   if (star >= 3 && (g.hOn || g.drT >= 0)) {
     if (g.drT < 0) {
+      if (g.drWant < 0) {                                  // what it means to do next. For the bigger attacks it has the traffic held back: they come when the gap does
+        const r = rnd(g), P = G.heliPat[star]; g.drWant = r < P[0] ? H_TWIN : r < P[0] + P[1] ? H_WALK : H_LANE;
+        if (g.drWant !== H_LANE) { g.gapWant = Math.max(g.gapWant, G.gapFor[g.drWant]); g.drNext = Math.max(g.drNext, gt + G.gapLead); }
+      }
       if (turn(g.drNext) && think) {
-        if (g.drWant < 0) { const r = rnd(g), P = G.heliPat[star]; g.drWant = r < P[0] ? H_TWIN : r < P[0] + P[1] ? H_WALK : H_LANE; }   // what it means to do this time
-        const l = inp.lane, want = gt > g.drNext + 2.5 ? H_LANE : g.drWant, side = g.bias > 0.15 ? 1 : g.bias < -0.15 ? -1 : g.hSide;
+        const l = inp.lane, want = gt > g.drNext + (g.drWant === H_LANE ? 0 : G.gapWait) ? H_LANE : g.drWant, side = g.bias > 0.15 ? 1 : g.bias < -0.15 ? -1 : g.hSide;
         let pick = null, hard = 0;
         // it tries each way of doing it, firing on time or a little late, and takes the one that leaves a way through but the hardest one
         const tryIt = (pat, ln, b) => { for (const late of (pat ? G.drLate : [0])) { const S = heliStrikes(pat, ln, b, warn + 0.1 + late); if (!may(S[S.length - 1][2], pat === H_LANE && ln !== 0)) return; const n = fair(S.map(([x, t0, t1]) => [x, t0 - 0.1, t1 + 0.05])); if (n > hard) { hard = n; pick = [pat, ln, b, warn + 0.1 + late]; } } };
