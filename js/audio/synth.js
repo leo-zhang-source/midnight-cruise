@@ -378,14 +378,25 @@ class Click extends Voice { // mechanical button: noise tick + body thump
     return t < 0.3;
   }
 }
-class Pass extends Voice { // a vehicle goes by in the next lane: a rush of air on that side, its pitch falling as it passes
-  constructor(s, o, side, big) { super(s, o); this.big = big; this.r = new RNG(s.seed()); this.f = new SVF(); this.l = panL(side * 0.8); this.rg = panR(side * 0.8); }
+class Pass extends Voice { // a vehicle goes by in the next lane: a rush of air on that side, its pitch falling as it passes.
+  // Loud enough to be heard over the music: it sits where the mix is thin (1 to 3 kHz) and is well clear of it there.
+  constructor(s, o, side, big) { super(s, o); this.big = big; this.r = new RNG(s.seed()); this.f = new SVF(); this.g = new SVF(); this.l = panL(side * 0.85); this.rg = panR(side * 0.85); }
   tick(B, i, t) {
-    const d = this.big ? 0.5 : 0.26;
-    if ((this.n & 15) === 0) this.f.set((this.big ? 300 : 520) + (this.big ? 900 : 1700) * exp(-t / (d * 0.45)), 1.1);
-    const y = this.f.bp(this.r.next()) * Math.min(1, t / 0.03) * exp(-t / (d * 0.5)) * (this.big ? 0.4 : 0.27);
+    const d = this.big ? 0.55 : 0.34;
+    if ((this.n & 15) === 0) { const c = (this.big ? 380 : 650) + (this.big ? 1500 : 2500) * exp(-t / (d * 0.4)); this.f.set(c, 1.7); this.g.set(c * 0.5, 0.9); }
+    const x = this.r.next(), env = Math.min(1, t / 0.035) * exp(-t / (d * 0.5));
+    const y = (this.f.bp(x) + this.g.bp(x) * 0.5) * env * (this.big ? 0.5 : 0.48);
     B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.rg;
     return t < d * 3;
+  }
+}
+class Horn extends Voice { // a car horn, as something cuts in ahead: two reedy notes a third apart, its pitch falling a little as we close on it
+  constructor(s, o) { super(s, o); this.a = new Saw(0); this.b = new Saw(0.3); this.f = new SVF(); this.f.set(2400, 0.9); }
+  tick(B, i, t) {
+    const d = 0.3, bend = 1 - 0.035 * Math.min(1, t / d), env = Math.min(1, t / 0.012) * (t < d ? 1 : exp(-(t - d) / 0.045));
+    const y = this.f.lp(this.a.run(415 * bend) + this.b.run(523 * bend)) * 0.05 * env;
+    B.sfxL[i] += y; B.sfxR[i] += y;
+    return t < d + 0.3;
   }
 }
 class Skid extends Voice { // tyres: a cruiser swerving hard across a lane
@@ -586,6 +597,7 @@ export class Synth {
       case 'passBL': v = new Pass(s, o, -1, 1); break;
       case 'passBR': v = new Pass(s, o, 1, 1); break;
       case 'skid': v = new Skid(s, o); break;
+      case 'horn': v = new Horn(s, o); break;
       case 'yelp': v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5); for (let k = 1; k < 8; k++) this.voices.push(new Blip(s, o, k % 2 ? 900 : 1250, k % 2 ? 1250 : 900, 0.09, 0.05, k % 2 ? -0.5 : 0.5, k * 0.13)); break;   // the interceptor's siren: a fast yelp
       case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4)); break;   // the threat level rises
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;

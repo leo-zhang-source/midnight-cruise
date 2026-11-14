@@ -22,7 +22,7 @@ const gs = (p) => p.evaluate(() => {
     veh: s.game.veh ? s.game.veh.length : 0, cells: s.game.cells ? s.game.cells.length : 0, polDz: s.game.pol ? s.game.pol.dz : null,
     hud: vis('ghud'), hudScore: el('g-score').textContent, gearTxt: el('gear').textContent, nitro: el('turbo').dataset.ready, nitroN: el('turbo').dataset.n, nitroTxt: el('turbo-state').textContent, stars: el('g-stars').dataset.n, tail: vis('g-tail'), lives: el('g-lives').dataset.n, tailTxt: el('g-tail-text').textContent,
     panel: !el('over').hidden, title: el('over-title').textContent, ovScore: el('ov-score').textContent, reviveOff: el('revive').disabled, focus: document.activeElement && document.activeElement.id,
-    police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: !!el('replay'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent, brake: el('brake').getAttribute('aria-pressed') };
+    police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: !!el('replay'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent };
 });
 // the simulation state, as plain data for the planner
 const sim = (p) => p.evaluate(() => { const st = MC.tl.stateAt(MC.tl.frontier()), g = st.g; return { ...st, g: { ...g, veh: Array.from(g.veh), cel: Array.from(g.cel), itm: Array.from(g.itm) } }; });
@@ -64,11 +64,9 @@ async function wreck(p, touch, once) {
   let st = await drive(p, 3200);
   s = await gs(p); ok('flooring it: the pursuit car drops back but keeps following', !s.over && s.pol === 0 && s.polDz < -15 && s.police === 'visible' && s.vel > 50, JSON.stringify({ dz: s.polDz, v: Math.round(s.vel) }));
   ok('traffic and cells on the road, gear shown, pause key shown', s.veh > 0 && s.cells > 0 && s.gearTxt === 'G1' && s.pauseBtn, JSON.stringify({ veh: s.veh, cells: s.cells, gear: s.gearTxt }));
-  // brake
-  await p.keyboard.down('Space'); st = await drive(p, 900); s = await gs(p);
-  ok('holding Space brakes (the car slows, the BRAKE key lights)', s.brake === 'true' && s.vel < 40 && !s.over, `v=${Math.round(s.vel)}`);
-  await p.keyboard.up('Space'); st = await drive(p, 1500); s = await gs(p);
-  ok('releasing it returns to full speed', s.brake === 'false' && s.vel > 50 && !s.over, `v=${Math.round(s.vel)}`);
+  // no brake: Space does nothing while driving, and there is no BRAKE key
+  const v1 = (await gs(p)).vel; await p.keyboard.down('Space'); st = await drive(p, 900); s = await gs(p); await p.keyboard.up('Space');
+  ok('there is no brake: holding Space does not slow the car, no BRAKE key on screen', s.vel >= v1 - 0.5 && !s.over && !(await p.$('#brake')), `v=${Math.round(v1)} → ${Math.round(s.vel)}`);
   // cells are taken in silence now (the coin sound is off); traffic going by in the next lane is heard
   const sfx = async (re) => p.evaluate((src) => MC.events().filter((e) => e.type === 'sfx' && new RegExp(src).test(e.name)).length, re);
   let cells = (await gs(p)).cellsN; for (let i = 0; i < 8 && cells < 6; i++) { await drive(p, 1000); cells = (await gs(p)).cellsN; }
@@ -157,12 +155,7 @@ async function wreck(p, touch, once) {
   await p.tap('#start'); await p.waitForTimeout(300);
   await p.evaluate(() => MC.tl.add('skip', MC.tl.frontier())); await p.waitForTimeout(900);
   await drive(p, 3000, { touch: true });
-  const bk = await p.locator('#brake').boundingBox();
-  const pev = (type, id = 9) => p.evaluate(([type, x, y, id]) => document.getElementById('brake').dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, clientX: x, clientY: y, bubbles: true, isPrimary: true })), [type, bk.x + bk.width / 2, bk.y + bk.height / 2, id]);
-  await pev('pointerdown'); await drive(p, 700, { touch: true });
-  let s = await gs(p); ok('phone: holding BRAKE slows the car', s.brake === 'true' && s.vel < 42, `v=${Math.round(s.vel)}`);
-  await pev('pointerup'); await p.waitForTimeout(100);
-  ok('phone: lifting the finger releases it', (await gs(p)).brake === 'false');
+  let s = await gs(p); ok('phone: the drive bar holds the speedometer and NITRO only', !(await p.$('#brake')) && (await p.locator('#drivebar button').count()) === 1 && s.vel > 50, `v=${Math.round(s.vel)}`);
   await wreck(p, true);
   s = await gs(p); ok('phone: crash → panel fits the screen, buttons are touch-sized', s.over && s.panel && await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return r.left >= 0 && r.right <= 390 && r.top >= 0 && r.bottom <= 844 && a.height >= 44 && c.height >= 44; }), `over ${s.over}, panel ${s.panel}, ` + await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return `panel ${Math.round(r.left)}…${Math.round(r.right)} × ${Math.round(r.top)}…${Math.round(r.bottom)}, buttons ${Math.round(a.height)} and ${Math.round(c.height)} high`; }));
   const hud = await p.evaluate(() => { const h = document.getElementById('ghud').getBoundingClientRect(), d = document.getElementById('deck').getBoundingClientRect(), c = document.getElementById('corner').getBoundingClientRect(); return { top: h.top, left: h.left, right: h.right, deckBottom: d.bottom, cornerBottom: c.bottom }; });

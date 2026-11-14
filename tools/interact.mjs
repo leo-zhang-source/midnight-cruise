@@ -9,7 +9,7 @@ const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text().slice(0, 200)); });
 const ok = (name, cond, info = '') => console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${info ? '  — ' + info : ''}`);
-const st = () => p.evaluate(() => { const T = MC.tl.frontier(); const s = MC.state(); return { T: s.T, phase: s.phase, it: s.it, ct: s.ct, thr: s.thr, vel: s.road.vel, steer: s.steer, brkOn: MC.tl.stateAt(MC.tl.frontier()).brkOn, preset: s.ui.preset, music: s.ui.music, audio: window.__audio?.state }; });
+const st = () => p.evaluate(() => { const T = MC.tl.frontier(); const s = MC.state(); return { T: s.T, phase: s.phase, it: s.it, ct: s.ct, thr: s.thr, vel: s.road.vel, steer: s.steer, preset: s.ui.preset, music: s.ui.music, audio: window.__audio?.state }; });
 await p.goto('http://localhost:8086/?free=1');
 await p.waitForFunction(() => window.__ready === true);
 const ff = await p.evaluate(() => window.__firstFrameMs);
@@ -31,32 +31,17 @@ if (!deviceOk) console.log(`SKIP  worklet signal checks — this machine's audio
 const ns = await p.evaluate(() => MC._audio.samples);
 ok('CC0 samples loaded into the worklet', ns === 9, `${ns}/9`);
 if (deviceOk) ok('worklet producing signal', lv.level > 0.001, `rms=${lv.level?.toFixed(4)} audioT=${lv.renderT?.toFixed(3)} picT=${lv.T.toFixed(3)}`);
-await p.keyboard.press('Space'); // a dab of brake during the ignition changes nothing
+await p.keyboard.press('Space'); // Space during the ignition changes nothing
 await p.waitForTimeout(9000);
 s = await st(); ok('ignition → cruise at 10 s', s.phase === 'cruise', `ct=${s.ct?.toFixed(2)}`);
 const sync = await p.evaluate(() => { const a = MC._audio; const h = a.heardSceneTime(performance.now()); return { err: h === null ? null : h - MC.state().T, lat: a.lat }; });
 if (deviceOk) ok('picture/audio clock agreement', sync.err === null || Math.abs(sync.err) < 0.02, `${sync.err === null ? 'no output timestamp in this browser' : (sync.err * 1000).toFixed(1) + ' ms'}; output latency ${(sync.lat * 1000).toFixed(1)} ms`);
-// the car drives flat out by itself; Space is the brake
-s = await st(); const v0 = s.vel; ok('cruising flat out without any input', s.thr > 0.95 && s.brkOn === 0 && v0 > 45, `drive=${s.thr.toFixed(2)} v=${v0.toFixed(0)} u/s`);
-await p.keyboard.down('Space'); await p.waitForTimeout(1500);
-s = await st(); ok('hold Space brakes', s.thr < 0.1 && s.brkOn === 1 && s.vel < v0 * 0.7 && (await p.getAttribute('#brake', 'aria-pressed')) === 'true', `drive=${s.thr.toFixed(2)} v=${s.vel.toFixed(0)} u/s`);
-await p.keyboard.up('Space'); await p.waitForTimeout(250);
-s = await st(); ok('release Space lets go of the brake', s.brkOn === 0, `drive=${s.thr.toFixed(2)} (recovering)`);
-await p.waitForTimeout(2500);
-s = await st(); ok('back to full speed', s.thr > 0.95 && s.vel > v0 * 0.95, `drive=${s.thr.toFixed(3)} v=${s.vel.toFixed(0)}`);
-await p.keyboard.down('ArrowDown'); await p.waitForTimeout(300);
-s = await st(); ok('↓ brakes too', s.brkOn === 1); await p.keyboard.up('ArrowDown');
-// BRAKE button with pointer (hold, then release outside the button)
-const d = await p.locator('#brake').boundingBox();
-await p.mouse.move(d.x + d.width / 2, d.y + d.height / 2); await p.mouse.down(); await p.waitForTimeout(900);
-s = await st(); ok('hold BRAKE brakes', s.brkOn === 1 && s.thr < 0.5, `drive=${s.thr.toFixed(2)}`);
-await p.mouse.move(W / 2, H / 3); await p.mouse.up(); await p.waitForTimeout(200);
-s = await st(); ok('release BRAKE (pointer moved away) lets go', s.brkOn === 0);
-// focus loss while holding Space
-await p.keyboard.down('Space'); await p.waitForTimeout(300);
-await p.evaluate(() => window.dispatchEvent(new Event('blur'))); await p.waitForTimeout(150);
-s = await st(); ok('focus loss releases the brake', s.brkOn === 0);
-await p.keyboard.up('Space'); await p.waitForTimeout(1500);
+// the car drives flat out by itself, and there is no brake: Space and ↓ do nothing while driving
+s = await st(); const v0 = s.vel; ok('cruising flat out without any input', s.thr > 0.95 && v0 > 45, `drive=${s.thr.toFixed(2)} v=${v0.toFixed(0)} u/s`);
+await p.keyboard.down('Space'); await p.keyboard.down('ArrowDown'); await p.waitForTimeout(1200);
+s = await st(); ok('there is no brake: holding Space or ↓ does not slow the car', s.thr > 0.95 && s.vel >= v0 - 0.5 && !(await p.$('#brake')), `drive=${s.thr.toFixed(2)} v=${s.vel.toFixed(0)} u/s`);
+await p.keyboard.up('Space'); await p.keyboard.up('ArrowDown');
+ok('… and no brake event is recorded', (await p.evaluate(() => MC.events().filter((e) => e.type === 'brk').length)) === 0);
 // three lanes (s.steer = lateral position in lanes: −1, 0, +1)
 const lane = () => p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).lane);
 await p.mouse.move(W * 0.95, H * 0.4); await p.waitForTimeout(500);

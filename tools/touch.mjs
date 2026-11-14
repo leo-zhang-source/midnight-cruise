@@ -1,4 +1,4 @@
-// Touch-input test with an emulated phone (390x844, hasTouch): tap start, tap to change lane, hold BRAKE, cancel.
+// Touch-input test with an emulated phone (390x844, hasTouch): tap start, tap to change lane, the controls on screen.
 import { chromium } from 'playwright-core';
 const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu'] });
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
@@ -16,13 +16,9 @@ await ev('pointerdown', 320); await ev('pointerup', 320); await p.waitForTimeout
 let s = await p.evaluate(() => MC.state()); ok('tap on the right half → right lane', Math.abs(s.steer - 1) < 0.05, `x=${s.steer.toFixed(2)} lanes`);
 await ev('pointerdown', 60, 8); await ev('pointerup', 60, 8); await ev('pointerdown', 60, 8); await ev('pointerup', 60, 8); await p.waitForTimeout(500);
 s = await p.evaluate(() => MC.state()); ok('two taps on the left half → left lane', Math.abs(s.steer + 1) < 0.05, `x=${s.steer.toFixed(2)} lanes`);
-const d = await p.locator('#brake').boundingBox();
-await ev('pointerdown', d.x + d.width / 2, 9, '#brake'); await p.waitForTimeout(900);
-s = await p.evaluate(() => MC.state()); ok('touch-hold BRAKE slows the car', s.thr < 0.3 && s.road.vel < 40, `drive=${s.thr.toFixed(2)} v=${s.road.vel.toFixed(0)}`);
-await ev('pointercancel', d.x, 9, '#brake'); await p.waitForTimeout(150);
-const on = await p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).brkOn); ok('touch cancel releases BRAKE', on === 0);
-await ev('pointerdown', d.x + d.width / 2, 10, '#brake'); await ev('pointerup', d.x + d.width / 2, 10, '#brake'); await p.waitForTimeout(200);
-ok('a quick tap on BRAKE does not leave it stuck on', (await p.evaluate(() => MC.tl.stateAt(MC.tl.frontier()).brkOn)) === 0);
+ok('no BRAKE control on screen: NITRO is the only drive button', !(await p.$('#brake')) && (await p.locator('#drivebar button').count()) === 1 && (await p.locator('#turbo').isVisible()));
+await ev('pointerdown', 195, 9); await ev('pointercancel', 195, 9); await p.waitForTimeout(300);
+s = await p.evaluate(() => MC.state()); ok('a cancelled touch changes nothing', Math.abs(s.steer + 1) < 0.05 && s.thr > 0.9, `x=${s.steer.toFixed(2)} lanes, drive=${s.thr.toFixed(2)}`);
 const tgt = await p.evaluate(() => [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null || getComputedStyle(b).visibility !== 'hidden').map((b) => { const r = b.getBoundingClientRect(); return [b.id || b.className, Math.round(r.width), Math.round(r.height)]; }).filter(([, w, h]) => w > 0 && (w < 44 || h < 24)));
 ok('visible touch targets ≥ 44px (minimise bar key exempt)', tgt.every(([n]) => String(n).includes('deck-min')), JSON.stringify(tgt));
 await b.close();

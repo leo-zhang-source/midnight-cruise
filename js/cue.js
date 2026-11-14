@@ -98,11 +98,12 @@ export const GAME = {
   // sigBlink, sigMove: a lane change is signalled, then steered: [seconds at level 0, the least, lost per level] — so they get more sudden
   // flow: seconds between lane changes somewhere in the traffic ahead (drift): [at level 0, the least, lost per level]
   // cut: seconds between lane changes aimed at us: a vehicle beside our lane cuts into it, or into the lane we need next. It picks its
-  //   moment: no sooner than it has to (cutLead s more than a driver needs) and never so late that it is not across cutLate s before we arrive
-  // flowFar: only vehicles we reach within this many seconds drift · flowLate: one is in its new lane at least this long before we arrive
+  //   moment: no sooner than it has to (cutLead s more than a driver needs: [at level 0, the least, lost per level], so it gets more
+  //   sudden) and never so late that it is not across cutLate s before we arrive
+  // flowFar: only vehicles we reach within this many seconds drift (and only ones far enough off to be straight again before their chance to cut in)
   // flowClear: none changes lane within this many seconds (of our arrival) of a cruiser that has not picked its lane yet
   sway: [0.04, 0.011, 0.2], swayRate: 0.03, sigBlink: [0.45, 0.12, 0.022], sigMove: [0.85, 0.5, 0.023],
-  flow: [2.6, 0.45, 0.16], cut: [5, 0.5, 0.45], flowFar: 5.4, flowLate: 0.3, cutLead: 1.6, cutLate: 0.75, flowClear: 0.8,
+  flow: [2.6, 0.45, 0.16], cut: [11, 0.5, 1.1], flowFar: 5.6, cutLead: [1.6, 0.8, 0.07], cutLate: 0.7, flowClear: 0.8,
   // set pieces: for an interceptor's swerve, twin searchlights or a barrage the police have the traffic held back: gapFor[interceptor, twin, barrage]
   // seconds of empty road, asked for gapLead seconds before the unit is due; if no opening has come gapWait seconds after that, the helicopter settles for one lane
   gapFor: [1.7, 1.5, 3.1], gapLead: 3.4, gapWait: 5,

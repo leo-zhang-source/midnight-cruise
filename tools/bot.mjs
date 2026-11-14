@@ -75,10 +75,9 @@ export function play(seed, seconds, opt = {}) {
 }
 
 if (process.argv[1].endsWith("bot.mjs") && flag("script")) {
-  // the canonical script: full intro, a clean bot drive with a dab of brake and nitro, the four presets, a music pause
+  // the canonical script: full intro, a clean bot drive with nitro, the four presets, a music pause
   const secs = val('script', 68);
-  const extra = [{ type: 'brk', t: 17, on: true }, { type: 'brk', t: 18.2, on: false },
-    { type: 'env', t: 34, preset: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'env', t: 54, preset: 3 }, { type: 'env', t: 64, preset: 0 },
+  const extra = [{ type: 'env', t: 34, preset: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'env', t: 54, preset: 3 }, { type: 'env', t: 64, preset: 0 },
     { type: 'music', t: 70, on: false }, { type: 'music', t: 73, on: true }];
   const r = play(undefined, secs, { intro: true, nitro: true, nitroAfter: 23, nitroHold: 1.5, seek: true, extra, late: flag('late'), tSwitch: 0.34 });
   r.ev.sort((a, b) => a.t - b.t);

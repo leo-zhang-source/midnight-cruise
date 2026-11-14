@@ -171,6 +171,7 @@ export class UI {
       else if (k === 'ramwarn' || k === 'lock' || k === 'ictell') this.sfx('lock');
       else if (k === 'block' || k === 'weave') this.sfx('siren');
       else if (k === 'icwarn') this.sfx('yelp');
+      else if (k === 'cutin') this.sfx('horn');
       else if (k === 'slam' || k === 'mirror') this.sfx('skid');
       else if (k === 'level') { if (e.n) this.sfx('alert'); }
       else if (k === 'clear') this.sfx('chime');

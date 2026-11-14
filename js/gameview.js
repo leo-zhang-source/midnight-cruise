@@ -281,7 +281,7 @@ function makePanel(w, h, tex) {
 
 const RED = [2.2, 0.14, 0.22], TAIL = [1.5, 0.1, 0.16], AMBER = [2.2, 1.1, 0.1], CELL = [0.72, 1.0, 0.2], NITRO = [0.35, 0.85, 1.0], LAMP = [1.0, 0.95, 0.8];
 const DARK = [0.2, 0.2, 0.3];
-const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2];
+const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2], CUT = [1.0, 0.14, 0.16];
 const BB_SPAN = 4800, BB = [{ z0: 700, side: 1 }, { z0: 2300, side: -1 }, { z0: 3900, side: 1 }];      // a billboard every 1600 units
 const GA_SPAN = 4800, GA = [1500, 3900];                                                              // a sign gantry every 2400
 const SG_SPAN = 4800, SG = [{ z0: 1100, side: 1, k: 0 }, { z0: 3250, side: 1, k: 1 }, { z0: 4450, side: -1, k: 2 }];   // roadside signs
@@ -419,7 +419,8 @@ export class GameView {
           if (taxi) this.sprite(x, 2.1, z, 0.9, [1, 0.7, 0.1], 0.5 * f);                                                                     // the lit TAXI sign
           if (v.sig) {                                                       // signalling a lane change: its indicator blinks, chevrons over it run the way it is going
             if (Math.floor(T * 3.2) % 2 === 0) { const [bx, bz] = at(v.sig * 0.8, B.tz); this.box(bx, 1.2, bz, 0.2, 0.14, 0.06, AMBER, 1, f, 1.2, 0, yaw); this.sprite(bx, 1.2, bz + 0.08, far, AMBER, 0.6 * f); }
-            this.glow(x + v.sig * 2.6, 2.6, z, v.sig * 1.6, 0, 0, 0, 0.6, 0, AMBER, 7, 1.2 * f);
+            const cs = v.nasty ? 1.25 * (1 + Math.max(0, v.dz) * 0.012) : 1;                  // one cutting in on us: red, and big enough to be seen from where it starts
+            this.glow(x + v.sig * 2.6 * cs, 2.6 + (cs - 1) * 0.8, z, v.sig * 1.6 * cs, 0, 0, 0, 0.6 * cs, 0, v.nasty ? CUT : AMBER, 7, (v.nasty ? 1.9 : 1.2) * f);
           }
         } else if (v.type === T_BLOCK || v.type === T_WEAVE) {                         // police ahead: a rolling roadblock (it brakes as we come up), or a cruiser weaving across two lanes
           this.cruiser(x, z, yaw, f, T, id, v.roll, v.pitch, v.brake); trail(2.3, 1.15, v.brake ? 1.2 : 0.55);
@@ -497,8 +498,9 @@ export class GameView {
         // the lock: a target on every lane it has lit. The one being fired on is red; the next one blinks faster as its time comes; with two
         // lanes lit at once a second beam falls on the other
         const AMB = [1.0, 0.75, 0.2], HOT = [1.0, 0.3, 0.12], FIRE = [1.0, 0.16, 0.14];
+        if (h.sweep) for (const k of [0, 1]) this.glow(0, 0.05, cz - 16 - k * 13, h.sweep * (L * 1.5 + 1.5), 0, 0, 0, 0, 2.6, HOT, 7, (1.1 - 0.4 * k) * sk * f);   // the barrage: chevrons across the road, the way it will walk
         for (const q of h.lanes) {
-          if (q.strike >= 2) continue;
+          if (q.strike >= 2 || !q.show) continue;
           const fq = q.strike >= 0, bl = fq || Math.floor(T * (4 + 8 * q.warn)) % 2 === 0, cq = fq ? FIRE : bl ? HOT : AMB;
           if (sk > 0.3) this.glow(q.lane * L, 0.06, cz - 2, 2.25, 0, 0, 0, 0, 7.5, cq, 6, (fq ? 1.6 : 0.45 + 0.75 * q.warn) * sk);
           if (q.lane !== h.lane && q.warn > 0.999 === (h.warn > 0.999) && sk > 0.3) {              // (twin: struck together with the lane the main beam is on)

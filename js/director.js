@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
+import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
@@ -79,7 +79,7 @@ const POP = {
   shake: () => ['SHOOK THEM OFF · TWO LIVES', 'good'],
   nuse: (e) => [`NITRO ${e.n}/${GAME.nitroClear} TO COOL THE HEAT`, 'info'], clear: () => ['HEAT COOLED', 'good'],
   ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'],
-  lock: (e) => [e.pat === H_WALK ? 'BARRAGE · DODGE BACK INTO ITS WAKE' : e.pat === H_TWIN ? 'TWIN SEARCHLIGHTS · TAKE THE DARK LANE' : 'SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
+  lock: (e) => [e.pat === H_WALK ? (e.b > 0 ? 'BARRAGE LEFT → RIGHT · SLIP IN BEHIND IT' : 'BARRAGE RIGHT → LEFT · SLIP IN BEHIND IT') : e.pat === H_TWIN ? 'TWIN SEARCHLIGHTS · TAKE THE DARK LANE' : 'SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
   icwarn: (e) => [`INTERCEPTOR ON THE ${e.side < 0 ? 'LEFT' : 'RIGHT'} SHOULDER`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
   mirror: () => ['CRUISER CUTTING YOU OFF', 'bad'], pincer: () => ['PINCER', 'bad'], dodge: (e) => [`DODGED +${e.pts}`, 'good'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
@@ -119,7 +119,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     }
     const slow = type === T_BLOCK ? sat((g.vt + laneV(lane) * laneRate(g, sv.vel) - v) / G.blockSlow) : 0;      // a rolling roadblock on the brakes
     out.veh.push({
-      type, x, dz, fade: far(dz), id, sig: mover && a !== 0 && b !== 0 ? a : 0, sweep, took, vx, v,
+      type, x, dz, fade: far(dz), id, sig: mover && a !== 0 && b !== 0 ? a : 0, nasty: fl & NASTY ? 1 : 0, sweep, took, vx, v,
       yaw: type === T_TRUCK ? 0 : -Math.atan2(vx, v) * 1.2 + wag, roll: clamp(ax * 0.004, -0.12, 0.12),
       pitch: -0.045 * Math.sin(Math.PI * Math.min(slow, 0.999)) - 0.012 * slow, brake: slow > 0.01 && dz > -6 ? 1 : 0,
     });
@@ -145,9 +145,10 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   if (g.ha > 0.01) {
     // the helicopter: the lanes it has lit (each with how far its warning has run, and how far through its strike it is: −1 not yet, 2 done)
     const u = g.drT >= 0 ? g.gt - g.drT : -1, S = u < 0 ? [] : heliStrikes(g.drPat, g.drLane, g.drB, g.drW);
-    const lanes = S.map(([lane, t0, t1]) => ({ lane, warn: sat(u / t0), strike: u < t0 ? -1 : u < t1 ? (u - t0) / (t1 - t0) : 2 }));
-    const now = (g.drPat === H_TWIN ? lanes[0] : null) || lanes.find((q) => q.strike >= 0 && q.strike < 2) || lanes.find((q) => q.strike < 0) || lanes[lanes.length - 1];   // the one the main beam is on: being fired at, else the next
-    out.heli = { x: g.hx, sx: g.sx, sk: g.sk, a: g.ha, on: g.hOn, side: g.hOn ? g.hSide : -g.hSide, bank: g.hb, gt: g.gt, lanes, lane: now ? now.lane : g.drLane, warn: now ? now.warn : 0, strike: now && now.strike >= 0 && now.strike < 2 ? now.strike : -1 };
+    // (the barrage lights one lane at a time: the next lane's target comes on as the one before it is fired on)
+    const walk = g.drPat === H_WALK, lanes = S.map(([lane, t0, t1], i) => { const on = walk && i ? S[i - 1][1] : 0; return { lane, show: u >= on ? 1 : 0, warn: sat((u - on) / (t0 - on)), strike: u < t0 ? -1 : u < t1 ? (u - t0) / (t1 - t0) : 2 }; });
+    const now = (g.drPat === H_TWIN ? lanes[0] : null) || lanes.find((q) => q.strike >= 0 && q.strike < 2) || lanes.find((q) => q.strike < 0 && q.show) || lanes.find((q) => q.strike < 0) || lanes[lanes.length - 1];   // the one the main beam is on: being fired at, else the next
+    out.heli = { x: g.hx, sx: g.sx, sk: g.sk, a: g.ha, on: g.hOn, side: g.hOn ? g.hSide : -g.hSide, bank: g.hb, gt: g.gt, lanes, sweep: walk && u >= 0 ? g.drB : 0, lane: now ? now.lane : g.drLane, warn: now ? now.warn : 0, strike: now && now.strike >= 0 && now.strike < 2 ? now.strike : -1 };
   }
   // the interceptor: where it is, which way it is about to swerve (tell: 0..1 through its warning) and how far through the swerve it is
   if (g.icM !== I_OFF) {

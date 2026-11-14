@@ -25,7 +25,7 @@ export const H_LANE = 0, H_TWIN = 1, H_WALK = 2;           // the helicopter's a
 export const HOOK_Z = POL_HL + CAR_HL + 1.25, HOOK_W = 1.7;
 const LAT = 1, LON = 2, THREAT = 4, NEAR = 8, PASSED = 16, WARNED = 32;
 export const COMMIT = 64, SIDE = 128;      // a weaving cruiser has picked its lane (SIDE: the side lane, else the middle)
-const ANN = 256; export const STEADY = 2048, MIRROR = 4096;            // the cruiser of a rolling roadblock that announces it · a roadblock that does not brake (one of its cruisers is crossing over)
+const ANN = 256; export const STEADY = 2048, MIRROR = 4096, NASTY = 8192;   // … NASTY: this lane change is aimed at us            // the cruiser of a rolling roadblock that announces it · a roadblock that does not brake (one of its cruisers is crossing over)
 // A vehicle that will steer across one lane as we close in (a taxi; a car or van merging; a cruiser): a = which way,
 // b = when it began to signal (0: not yet; negative: when it finished), and the lane it starts from is kept in its flags.
 export const fromLane = (fl) => ((fl >> 9) & 3) - 1;
@@ -408,9 +408,10 @@ export function stepGame(g, inp, out) {
       if (veh[o + 7] === 0) {                         // (a planned one: it starts as we close in, later and quicker as the level rises)
         const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL);
         if (gap0 < (vFull - g.vt) * tAt) { veh[o + 7] = gt; veh[o + 9] = blinkAt(lv); veh[o + 10] = moveAt(lv); }
+        veh[o + 1] = from + sway(type, veh[o + 8], gt, lv);
       } else {
         const m = (gt - veh[o + 7] - veh[o + 9]) / veh[o + 10];
-        if (m >= 1) { veh[o + 1] = from + veh[o + 6]; veh[o + 5] = (veh[o + 5] & ~(3 << 9)) | ((from + veh[o + 6] + 1) << 9); veh[o + 6] = 0; veh[o + 7] = -gt; }     // b < 0: when it finished (the picture lets it settle); it lives in its new lane now
+        if (m >= 1) { veh[o + 1] = from + veh[o + 6] + sway(type, veh[o + 8], gt, lv); veh[o + 5] = (veh[o + 5] & ~((3 << 9) | NASTY)) | ((from + veh[o + 6] + 1) << 9); veh[o + 6] = 0; veh[o + 7] = -gt; }     // b < 0: when it finished (the picture lets it settle); it lives in its new lane now
         else veh[o + 1] = from + (m > 0 ? veh[o + 6] * sCurve(m) : 0) + sway(type, veh[o + 8], gt, lv);
       }
     } else if (type <= T_TAXI) veh[o + 1] = fromLane(veh[o + 5]) + sway(type, veh[o + 8], gt, lv);      // nobody holds a lane dead straight
@@ -553,7 +554,7 @@ export function stepGame(g, inp, out) {
   //      reaction time allows, so the higher the level the more sudden it is.
   //    Like every attack, a lane change is only made if the forecast still leaves a way through. ──
   if (think && gt > G.introT + 2 && (gt >= g.flowNext || gt >= g.cutNext)) {
-    const p = inp.lane, bl = blinkAt(lv), mv = moveAt(lv), rel = Math.max(1, Math.max(inp.vel, gameBase(g)) - g.vt);
+    const p = inp.lane, bl = blinkAt(lv), mv = moveAt(lv), rel = Math.max(1, Math.max(inp.vel, gameBase(g)) - g.vt), cutFar = bl + mv + react + ramp(G.cutLead, lv);
     for (const nasty of [1, 0]) {
       if (gt < (nasty ? g.cutNext : g.flowNext) || (nasty && !settled)) continue;
       if (nasty) g.cutNext = gt + 0.1; else g.flowNext = gt + 0.15;
@@ -562,15 +563,15 @@ export function stepGame(g, inp, out) {
       const cand = []; let n = 0;                    // [key, vehicle, lane it would go to]: the best few are tried
       for (let i = 0; i < NV; i++) {
         const o = i * VF, type = veh[o]; if (type !== T_CAR && type !== T_VAN && type !== T_TAXI) continue;
-        if (veh[o + 6] !== 0 || (veh[o + 7] < 0 && gt + veh[o + 7] < 1.5)) continue;        // already on the move, or only just arrived
+        if (veh[o + 6] !== 0 || (veh[o + 7] < 0 && gt + veh[o + 7] < 0.6)) continue;        // already on the move, or only just arrived
         const from = fromLane(veh[o + 5]), eta = (veh[o + 2] - gd - veh[o + 4] - CAR_HL) / rel;
         let t, k;
         if (nasty) {
-          if (eta < bl + 0.6 * mv + G.cutLate || eta > bl + mv + react + G.cutLead) continue;   // its moment: late, but not too late for us to get out of the way
+          if (eta < bl + 0.6 * mv + G.cutLate || eta > cutFar) continue;   // its moment: late, but not too late for us to get out of the way
           if (Math.abs(from - p) === 1) t = p; else if (need !== p && from !== need && Math.abs(from - need) === 1) t = need; else continue;
           k = eta;                                                                          // the nearest one does it
         } else {
-          if (eta < bl + mv + G.flowLate || eta > G.flowFar) continue;
+          if (eta < cutFar + bl + mv + 0.8 || eta > G.flowFar) continue;                    // (far enough off to be done, and straight again, before its own chance to cut in comes)
           t = from === 0 ? ((veh[o + 8] + g.flowN) % 2 ? 1 : -1) : 0; k = (veh[o + 8] * 7 + g.flowN * 3) % 11 + n++ * 0.01;
         }
         // room in the lane it is going to: nobody there alongside it
@@ -586,7 +587,7 @@ export function stepGame(g, inp, out) {
         veh[pick + 6] = to - from; veh[pick + 7] = gt; veh[pick + 9] = bl; veh[pick + 10] = mv;    // try it …
         if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), p, react, G.fairSwitch, G.fairPause, endLane)) {
           grid0 = null; g.flowN++;
-          if (nasty) { g.cuts++; g.cutNext = gt + ramp(G.cut, lv) * (0.6 + 0.8 * rnd(g)); } else g.flowNext = gt + ramp(G.flow, lv) * (0.6 + 0.8 * rnd(g));
+          if (nasty) { g.cuts++; veh[pick + 5] |= NASTY; g.cutNext = gt + ramp(G.cut, lv) * (0.6 + 0.8 * rnd(g)); } else g.flowNext = gt + ramp(G.flow, lv) * (0.6 + 0.8 * rnd(g));
           out.push({ k: nasty ? 'cutin' : 'drift', lane: to, from });
           break;
         } else { veh[pick + 6] = 0; veh[pick + 7] = 0; }                                           // … unless it would leave no way through
