@@ -63,7 +63,7 @@ export function play(seed, seconds, opt = {}) {
     const tb = tl.turboAt(T);
     if ((tb && tb.u < TURBO.sustain - 0.3) || T - last < 0.28) continue;   // smash through during the strong part of a nitro burst
     let want, wantK;
-    if (opt.seek) for (let i = 0; i < NI; i++) { const o = i * IF, dz = st.g.itm[o + 2] - st.g.gd; if (st.g.itm[o] && dz > 12 && dz < 260) { want = st.g.itm[o + 1]; wantK = Math.ceil((dz + 3) / Math.max(1, st.vel - st.g.vt) / STEP); } }
+    if (opt.seek) for (let i = 0; i < NI; i++) { const o = i * IF, dz = st.g.itm[o + 2] - st.g.gd; if (st.g.itm[o] === 1 && !st.g.itm[o + 5] && dz > 12 && dz < 260) { want = st.g.itm[o + 3]; wantK = Math.ceil((dz + 3) / Math.max(1, st.vel - st.g.vt) / STEP); } }
     const safe = tb ? Math.max(0, TURBO.sustain + TURBO.recover * GAME.nitroTail + GAME.nitroGrace - tb.u - 0.15) : 0;   // coming out of a burst: plan for where it ends
     const r = plan(st, safe ? { ...opt, safe, wantK } : { ...opt, wantK }, want);
     if (r.reach < r.K) stats.noRoute++;

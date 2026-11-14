@@ -8,8 +8,9 @@ import { GAME, ROAD } from './cue.js';
 import { FS_STEP, threatGrid, markCells, copyGrid, widen, wayThrough, searcher } from './foresight.js';
 
 export const NV = 64, VF = 11;     // vehicle pool: [type, lane, z, v, halfLen, flags, a, b, id, signal time, move time]
-export const NC = 40, CF = 5;      // cell lines:   [count, lane, z0, spacing, takenMask]
-export const NI = 4, IF = 3;       // nitro canisters: [active, lane, z]
+export const NC = 40, CF = 10;     // cell lines:   [count, x (lanes), z0, spacing, takenMask, lane it is going to, sideways speed, cells fading out since, which, where]
+export const NI = 4, IF = 6;       // nitro canisters: [active, x (lanes), z, lane it is going to, sideways speed, faded out at]
+export const PICK_FADE = 0.3;       // a pickup with no lane left to go to fades out over this long (the cells of a line that are in the way)
 // T_BLOCK: a cruiser of a rolling roadblock · T_WEAVE: a cruiser weaving between the middle lane and one side
 export const T_CAR = 1, T_VAN = 2, T_TRUCK = 3, T_TAXI = 4, T_BLOCK = 5, T_WEAVE = 6;
 export const HALF_L = [0, 2.4, 2.75, 6.2, 2.4, 2.4, 2.4];
@@ -188,13 +189,59 @@ function cellLine(g, lane, u0, n, sp) {
   const cel = g.cel;
   for (let i = 0; i < NC; i++) {
     const o = i * CF; if (cel[o]) continue;
-    cel[o] = n; cel[o + 1] = lane; cel[o + 2] = u0 + g.tr; cel[o + 3] = sp; cel[o + 4] = 0;
+    cel[o] = n; cel[o + 1] = lane; cel[o + 2] = u0 + g.tr; cel[o + 3] = sp; cel[o + 4] = 0; cel[o + 5] = lane; cel[o + 6] = 0; cel[o + 7] = 0; cel[o + 8] = 0; cel[o + 9] = 0;
     return;
   }
 }
 function canister(g, lane, u) {
   const itm = g.itm;
-  for (let i = 0; i < NI; i++) { const o = i * IF; if (itm[o]) continue; itm[o] = 1; itm[o + 1] = lane; itm[o + 2] = u + g.tr; return; }
+  for (let i = 0; i < NI; i++) { const o = i * IF; if (itm[o]) continue; itm[o] = 1; itm[o + 1] = lane; itm[o + 2] = u + g.tr; itm[o + 3] = lane; itm[o + 4] = 0; itm[o + 5] = 0; return; }
+}
+
+// Pickups never sit under a vehicle. They ride with the traffic, but the cars in each lane go at their own speed, wander and change
+// lanes, so each pickup watches the next PICK_H seconds of the traffic around it: if a vehicle is coming over it, it slides across to a
+// lane that stays clear (one next to it, or the far one if the middle is clear too), and if there is none it fades out.
+const PICK_H = 0.9, PICK_DT = 0.1, PICK_GAP = 0.6, PICK_SIDE = 0.25, PICK_W = 16;
+const CELL_R = 0.45, CAN_R = 1.0;
+// Does any vehicle come within reach of [zA, zB] in lane `lane` over the next PICK_H seconds? (z as the pickups see it: they move at g.vt)
+function laneTaken(g, lane, zA, zB, r, lv, H = PICK_H) {
+  const veh = g.veh, L = ROAD.lane, gt = g.gt;
+  for (let i = 0; i < NV; i++) {
+    const o = i * VF, type = veh[o]; if (!type) continue;
+    const z = veh[o + 2], rel = veh[o + 3] - g.vt, reach = HALF_L[type] + r + PICK_GAP;
+    if (Math.max(z, z + rel * H) < zA - reach || Math.min(z, z + rel * H) > zB + reach) continue;
+    const w = (HALF_W[type] + r + PICK_SIDE + (type >= T_BLOCK ? 0.75 : 0)) / L;     // (a cruiser snakes across its lane)
+    const a = veh[o + 6], b = veh[o + 7], id = veh[o + 8], fl = veh[o + 5];
+    for (let t = 0; t <= H + 1e-9; t += PICK_DT) {
+      const zt = z + rel * t; if (zt < zA - reach || zt > zB + reach) continue;
+      let lo, hi;
+      if (type === T_WEAVE) { const tgt = fl & COMMIT ? (fl & SIDE ? a : 0) : null; lo = tgt === null ? Math.min(0, a) : Math.min(veh[o + 1], tgt); hi = tgt === null ? Math.max(0, a) : Math.max(veh[o + 1], tgt); }
+      else {
+        let x = type === T_BLOCK && !a ? veh[o + 1] : fromLane(fl);
+        if (a !== 0 && type !== T_TRUCK) x += b > 0 ? a * sCurve((gt + t - b - veh[o + 9]) / veh[o + 10]) : 0;
+        x += sway(type, id, gt + t, lv); lo = hi = x;
+      }
+      if (lane > hi + w || lane < lo - w) continue;
+      return true;
+    }
+  }
+  return false;
+}
+// Where a pickup in lane `lane` should be: that lane if it stays clear, else the nearest clear lane (nearest our car first), else NaN.
+function pickLane(g, lane, zA, zB, r, lv, me) {
+  if (!laneTaken(g, lane, zA, zB, r, lv)) return lane;
+  const c = [-1, 0, 1].filter((l) => l !== lane).sort((p, q) => Math.abs(p - lane) - Math.abs(q - lane) || Math.abs(p - me) - Math.abs(q - me) || p - q);
+  for (const l of c) if (!laneTaken(g, l, zA, zB, r, lv) && (Math.abs(l - lane) < 2 || !laneTaken(g, 0, zA, zB, r, lv))) return l;
+  return NaN;
+}
+// Keep one pickup clear of the traffic (its x in lanes at a[ix], the lane it is going to at a[it], its sideways speed at a[iv]); true = it has to go
+function keepClear(g, a, ix, it, iv, zA, zB, r, lv, me, far, DT) {
+  const to = pickLane(g, a[it], zA, zB, r, lv, me);
+  if (to !== to) return true;
+  a[it] = to;
+  if (far) { a[ix] = to; a[iv] = 0; return false; }              // out at the horizon it just takes its place
+  a[iv] += (PICK_W * PICK_W * (to - a[ix]) - 2 * PICK_W * a[iv]) * DT; a[ix] += a[iv] * DT;
+  return false;
 }
 
 // One row of traffic at u = g.genU. `g.path` is a lane the previous row left open; every row leaves a lane
@@ -505,12 +552,25 @@ export function stepGame(g, inp, out) {
   }
 
   // ── cells and nitro canisters ──
-  const cel = g.cel;
+  const cel = g.cel, me = px / L, hz = gd + aheadFor(g) - 40;
   for (let i = 0; i < NC; i++) {
     const o = i * CF, n = cel[o]; if (!n) continue;
     cel[o + 2] += g.vt * DT;
     const z0 = cel[o + 2], sp = cel[o + 3];
     if (z0 + (n - 1) * sp < gd - 6) { cel[o] = 0; continue; }
+    if (cel[o + 8] && gt - cel[o + 7] > PICK_FADE) cel[o + 8] = 0;            // (those cells have faded out)
+    let k0 = n, k1 = -1; for (let k = 0; k < n; k++) if (!(cel[o + 4] & (1 << k))) { if (k < k0) k0 = k; k1 = k; }
+    if (k1 < 0) { if (!cel[o + 8]) cel[o] = 0; continue; }
+    if (keepClear(g, cel, o + 1, o + 5, o + 6, z0 + k0 * sp, z0 + k1 * sp, CELL_R, lv, me, z0 > hz, DT)) {
+      // no lane for the whole line: the cells that are in the way fade out (they cannot be taken), the rest stay where they are
+      // (one that a vehicle has just appeared on, out at the horizon, goes at once)
+      let bits = 0, now = 0;
+      for (let k = k0; k <= k1; k++) { const zk = z0 + k * sp; if (!(cel[o + 4] & (1 << k)) && laneTaken(g, cel[o + 5], zk, zk, CELL_R, lv)) { bits |= 1 << k; if (zk > hz || laneTaken(g, cel[o + 5], zk, zk, CELL_R, lv, 0)) now |= 1 << k; } }
+      if (!bits) bits = now = (1 << k0);
+      cel[o + 4] |= bits; bits &= ~now;
+      if (bits) { cel[o + 8] = bits; cel[o + 7] = gt; cel[o + 9] = cel[o + 1]; }   // they fade where they are (a cell fading out already is let go: it was nearly gone)
+      continue;
+    }
     if (Math.abs(px - cel[o + 1] * L) > 1.9) continue;
     const k = Math.round((gd - z0) / sp);
     if (k < 0 || k >= n || Math.abs(z0 + k * sp - gd) > 2.2) continue;
@@ -525,7 +585,9 @@ export function stepGame(g, inp, out) {
     const o = i * IF; if (!itm[o]) continue;
     itm[o + 2] += g.vt * DT;
     const dz = itm[o + 2] - gd;
-    if (dz < -8) { itm[o] = 0; continue; }
+    if (dz < -8 || (itm[o + 5] && gt - itm[o + 5] > PICK_FADE)) { itm[o] = 0; continue; }
+    if (itm[o + 5]) continue;
+    if (keepClear(g, itm, o + 1, o + 3, o + 4, itm[o + 2], itm[o + 2], CAN_R, lv, me, itm[o + 2] > hz, DT)) { if (itm[o + 2] > hz || laneTaken(g, itm[o + 3], itm[o + 2], itm[o + 2], CAN_R, lv, 0)) itm[o] = 0; else itm[o + 5] = gt; continue; }
     if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
       itm[o] = 0;
       if (g.nstock < G.nitroMax) g.nstock++; else g.score += 500 * mult;

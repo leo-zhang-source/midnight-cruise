@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
+import { NV, VF, NC, CF, NI, IF, PICK_FADE, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
@@ -138,14 +138,15 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const cel = g.cel, rel = back * (g.vt - sv.vel);
   for (let i = 0; i < NC; i++) {
     const o = i * CF, n = cel[o]; if (!n) continue;
-    const z0 = cel[o + 2] - g.gd - rel, x = cel[o + 1] * L;
+    const z0 = cel[o + 2] - g.gd - rel, x = cel[o + 1] * L, gone = 1 - sat((g.gt - cel[o + 7]) / PICK_FADE), fading = cel[o + 8];     // (cells in the way with no lane left to go to fade out)
     for (let k = 0; k < n; k++) {
-      if (cel[o + 4] & (1 << k)) continue;
+      const fo = fading & (1 << k);
+      if ((cel[o + 4] & (1 << k)) && !fo) continue;
       const dz = z0 + k * cel[o + 3];
-      if (dz > -8 && dz < ahead) out.cells.push({ x, dz, fade: far(dz) });
+      if (dz > -8 && dz < ahead) out.cells.push({ x: fo ? cel[o + 9] * L : x, dz, fade: far(dz) * (fo ? gone : 1) });
     }
   }
-  for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ x: g.itm[o + 1] * L, dz, fade: far(dz) }); } }
+  for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ x: g.itm[o + 1] * L, dz, fade: far(dz) * (g.itm[o + 5] ? 1 - sat((g.gt - g.itm[o + 5]) / PICK_FADE) : 1) }); } }
   // the police: pursuit car (dz < 0 = behind us) and its grappler, the lane warning, the helicopter at three stars
   const close = policeClose(g);
   out.pol = { x: g.polX, dz: g.polZ, mode: g.polM, close: close ? 1 : 0, star: g.star };
@@ -540,7 +541,6 @@ export function frameState(tl, T, w, h, opt = {}) {
     }
     game = gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced);
     if (game.fx) { fovK *= 1 + game.fx.fov; post.shake = [post.shake[0] + game.fx.kx, post.shake[1] + game.fx.ky]; }
-    fovK *= 1 + 0.08 * sat((Math.abs(sv.vel) - 110) / 120);      // the faster the wider: the lens opens up as the speed climbs
     game.speedK = sat((Math.abs(sv.vel) - 120) / 110);              // (for the speed streaks)
     if (tbV && tbV.a >= tbV.antic) game.shock = tbV.u;                           // a nitro burst: the shockwave
     scenery = 1; trafficI = 1 - smooth(ct / 1.0);

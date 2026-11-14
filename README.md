@@ -54,6 +54,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 | Weaving cruiser | From two stars: one cruiser swinging between the middle lane and one side; chevrons over the two lanes show which way it is steering. About 1.2 s before you reach it, it takes the lane it is heading for and the sign over that lane turns into a warning triangle. At three stars a second cruiser may hold the third lane. |
 | Cruiser that cuts you off | From four stars: a single cruiser in the middle lane that waits until you are 1.8 s away (1.1 s at the highest levels), looks which lane you are in, and cuts across into it (CRUISER CUTTING YOU OFF). The lane it leaves is your way round. If you are behind it in the middle it stays and brakes. |
 | Energy cells | Mark the open lane. Each adds score (silently); 100 of them earn a spare tape (up to 3). |
+| Pickups and traffic | Cells and canisters never sit under a vehicle. Each one watches the next 0.9 s of traffic around it; when a car is about to drive over it (it catches up, wanders or changes lanes), the pickup slides across to a lane that stays clear. If no lane is clear, the cells that are in the way fade out where they are and cannot be taken. |
 | Nitro canister | A blue ring with a light pillar: the first about 15 s into a run, then one every 30 to 45 s in top gear, and up to half as far apart again as the threat level rises. Drive through it to take it aboard; you can carry three. |
 
 **Two lives**

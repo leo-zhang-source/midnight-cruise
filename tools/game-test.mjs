@@ -8,6 +8,8 @@ import { GAME } from '../js/cue.js';
 import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_CAR, T_VAN, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, STEADY, CAR_HL, H_TWIN, H_WALK, I_OFF, NASTY, HALF_W, CAR_HW, jink, freshGame, stepGame, laneV, laneRate, gameBase, baseAt, heliStrikes, revs, sway, reactAt } from '../js/game.js';
 import { threatGrid, wayThrough } from '../js/foresight.js';
 import { play } from './bot.mjs';
+import { overlaps } from './pickup-overlap.mjs';
+import { NC, CF } from '../js/game.js';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
 const C = 1.9;   // cruise start of the test timelines (start 1.0, skip 1.5, 0.4 s fast-forward)
 const fresh = (seed = 7, extra = {}) => { const tl = new Timeline(); tl.add('start', 1, { seed, ...extra }); tl.add('skip', 1.5); return tl; };
@@ -244,6 +246,20 @@ let crashT;
   ok('gears engage with distance', r.g.gear >= 3 && r.st.vel > GAME.gears[r.g.gear] - 1, `gear ${r.g.gear + 1} at ${Math.round(r.g.gd)} units, ${r.st.vel.toFixed(0)} u/s`);
   ok('score, cells and overtakes accumulate', r.g.score > 10000 && r.g.cells > 50 && r.g.passed > 40, `score ${Math.round(r.g.score)}, cells ${r.g.cells}, passed ${r.g.passed}`);
   ok('100 cells earn a spare tape (max 3)', r.st.tapes === Math.min(GAME.maxTapes, GAME.tapesStart + Math.floor(r.g.cells / GAME.tapeEvery)), `${r.st.tapes} tapes`);
+}
+
+// ── pickups never sit under a vehicle: they slide to a clear lane (or the cells in the way fade out where they are) ──
+{
+  let hits = 0, frames = 0, slid = 0;
+  for (const seed of [5, 1000, 8919, 72271]) {
+    const r = play(seed, 150, { nitro: seed === 5, seek: seed === 5 });
+    for (let T = C + 0.1; T < C + 150; T += 1 / 30) {
+      const st = r.tl.stateAt(T); if (st.over) break;
+      const h = overlaps(st.g); hits += h.length; frames++;
+      for (let i = 0; i < NC; i++) if (st.g.cel[i * CF] && st.g.cel[i * CF + 5] !== Math.round(st.g.cel[i * CF + 1]) ) slid++;
+    }
+  }
+  ok('pickups never overlap a vehicle (they move out of the way)', hits === 0 && slid > 0, `${hits} overlaps in ${frames} frames · ${slid} frames with a line of cells sliding across`);
 }
 
 // ── free mode (?free=1): no traffic, no police attacks, never over, a canister every 7 s ──

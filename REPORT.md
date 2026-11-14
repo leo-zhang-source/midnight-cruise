@@ -19,6 +19,15 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 37: pickups never sit under a vehicle, the view as it was
+
+- **The view is back to how it was before Revision 34.** Revision 34 widened the lens with speed (up to 8 % at top speed), which made the picture feel different, closer to the road. That is removed: the camera framing is now the same at every speed, as in Revision 33 and before. The short lens punches on hits stay (they are part of the impact).
+
+- **The problem:** energy cells are laid out in the open lane when a row of traffic is generated, but each lane runs at its own speed, cars wander, and they change lanes and cut in. Cars then drove straight over cells. Measured in bot runs before the fix: 175 times in 4 runs of 200 s, about half of them during a lane change (canisters less often, but the same way).
+- **The fix (js/game.js):** every pickup (a line of cells, or a nitro canister) checks the next 0.9 s of traffic around it at every simulation step: where each vehicle will be, including lane changes already signalled, the wander and the swerves, the weaving and cutting cruisers, with a margin. If a vehicle is going to come over it, it slides smoothly to a lane that stays clear: the next lane, or the far one if the middle is clear too. If it can, it picks the lane nearer your car. Out at the horizon it just moves. If no lane is clear for a whole line of cells, only the cells that are in the way fade out (0.3 s, where they are, and they cannot be taken); the rest of the line stays. A pickup that a vehicle appears on at the horizon goes at once.
+- **Measured after:** zero overlaps in 16 runs × 300 s with the bot and 8 × 300 s with nitro (`tools/pickup-overlap.mjs`, checked every 1/60 s against each vehicle's body).
+- The police, the traffic and the bot's route are untouched (pickups are not obstacles), so the canonical demo drive replays the same.
+
 ## Revision 36: the heavy crash back, no pass-by whoosh
 
 - **The crash sound is the Revision 34 one again**, the heavier, duller crunch (smash: centroid 2.4 kHz, −19.2 dB over its first 0.3 s; wreck and crash 1.9–2.5 kHz, −13 dB), with the impact and sub boom under it at their old levels. Measured identical to Revision 34.
