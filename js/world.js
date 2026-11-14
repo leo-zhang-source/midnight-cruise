@@ -336,7 +336,7 @@ function palmAtlas(seed) {
 function makePalms(seed) {
   const tex = palmAtlas(seed);
   const rows = [
-    { x: [10.8, 13.8], S: 48, N: 14, h: [12, 15] },
+    { x: [12.8, 15.6], S: 48, N: 14, h: [12, 15] },
     { x: [21, 30], S: 70, N: 12, h: [14, 18] },
     { x: [42, 72], S: 112, N: 10, h: [16, 22] },
   ];

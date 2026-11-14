@@ -94,11 +94,11 @@ export const GAME = {
   // more of the traffic comes in pairs and convoys and more of it changes lane; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
   lvEvery: 40, starFloorLv: [0, 3, 6], cadence: 0.1, react: [0.75, 0.42, 0.035], nitroLv: 0.05, nitroLvMax: 1.5,
   // rest: the pause after one attack before the next may start (at level 0, the least, lost per level) · fairSwitch: the police plan with a
-  // lane change this slow, a little slower than the car really is · weaveFree: an attack must be over this long before we reach a weaving cruiser
+  // lane change this slow, a little slower than the car really is, and fairPause in the new lane before the next one · weaveFree: an attack must be over this long before we reach a weaving cruiser
   // set pieces: for an interceptor's swerve, twin searchlights or a barrage the police have the traffic held back: gapFor[interceptor, twin, barrage]
   // seconds of empty road, asked for gapLead seconds before the unit is due; if no opening has come gapWait seconds after that, the helicopter settles for one lane
   gapFor: [1.7, 1.5, 3.1], gapLead: 3.4, gapWait: 5,
-  rest: [1.8, 0.6, 0.12], fairSwitch: 0.4, fairSlack: 2, weaveFree: 2.0, blockRoom: 0.15,   // fairSlack: … and with everything on the road lasting this many twentieths of a second longer, before and after
+  rest: [1.8, 0.6, 0.12], fairSwitch: 0.4, fairPause: 0.2, fairSlack: 2, weaveFree: 2.0, blockRoom: 0.15,   // fairSlack: … and with everything on the road lasting this many twentieths of a second longer, before and after
   // every warning lasts the reaction time plus `warn` (so warnings shorten as the level rises: 1.2 s at level 0, 0.87 s at its shortest);
   // the helicopter may hold its fire up to drLate longer, to strike at the moment that leaves the fewest ways out
   warn: 0.45, drLate: [0, 0.25, 0.5, 0.75],
@@ -129,7 +129,7 @@ export const GAME = {
   // from the shoulder into the lane beside it, or, if we are in the middle, straight across that lane (when the traffic leaves a gap) and into us.
   // icPace: the least time it rides level first · icWait: how long it waits on the shoulder for its moment before it drops back ·
   // icMove, icHold: the swerve (one lane; two take 1.7 times as long) and how long it stays · icOut: seconds out of action after we ram it in a nitro burst
-  icEvery: [7, 11], icV: 30, icZ0: -46, icZp: -0.4, icShoulder: 1.7, icPace: 0.5, icWait: 6.5, icMove: 0.4, icHold: 0.45, icBack: 34, icOut: 14,
+  icEvery: [7, 11], icV: 30, icZ0: -46, icZp: -0.4, icShoulder: 1.82, icPace: 0.5, icWait: 6.5, icMove: 0.4, icHold: 0.45, icBack: 34, icOut: 14,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80, ptsDodge: 300,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
   tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash
@@ -138,7 +138,7 @@ export const GAME = {
 // Road layout (world units, x across): a three-lane highway. Lanes are `lane` wide (a car is ~2 wide, a truck ~2.8),
 // centred on −lane, 0, +lane. The grid cell equals the lane width, so grid lines fall on the lane edges and on the
 // cyan rails (±1.5·lane). `traffic`: the ambient tail lights of the intro sit in the outer lanes.
-export const ROAD = { lane: 5.0, rail: 7.5, shoulder: 9.3, traffic: 5.0, trail: 9.7 };   // shoulder: where the asphalt ends; the guardrail stands at `trail`
+export const ROAD = { lane: 5.0, rail: 7.5, shoulder: 10.5, traffic: 5.0, trail: 10.9 };   // shoulder: where the asphalt ends; the guardrail stands at `trail`
 // Lane change feel (sim, 240 Hz): the lateral move is a critically damped spring on a lightly smoothed target
 // (≈ 0.21 s to 90 %), so a second press mid-move retargets with the velocity it already has. The drift is
 // visual only: body yaw follows the lateral speed (capped at yawMax, so a two-lane dash stays slight) through an

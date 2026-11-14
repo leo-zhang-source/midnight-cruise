@@ -62,7 +62,7 @@ function makeSolids() {
         } else if (vM.x < 1.5) col = vC;                                                                   // emissive
         else if (vM.x > 3.5) {                                                                              // galvanised steel: the guardrail's beam, two ridges catching the sky
           float rid = an.x > 0.5 ? smoothstep(0.07, 0.0, abs(abs(q.y) - 0.085)) : 0.0;
-          col = uGround * 2.4 + uSky * (0.5 * step(0.5, vN.y) + 0.2 * an.x + 0.55 * rid) + vC * 0.06;
+          col = uGround * 3.0 + uSky * (0.75 * step(0.5, vN.y) + 0.34 * an.x + 1.0 * rid) + vC * 0.1;
         }
         else col = uGround * 1.6 + uSky * (0.16 * step(0.5, vN.y) + 0.07 * an.x) + vC * 0.05;              // plain dark structure
         // fade: far things come out of the haze, lights and debris dim (no dither: nothing flickers)
@@ -352,7 +352,7 @@ export class GameView {
     su.cFill.value.set(...P.mountFill).multiplyScalar(1.4); su.cFog.value.set(...P.fog); su.cA.value.set(...P.post); su.cB.value.set(...P.post2);
 
     // ── scenery: overhead sign gantries ──
-    const gx = R + 1.1;
+    const gx = ROAD.trail + 0.7;                 // the gantry's legs stand behind the guardrail
     GA.forEach((z0, i) => {
       const d = mod(z0 - pos, GA_SPAN), z = 30 - d, m = this.signs[i], f = Math.min(1, (1500 - d) / 300) * sc;
       m.visible = f > 0.01;
@@ -383,7 +383,7 @@ export class GameView {
       const d = mod(sg.z0 - pos, SG_SPAN), z = 30 - d, m = this.roadSigns[i], f = Math.min(1, (1200 - d) / 250) * sc;
       m.visible = f > 0.01;
       if (!m.visible) return;
-      const x = sg.side * (R + 4.6), u = m.material.uniforms;
+      const x = sg.side * (ROAD.trail + 3.4), u = m.material.uniforms;
       for (const o of [-2.1, 2.1]) this.box(x + o, 2.3, z, 0.18, 4.6, 0.18, DARK, 3, f);
       m.position.set(x, 4.9, z + 0.14); m.rotation.set(0, sg.side * -0.22, 0); u.uK.value = 1.1; u.uFade.value = f; u.uT.value = T; u.uFog.value.set(...P.fog);
     });

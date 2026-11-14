@@ -356,7 +356,7 @@ export function stepGame(g, inp, out) {
   let grid0 = null;
   // (the picture is the forecast with everything on it lasting a little longer at either end, so a way through is one with room to spare;
   //  the attack itself is laid on it as it is: its own timing is exact)
-  const fair = (cells) => { const c = copyGrid(grid0 || (grid0 = widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack))); for (const [l, t0, t1] of cells) markCells(c, l, t0, t1); return wayThrough(c, inp.lane, react, G.fairSwitch); };
+  const fair = (cells) => { const c = copyGrid(grid0 || (grid0 = widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack))); for (const [l, t0, t1] of cells) markCells(c, l, t0, t1); return wayThrough(c, inp.lane, react, G.fairSwitch, G.fairPause); };
 
   // ── vehicles ──
   // Warnings are timed for the speed we would be doing flat out, so easing off the brake never shortens one.
@@ -370,7 +370,7 @@ export function stepGame(g, inp, out) {
       const q = inp.lane;
       if (q !== 0) {
         veh[o + 6] = q; veh[o + 7] = gt; veh[o + 5] |= STEADY;
-        if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), q, react, G.fairSwitch)) { grid0 = null; g.blkEv = gt; out.push({ k: 'mirror', lane: q }); }
+        if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), q, react, G.fairSwitch, G.fairPause)) { grid0 = null; g.blkEv = gt; out.push({ k: 'mirror', lane: q }); }
         else { veh[o + 6] = 0; veh[o + 7] = 0; veh[o + 5] &= ~STEADY; }
       }
     }

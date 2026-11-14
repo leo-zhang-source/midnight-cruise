@@ -86,9 +86,10 @@ export function widen(grid, n) {
   return grid;
 }
 // A search over (time, lane): from (k, lane), how long can a driver survive (up to the horizon) and with how few lane changes?
-// A lane change takes M steps, during which both lanes must be clear. opt.hold: no lane change may start before this step
-// (the time a driver needs to see what is coming and react).
-export function searcher(grid, M, hold = 0) {
+// A lane change takes M steps, during which both lanes must be clear. hold: no lane change may start before this step
+// (the time a driver needs to see what is coming and react). pause: after a lane change, this many steps in the new lane
+// before the next one may start (nobody dashes across two lanes without a breath between).
+export function searcher(grid, M, hold = 0, pause = 0) {
   const { blocked, K } = grid, memo = new Map();
   const free = (l, k0, k1) => { for (let k = k0; k <= Math.min(K, k1); k++) if (blocked[l + 1][k]) return false; return true; };
   const better = (a, b) => !b || a.reach > b.reach || (a.reach === b.reach && a.moves.length < b.moves.length);
@@ -100,8 +101,8 @@ export function searcher(grid, M, hold = 0) {
     if (!blocked[l + 1][k + 1]) { const r = go(k + 1, l); if (better(r, res)) res = r; }
     if (k >= hold) for (const d of (l === 0 ? [-1, 1] : [-l])) {
       const n = l + d;
-      if (!free(l, k, k + M) || !free(n, k, k + M)) continue;
-      const r = go(k + M, n);
+      if (!free(l, k, k + M) || !free(n, k, k + M + pause)) continue;
+      const r = go(Math.min(K, k + M + pause), n);
       const c = { reach: r.reach, moves: [{ k, d }, ...r.moves] };
       if (better(c, res)) res = c;
     }
@@ -112,7 +113,7 @@ export function searcher(grid, M, hold = 0) {
 }
 // Is there a way through from `lane`, given react seconds before the first move and tSwitch seconds per lane change?
 // → 0 if not; else 1 + the number of lane changes it takes (so 1 = stay where you are)
-export function wayThrough(grid, lane, react, tSwitch = 0.34) {
-  const s = searcher(grid, Math.round(tSwitch / FS_STEP), Math.round(react / FS_STEP)), r = s.go(0, lane);
+export function wayThrough(grid, lane, react, tSwitch = 0.34, pause = 0) {
+  const s = searcher(grid, Math.round(tSwitch / FS_STEP), Math.round(react / FS_STEP), Math.round(pause / FS_STEP)), r = s.go(0, lane);
   return r.reach >= grid.K ? 1 + r.moves.length : 0;
 }

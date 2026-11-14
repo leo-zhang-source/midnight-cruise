@@ -34,8 +34,10 @@ export function plan(st, opt, want) {
     const d = best.moves[0].d, n = st.lane + d;
     if (free(st.lane, 0, M) && free(n, 0, M)) {
       const r = go(M, n);
-      // … unless that commits to a second move straight after it (a dash across two lanes with no slack)
-      if (r.reach >= best.reach && r.moves.length + 1 <= best.moves.length && !(r.moves.length && r.moves[0].k < M + 10)) return { reach: best.reach, moves: [{ k: 0, d }], K };
+      // … unless that commits to a second move straight after it (a dash across two lanes with no slack) — but if the route is such
+      // a dash anyway, the sooner it starts the more room there is for the second half
+      const dash = best.moves.length > 1 && best.moves[1].k - best.moves[0].k < M + 10;
+      if (r.reach >= best.reach && r.moves.length + 1 <= best.moves.length && (dash || !(r.moves.length && r.moves[0].k < M + 10))) return { reach: best.reach, moves: [{ k: 0, d }], K };
     }
   }
   return { ...best, K };
