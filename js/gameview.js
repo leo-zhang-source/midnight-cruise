@@ -425,7 +425,7 @@ export class GameView {
           const [hx, hz] = at(0, -B.tz - 2.0);
           this.glow(x, 0.03, z, B.w, 0, 0, 0, 0, B.tz + 0.4, B.glow, 2, 0.4 * f); this.glow(hx, 0.03, hz, 1.2, 0, 0, 0, 0, 2.2, LAMP, 2, 0.16 * f);   // its lights on the road under it, headlamp pool ahead
           if (taxi) this.sprite(x, 2.1, z, 0.9, [1, 0.7, 0.1], 0.5 * f);                                                                     // the lit TAXI sign
-          if (taxi && v.sig) {
+          if (v.sig) {                                                       // signalling a lane change: its indicator blinks, chevrons over it run the way it is going
             if (Math.floor(T * 3.2) % 2 === 0) { const [bx, bz] = at(v.sig * 0.8, B.tz); this.box(bx, 1.2, bz, 0.2, 0.14, 0.06, AMBER, 1, f, 1.2, 0, yaw); this.sprite(bx, 1.2, bz + 0.08, far, AMBER, 0.6 * f); }
             this.glow(x + v.sig * 2.6, 2.6, z, v.sig * 1.6, 0, 0, 0, 0.6, 0, AMBER, 7, 1.2 * f);
           }
@@ -502,15 +502,44 @@ export class GameView {
         const [lx, ly, lz] = at('lamp'), sx = h.sx, sz = cz - (15 - 14 * sk), wd = 2.5 + 0.6 * sk;
         this.glow((lx + sx) / 2, ly / 2, (lz + sz) / 2, wd, 0, 0, (sx - lx) / 2, -ly / 2, (sz - lz) / 2, c, 10, (0.55 + 0.35 * sk) * f);    // the beam
         this.glow(sx, 0.05, sz, 3.0 + sk, 0, 0, 0, 0, 4.6 + 1.5 * sk, c, 0, (0.55 + 0.5 * sk) * f); this.sprite(lx, ly, lz, 2.6 + 1.2 * sk, c, 1.7 * f);   // its pool on the road, the lamp's glare
-        if (sk > 0.3) this.glow(h.lane * L, 0.06, cz - 2, 2.25, 0, 0, 0, 0, 7.5, c, 6, (fire ? 1.6 : 0.7 + 0.5 * h.warn) * sk);        // the lock: a target on the lane
-        if (fire) {                                                          // tracer fire from both gun pods walks down the lane
+        // the lock: a target on every lane it has lit. The one being fired on is red; the next one blinks faster as its time comes; with two
+        // lanes lit at once a second beam falls on the other
+        const AMB = [1.0, 0.75, 0.2], HOT = [1.0, 0.3, 0.12], FIRE = [1.0, 0.16, 0.14];
+        for (const q of h.lanes) {
+          if (q.strike >= 2) continue;
+          const fq = q.strike >= 0, bl = fq || Math.floor(T * (4 + 8 * q.warn)) % 2 === 0, cq = fq ? FIRE : bl ? HOT : AMB;
+          if (sk > 0.3) this.glow(q.lane * L, 0.06, cz - 2, 2.25, 0, 0, 0, 0, 7.5, cq, 6, (fq ? 1.6 : 0.45 + 0.75 * q.warn) * sk);
+          if (q.lane !== h.lane && q.warn > 0.999 === (h.warn > 0.999) && sk > 0.3) {              // (twin: struck together with the lane the main beam is on)
+            const qx = q.lane * L; this.glow((lx + qx) / 2, ly / 2, (lz + sz) / 2, wd, 0, 0, (qx - lx) / 2, -ly / 2, (sz - lz) / 2, cq, 10, 0.7 * sk * f);
+            this.glow(qx, 0.05, sz, 3.6, 0, 0, 0, 0, 5.6, cq, 0, 0.8 * sk * f);
+          }
+          if (!fq) continue;                                                 // tracer fire from both gun pods walks down the lane
           const guns = [at('gunL'), at('gunR')];
           for (let i = 0; i < 5; i++) {
-            const ph = (h.strike * 1.5 + i / 5) % 1, ix = h.lane * L + (hash1(i * 7 + Math.floor(T * 30)) - 0.5) * 1.6, iz = cz - 15 + 22 * ph, [gx, gy, gz] = guns[i % 2];
+            const ph = (q.strike * 1.5 + i / 5) % 1, ix = q.lane * L + (hash1(i * 7 + Math.floor(T * 30)) - 0.5) * 1.6, iz = cz - 15 + 22 * ph, [gx, gy, gz] = guns[i % 2];
             if (Math.floor(T * 30 + i) % 2) this.glow((gx + ix) / 2, gy / 2, (gz + iz) / 2, 0.14, 0, 0, (ix - gx) / 2, -gy / 2, (iz - gz) / 2, [1, 0.85, 0.45], 8, 2.6);
             this.sprite(ix, 0.3, iz, 1.3, [1, 0.6, 0.25], 1.8); this.glow(ix, 0.05, iz, 1.6, 0, 0, 0, 0, 1.6, [1, 0.4, 0.2], 0, 1.2);
           }
           guns.forEach(([gx, gy, gz], i) => this.sprite(gx, gy, gz, 2.4, [1, 0.8, 0.4], (Math.floor(T * 30) + i) % 2 ? 2.4 : 0.5));
+        }
+      }
+      // ── the interceptor: a second cruiser, up the hard shoulder. Its light bar double-flashes, its headlamps are on full beam. While it
+      //    signals a swerve, chevrons run from it into the lane it is going for and a warning stands over that lane ──
+      const ic = G.ic;
+      if (ic && ic.fade > 0.01) {
+        const x = ic.x, z = cz - ic.dz, f = ic.fade, yaw = -Math.atan2(ic.vx, Math.max(40, Math.abs(s.road.vel))) * 1.3, c = [1.0, 0.14, 0.16];
+        this.cruiser(x, z, yaw, f, T * 1.8, 0.5, Math.max(-0.12, Math.min(0.12, ic.ax * 0.004)), 0, ic.leaving);
+        for (const sx of [-0.7, 0.7]) this.sprite(x + sx, 0.72, z - 2.62, 1.0, LAMP, 0.9 * f);
+        this.glow(x, 0.04, z - 8, 1.6, 0, 0, 0, 0, 6, LAMP, 2, 0.35 * f);
+        if (ic.to !== null) {
+          const tx = ic.to * L, dir = Math.sign(tx - x) || -ic.side, k = ic.tell < 0 ? 1 : ic.tell, blink = Math.floor(T * (5 + 7 * k)) % 2 ? 1 : 0.4;
+          if (ic.tell >= 0) {
+            this.glow((x + tx) / 2, 2.7, z, dir * (Math.abs(tx - x) / 2 + 1.2), 0, 0, 0, 0.66, 0, c, 7, 1.9 * f);                    // over it: which way it is going
+            this.glow((x + tx) / 2, 0.05, z, dir * (Math.abs(tx - x) / 2 + 1.6), 0, 0, 0, 0, 3.2, c, 7, (0.9 + 1.2 * k) * f);         // on the road: across into the lane
+            if (Math.floor(T * 3.2) % 2 === 0) this.sprite(x + dir * 0.8, 1.0, z + 2.5, 0.9, AMBER, 0.9 * f);                         // its indicator
+          }
+          this.glow(tx, 2.3, cz - 5, 1.0, 0, 0, 0, 1.0, 0, c, 5, 2.4 * blink * f);                                                       // the warning over the lane it takes
+          this.glow(tx, 0.05, cz - 1, 2.2, 0, 0, 0, 0, 5.5, c, 2, (0.25 + 0.35 * k) * f);
         }
       }
       // ── debris: smashed vehicles and the wrecked car shatter into shards of light ──

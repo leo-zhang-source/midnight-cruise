@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#05020f">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2305020f%22/%3E%3Ccircle cx=%2216%22 cy=%2217%22 r=%229%22 fill=%22%23ff8a3c%22/%3E%3Cpath d=%22M6 19h20M6 22h20M6 25h20%22 stroke=%22%2305020f%22 stroke-width=%221.6%22/%3E%3C/svg%3E">
   <title>Midnight Cruise — 1986</title>
-  <meta name="description" content="A synthwave highway chase: a ten-second ignition sequence, then an endless three-lane run into the neon city with the police on your tail, nitro canisters, close calls and a three-star wanted level.">
+  <meta name="description" content="A synthwave highway chase: a ten-second ignition sequence, then an endless three-lane run into the neon city with the police on your tail, nitro canisters, close calls and a five-star wanted level and police that plan their attacks.">
   <link rel="preload" href="fonts/ChakraPetch-SemiBold.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="fonts/VT323-Regular.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="vendor/three.module.min.js" as="script" crossorigin>
@@ -48,11 +48,11 @@
     <span class="h-key"><kbd class="k-only">T</kbd><kbd class="t-only">NITRO</kbd> <span>BOOST · NEEDS A CANISTER</span></span>
   </div>
 
-  <!-- game HUD: score and multiplier, wanted stars, lives, cells, spare tapes, and the police-on-your-tail notice -->
+  <!-- game HUD: score and multiplier, wanted stars and threat level, lives, cells, spare tapes, and the police-on-your-tail notice -->
   <div id="ghud" aria-hidden="true">
     <div class="gh-main"><span class="gh-score" id="g-score">0</span><span class="gh-mult" id="g-mult">×1.0</span></div>
     <div class="gh-sub">
-      <span class="gh-stars" id="g-stars" data-n="1"><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg></span>
+      <span class="gh-stars" id="g-stars" data-n="1"><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg></span><span class="gh-lv" id="g-lv" data-hot="0">LV 0</span>
       <span class="gh-lives" id="g-lives" data-n="2"><svg viewBox="0 0 24 24"><path d="M12 21 3.5 12.6a5.2 5.2 0 0 1 7.4-7.4L12 6.3l1.1-1.1a5.2 5.2 0 0 1 7.4 7.4Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 21 3.5 12.6a5.2 5.2 0 0 1 7.4-7.4L12 6.3l1.1-1.1a5.2 5.2 0 0 1 7.4 7.4Z"/></svg></span>
       <span class="gh-cells"><i></i><b id="g-cells">0</b></span>
       <span class="gh-tapes" id="g-tapes" data-n="0"><i></i><i></i><i></i></span>
@@ -72,7 +72,8 @@
       <div><dt>BEST COMBO</dt><dd id="ov-combo">0</dd></div>
       <div><dt>CLOSE CALLS</dt><dd id="ov-near">0</dd></div>
       <div><dt>SMASHED</dt><dd id="ov-smash">0</dd></div>
-      <div><dt>WANTED</dt><dd id="ov-star">★☆☆</dd></div>
+      <div><dt>WANTED</dt><dd id="ov-star">★☆☆☆☆</dd></div>
+      <div><dt>THREAT LEVEL</dt><dd id="ov-level">0</dd></div>
     </dl>
     <div class="ov-btns">
       <button id="revive" class="start" type="button"><span class="start-icon" aria-hidden="true"><svg viewBox="0 0 16 10"><path d="M15 1 L9 5 L15 9 Z M8 1 L2 5 L8 9 Z"/></svg></span><span class="start-label">REWIND 3&nbsp;S</span><small id="ov-tapes">1 TAPE</small></button>

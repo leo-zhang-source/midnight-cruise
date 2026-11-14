@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor } from './game.js';
+import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
@@ -69,24 +69,29 @@ export function visualTime(T, ph, tb, reduced) {
 
 // What the game layer draws and what the HUD shows.
 // sim: the simulation state at T · sv: the state being shown (the same, except while a rewind replays the past).
+const STAR_NEW = { 2: 'ROADBLOCKS', 3: 'HELICOPTER', 4: 'INTERCEPTOR', 5: 'ALL UNITS' };
 const POP = {
   run: () => ['POLICE! PULL OVER', 'bad'], go: () => ['FLOOR IT', 'good'],
   near: (e) => [`CLOSE CALL +${e.pts}`, 'good'], smash: () => ['SMASH', 'hot'], gear: (e) => [`GEAR ${e.n}`, 'info'],
-  star: (e) => (e.up ? [`WANTED LEVEL ${e.n}`, 'bad'] : [`HEAT DOWN · LEVEL ${e.n}`, 'good']),
-  stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : e.by === 'crash' ? 'CRASH' : 'SIDESWIPE') + ' · ONE LIFE LEFT', 'bad'],
+  star: (e) => (e.up ? [`WANTED ${'★'.repeat(e.n)}${STAR_NEW[e.n] ? ' · ' + STAR_NEW[e.n] : ''}`, 'bad'] : [`HEAT DOWN ${'★'.repeat(e.n)}`, 'good']),
+  level: (e) => (e.n ? [`THREAT LEVEL ${e.n}`, 'bad'] : null),
+  stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : e.by === 'slam' ? 'SLAMMED' : e.by === 'crash' ? 'CRASH' : 'SIDESWIPE') + ' · ONE LIFE LEFT', 'bad'],
   shake: () => ['SHOOK THEM OFF · TWO LIVES', 'good'],
-  nuse: (e) => [`NITRO ${e.n}/${GAME.nitroClear} TO CLEAR THE HEAT`, 'info'], clear: () => ['HEAT CLEARED', 'good'],
+  nuse: (e) => [`NITRO ${e.n}/${GAME.nitroClear} TO COOL THE HEAT`, 'info'], clear: () => ['HEAT COOLED', 'good'],
   tail: () => ['TOO SLOW · POLICE ON YOUR TAIL', 'bad'],
-  ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'], lock: () => ['SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
+  ramwarn: () => ['GRAPPLER BEHIND · CHANGE LANE', 'bad'],
+  lock: (e) => [e.pat === H_WALK ? 'BARRAGE · DODGE BACK INTO ITS WAKE' : e.pat === H_TWIN ? 'TWIN SEARCHLIGHTS · TAKE THE DARK LANE' : 'SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
+  icwarn: (e) => [`INTERCEPTOR ON THE ${e.side < 0 ? 'LEFT' : 'RIGHT'} SHOULDER`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
+  mirror: () => ['CRUISER CUTTING YOU OFF', 'bad'], pincer: () => ['PINCER', 'bad'], dodge: (e) => [`DODGED +${e.pts}`, 'good'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
-  draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: () => ['SHOVED THE POLICE BACK', 'hot'],
+  draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR RAMMED OFF' : 'SHOVED THE POLICE BACK', 'hot'],
 };
 function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const g = sv.g, G = GAME, L = ROAD.lane;
   const stepping = !sim.over && T >= sim.hold && !sim.paused;
   const back = stepping ? (1 - sim.gf) * DT : 0;          // the state is from the step after T: step positions back
   const ahead = aheadFor(g), far = (dz) => smooth(lin(dz, ahead - 2, ahead - 70));
-  const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, grap: null, heli: null };
+  const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, grap: null, heli: null, ic: null };
   if (g.free) { ui.g = { on: 1, free: 1, run: sim.run, gear: g.gear + 1, nstock: sim.g.nstock, tapes: 0, over: 0, overU: 0, paused: sim.paused, rew: 0, pops: [], star: 0, lives: 2, close: 0, hint: 0, pol: 0 }; return out; }
   const veh = g.veh;
   for (let i = 0; i < NV; i++) {
@@ -97,10 +102,11 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     // the turn and dips under braking. vx, ax: sideways speed and acceleration, in road units.
     let vx = 0, ax = 0, wag = 0, wander = 1, sweep = 0, took = 0;
     const police = type === T_BLOCK || type === T_WEAVE;
-    if ((type === T_TAXI || type === T_BLOCK) && a !== 0) {     // it will steer across a lane, or is doing so
+    const mover = type !== T_TRUCK && type !== T_WEAVE;          // a taxi, a car or van, a cruiser: it may steer across a lane
+    if (mover && a !== 0) {     // it will steer across a lane, or is doing so
       wander = 0;
       if (b > 0) { const m = (gt - b - G.taxiBlink) / G.taxiMove; vx = a * L * sCurveD(m) / G.taxiMove; ax = a * L * sCurveA(m) / (G.taxiMove * G.taxiMove); }
-    } else if ((type === T_TAXI || type === T_BLOCK) && b < 0) {             // it has just arrived in its new lane: a wag of the tail as it straightens up
+    } else if (mover && b < 0) {             // it has just arrived in its new lane: a wag of the tail as it straightens up
       const u = gt + b; wag = Math.sign(lane) * 0.06 * Math.exp(-u * 4.5) * Math.sin(u * 13); wander = smooth(u / 2.5);
     } else if (type === T_WEAVE) {
       wander = 0;
@@ -115,7 +121,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     }
     const slow = type === T_BLOCK ? sat((g.vt + laneV(lane) * laneRate(g, sv.vel) - v) / G.blockSlow) : 0;      // a rolling roadblock on the brakes
     out.veh.push({
-      type, x, dz, fade: far(dz), id, sig: (type === T_TAXI || type === T_BLOCK) && a !== 0 && b !== 0 ? a : 0, sweep, took, vx, v,
+      type, x, dz, fade: far(dz), id, sig: mover && a !== 0 && b !== 0 ? a : 0, sweep, took, vx, v,
       yaw: type === T_TRUCK ? 0 : -Math.atan2(vx, v) * 1.2 + wag, roll: clamp(ax * 0.004, -0.12, 0.12),
       pitch: -0.045 * Math.sin(Math.PI * Math.min(slow, 0.999)) - 0.012 * slow, brake: slow > 0.01 && dz > -6 ? 1 : 0,
     });
@@ -134,11 +140,24 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   // the police: pursuit car (dz < 0 = behind us) and its grappler, the lane warning, the helicopter at three stars
   const close = policeClose(g);
   out.pol = { x: g.polX, dz: g.polZ, mode: g.polM, close: close ? 1 : 0, star: g.star };
-  if (g.polM === P_WARN) out.ram = { lane: g.polLane, k: sat((g.gt - g.polT) / G.ramWarn) };
+  if (g.polM === P_WARN) out.ram = { lane: g.polLane, k: sat((g.gt - g.polT) / g.polW) };
   { const u = g.gt - g.polT, m = g.polM;                 // the fork folds out during the warning and back in as the cruiser drops away
     const k = m === P_WARN ? smooth(u / 0.4) : m === P_CHARGE || m === P_HOOK ? 1 : m === P_BACK ? 1 - smooth(u / 0.35) : 0;
     if (k > 0) out.grap = { k, hook: m === P_HOOK ? 1 : 0 }; }
-  if (g.ha > 0.01) { const u = g.drT >= 0 ? g.gt - g.drT : -1; out.heli = { x: g.hx, sx: g.sx, sk: g.sk, a: g.ha, on: g.hOn, side: g.hOn ? g.hSide : -g.hSide, bank: g.hb, gt: g.gt, lane: g.drLane, warn: u < 0 ? 0 : sat(u / G.drWarn), strike: u >= G.drWarn ? sat((u - G.drWarn) / G.drStrike) : -1 }; }
+  if (g.ha > 0.01) {
+    // the helicopter: the lanes it has lit (each with how far its warning has run, and how far through its strike it is: −1 not yet, 2 done)
+    const u = g.drT >= 0 ? g.gt - g.drT : -1, S = u < 0 ? [] : heliStrikes(g.drPat, g.drLane, g.drB, g.drW);
+    const lanes = S.map(([lane, t0, t1]) => ({ lane, warn: sat(u / t0), strike: u < t0 ? -1 : u < t1 ? (u - t0) / (t1 - t0) : 2 }));
+    const now = (g.drPat === H_TWIN ? lanes[0] : null) || lanes.find((q) => q.strike >= 0 && q.strike < 2) || lanes.find((q) => q.strike < 0) || lanes[lanes.length - 1];   // the one the main beam is on: being fired at, else the next
+    out.heli = { x: g.hx, sx: g.sx, sk: g.sk, a: g.ha, on: g.hOn, side: g.hOn ? g.hSide : -g.hSide, bank: g.hb, gt: g.gt, lanes, lane: now ? now.lane : g.drLane, warn: now ? now.warn : 0, strike: now && now.strike >= 0 && now.strike < 2 ? now.strike : -1 };
+  }
+  // the interceptor: where it is, which way it is about to swerve (tell: 0..1 through its warning) and how far through the swerve it is
+  if (g.icM !== I_OFF) {
+    const u = g.gt - g.icT, T = icMoveT(g.icFrom, g.icTo), m = g.icM === I_SLAM ? u / T : 0, dx = (g.icTo - g.icFrom) * L;
+    const vx = g.icM === I_SLAM ? dx * sCurveD(m) / T : 0, ax = g.icM === I_SLAM ? dx * sCurveA(m) / (T * T) : 0;
+    const dz = g.icZ, fade = smooth((dz - G.icZ0) / 8);
+    out.ic = { x: g.icX * L - back * vx, dz, side: g.icA, mode: g.icM, fade, vx, ax, tell: g.icM === I_TELL ? sat(u / g.icW) : -1, to: g.icM === I_TELL || g.icM === I_SLAM ? g.icTo : null, leaving: g.icM === I_LEAVE ? 1 : 0 };
+  }
   const pops = [];
   for (const e of tl.gameEvents(T - 1.9, T)) {
     const age = T - e.t;
@@ -184,11 +203,11 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const lg = sim.g;                                           // HUD numbers come from the live state
   ui.g = {
     on: 1, free: 0, run: sim.run, score: Math.floor(lg.score), mult: gameMult(lg), combo: lg.combo, cells: lg.cells, gear: lg.gear + 1,
-    star: lg.star, lives: lg.lives, close: stepping && lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0,
+    star: lg.star, level: lg.lvN, ic: stepping && lg.icM !== I_OFF && lg.icM !== I_LEAVE ? lg.icA : 0, lives: lg.lives, close: stepping && lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0,
     hint: stepping && lg.lives < 2 ? 1 - smooth((lg.gt - (lg.stG - G.stumbleGrace) - 4) / 0.8) : 0,     // "nitro shakes them off": for four seconds after the hit, then it goes
  pol: stepping && policeClose(lg) ? 1 : 0, nstock: lg.nstock, tapes: sim.tapes,
     over: sim.over, overU: sim.over ? T - sim.overT : 0, paused: sim.paused, rew, draft: lg.draft, pops,
-    stats: { dist: lg.gd, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax },
+    stats: { dist: lg.gd, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax, level: lg.lvN, dodges: lg.dodges },
   };
   return out;
 }

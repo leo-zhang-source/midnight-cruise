@@ -5,7 +5,7 @@
 // Coordinates: z runs along the road, the player's car is at z = g.gd; x = lane × ROAD.lane.
 // ─────────────────────────────────────────────────────────────────────────────
 import { GAME, ROAD } from './cue.js';
-import { threatGrid, markCells, copyGrid, wayThrough } from './foresight.js';
+import { threatGrid, markCells, copyGrid, widen, wayThrough } from './foresight.js';
 
 export const NV = 44, VF = 9;      // vehicle pool: [type, lane, z, v, halfLen, flags, a, b, id]
 export const NC = 30, CF = 5;      // cell lines:   [count, lane, z0, spacing, takenMask]
@@ -177,7 +177,7 @@ function canister(g, lane, u) {
 // One row of traffic at u = g.genU. `g.path` is a lane the previous row left open; every row leaves a lane
 // open within one lane of it, so a route through always exists at the gear's cruising speed.
 function genRow(g) {
-  const G = GAME, gear = g.gear, u = g.genU, p = g.path, i = g.genI++;
+  const G = GAME, gear = g.gear, p = g.path, i = g.genI++; let u = g.genU;
   const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];   // closing speed at cruise; room for the stagger of this row and the next
   const kf = clamp((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);   // how far through the gears we are, 0..1
   const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf;
@@ -190,6 +190,7 @@ function genRow(g) {
   const eta = (u + g.tr - g.gd) / Math.max(1, gameBase(g) - g.vt + G.blockSlow), calm = eta > busyFor(g) + G.weaveFree + 0.3;
   const weaver = block && rnd(g) < G.weaveP[g.star] && calm;
   const mirror = block && !weaver && rnd(g) < G.mirrorP[g.star] && calm;
+  if (block) u += w * G.blockRoom;                            // (police ahead brake as we come up: they are met sooner than traffic, so they are set a little further on)
   let len = 5, first = 1, sgn = side();
   // nobody drives exactly abreast: each vehicle of a row sits a little ahead of or behind the row's line, alternately
   const off = (range) => { sgn = -sgn; return sgn * (range[0] + rnd(g) * (range[1] - range[0])); };
@@ -289,13 +290,14 @@ function stumble(g, out, by) {
 // Two things ahead cannot be planned round, because which lane they take is not settled yet: a cruiser still weaving, and a cruiser
 // waiting to cut us off. An attack that lasts `dur` seconds must be over well before we reach one (weaveFree s before a weaver,
 // and before the other makes up its mind), so a driver is never caught out of position by something he could not have known.
-function hazardPending(g, vel, dur) {
+// toMid: the attack drives us into the middle lane, from where either can still be dealt with: then it need only be over shortly before.
+function hazardPending(g, vel, dur, toMid) {
   const veh = g.veh, G = GAME;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, dz = veh[o + 2] - g.gd; if (!veh[o] || dz <= -6) continue;
     const eta = (dz - veh[o + 4] - CAR_HL) / Math.max(1, Math.max(vel, gameBase(g)) - veh[o + 3] + (veh[o] === T_BLOCK ? G.blockSlow : 0));
-    if (veh[o] === T_WEAVE && !(veh[o + 5] & COMMIT) && eta < dur + G.weaveFree) return true;
-    if ((veh[o + 5] & MIRROR) && eta < dur + G.taxiAt + 0.4) return true;
+    if (veh[o] === T_WEAVE && !(veh[o + 5] & COMMIT) && eta < dur + (toMid ? 0.8 : G.weaveFree)) return true;
+    if ((veh[o + 5] & MIRROR) && eta < dur + (toMid ? 1.3 : G.taxiAt + 0.4)) return true;
   }
   return false;
 }
@@ -346,7 +348,9 @@ export function stepGame(g, inp, out) {
   // Their picture of the road for the next seconds (js/foresight.js). An attack is laid over it as [lane, from, to] cells, and it only goes
   // ahead if a driver in our lane, given `react` seconds to see it, still has a way through: fair(cells) → 0 if not, else 1 + the lane changes needed.
   let grid0 = null;
-  const fair = (cells) => { const c = copyGrid(grid0 || (grid0 = threatGrid(g, inp.vel, { horizon: G.fairAhead }))); for (const [l, t0, t1] of cells) markCells(c, l, t0, t1); return wayThrough(c, inp.lane, react, G.fairSwitch); };
+  // (the picture is the forecast with everything on it lasting a little longer at either end, so a way through is one with room to spare;
+  //  the attack itself is laid on it as it is: its own timing is exact)
+  const fair = (cells) => { const c = copyGrid(grid0 || (grid0 = widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack))); for (const [l, t0, t1] of cells) markCells(c, l, t0, t1); return wayThrough(c, inp.lane, react, G.fairSwitch); };
 
   // ── vehicles ──
   // Warnings are timed for the speed we would be doing flat out, so easing off the brake never shortens one.
@@ -360,7 +364,7 @@ export function stepGame(g, inp, out) {
       const q = inp.lane;
       if (q !== 0) {
         veh[o + 6] = q; veh[o + 7] = gt; veh[o + 5] |= STEADY;
-        if (wayThrough(threatGrid(g, inp.vel, { horizon: G.fairAhead }), q, react, G.fairSwitch)) { grid0 = null; g.blkEv = gt; out.push({ k: 'mirror', lane: q }); }
+        if (wayThrough(widen(threatGrid(g, inp.vel, { horizon: G.fairAhead }), G.fairSlack), q, react, G.fairSwitch)) { grid0 = null; g.blkEv = gt; out.push({ k: 'mirror', lane: q }); }
         else { veh[o + 6] = 0; veh[o + 7] = 0; veh[o + 5] &= ~STEADY; }
       }
     }
@@ -435,7 +439,10 @@ export function stepGame(g, inp, out) {
         fl |= NEAR; g.near++; g.combo += G.comboNear; g.score += G.ptsNear * mult;
         out.push({ k: 'near', lane: veh[o + 1], pts: Math.round(G.ptsNear * mult) });
       }
-      if (!(fl & PASSED) && dz < -reach) { fl |= PASSED; g.passed++; g.combo++; g.score += G.ptsPass * mult; }
+      if (!(fl & PASSED) && dz < -reach) {
+        fl |= PASSED; g.passed++; g.combo++; g.score += G.ptsPass * mult;
+        if (dx < L * 1.5) out.push({ k: 'pass', side: Math.sign(vx - px), big: type === T_TRUCK ? 1 : 0 });   // it goes by in the next lane: you hear it
+      }
       if (lat && type < T_BLOCK && gap > 0 && gap < clamp(rel * G.draftT, 12, 60)) draft = 1;
     }
     veh[o + 5] = (fl & ~(LAT | LON)) | (lat ? LAT : 0) | (lon ? LON : 0);
@@ -498,7 +505,7 @@ export function stepGame(g, inp, out) {
   const think = gt >= g.aiNext; if (think) g.aiNext = gt + 0.05;
   let act = (g.polM !== P_TAIL ? 1 : 0) + (g.drT >= 0 ? 1 : 0) + (g.icM === I_TELL || g.icM === I_SLAM || g.icM === I_HOLD ? 1 : 0);
   const settled = Math.abs(px - inp.lane * L) < 1.0, maxAtk = star >= 5 ? 2 : 1;
-  const may = (dur) => think && settled && act < maxAtk && gt >= g.atkGap && !inp.nitro && gt > G.introT + 4 && !hazardPending(g, inp.vel, dur);
+  const may = (dur, toMid) => think && settled && act < maxAtk && gt >= g.atkGap && !inp.nitro && gt > G.introT + 4 && !hazardPending(g, inp.vel, dur, toMid);
   const go = (k, e) => { if (act) out.push({ k: 'pincer' }); act++; g.atkGap = gt + 0.9; grid0 = null; out.push({ k, ...e }); };
   const rest = () => { g.atkGap = Math.max(g.atkGap, gt + Math.max(G.rest[1], G.rest[0] - G.rest[2] * lv)); };      // an attack is over: a breath before the next
   // whose turn: the unit that has been ready longest. One that has waited two seconds without finding its moment lets the next one try as well.
@@ -517,7 +524,7 @@ export function stepGame(g, inp, out) {
     g.polZ += ((close ? (near ? -G.polClose : -G.chaseZ) : -G.polFar) - g.polZ) * eK(close ? (near ? 0.3 : 0.9) : 1.1);
     g.polX += (px + (close && !near ? (px > 0.5 ? -G.chaseX : G.chaseX) : 0) - g.polX) * eK(close && !near ? 0.5 : 0.3);   // on a long chase it sits off our rear quarter, on the side with more road
     const tRam = ramLen(warn);
-    if (star >= 2 && turn(g.ramNext) && may(tRam)) {
+    if (star >= 2 && turn(g.ramNext) && may(tRam, inp.lane !== 0)) {
       const l = inp.lane;
       if (fair([[l, warn + 0.05, tRam]])) {
         g.polM = P_WARN; g.polT = gt; g.polLane = l; g.polF = 0; g.polW = warn;
@@ -581,7 +588,7 @@ export function stepGame(g, inp, out) {
       if (u > G.icWait || star < 4) { g.icM = I_LEAVE; g.icT = gt; }                 // no opening, or called off: it drops back
       else if (u >= G.icPace && think && p !== -a) {                                   // our lane is the one beside it, or the middle one: it can reach us
         const cells = icMoveCells(g.icX, p, warn), T = icMoveT(g.icX, p);
-        if (may(cells[0][2]) && (p === a || laneWin(g, a, inp.vel, warn + T * 0.12 - 0.1, warn + T * 0.85 + 0.1)) && fair(cells)) {
+        if (may(cells[0][2], p === a) && (p === a || laneWin(g, a, inp.vel, warn + T * 0.12 - 0.1, warn + T * 0.85 + 0.1)) && fair(cells)) {
           g.icM = I_TELL; g.icT = gt; g.icFrom = g.icX; g.icTo = p; g.icW = warn;
           go('ictell', { lane: p, side: a });
         }
@@ -627,7 +634,7 @@ export function stepGame(g, inp, out) {
         const l = inp.lane, want = gt > g.drNext + 2.5 ? H_LANE : g.drWant, side = g.bias > 0.15 ? 1 : g.bias < -0.15 ? -1 : g.hSide;
         let pick = null, hard = 0;
         // it tries each way of doing it, firing on time or a little late, and takes the one that leaves a way through but the hardest one
-        const tryIt = (pat, ln, b) => { for (const late of (pat ? G.drLate : [0])) { const S = heliStrikes(pat, ln, b, warn + 0.1 + late); if (!may(S[S.length - 1][2])) return; const n = fair(S.map(([x, t0, t1]) => [x, t0 - 0.1, t1 + 0.05])); if (n > hard) { hard = n; pick = [pat, ln, b, warn + 0.1 + late]; } } };
+        const tryIt = (pat, ln, b) => { for (const late of (pat ? G.drLate : [0])) { const S = heliStrikes(pat, ln, b, warn + 0.1 + late); if (!may(S[S.length - 1][2], pat === H_LANE && ln !== 0)) return; const n = fair(S.map(([x, t0, t1]) => [x, t0 - 0.1, t1 + 0.05])); if (n > hard) { hard = n; pick = [pat, ln, b, warn + 0.1 + late]; } } };
         if (want === H_TWIN) { for (const b of (l === 0 ? [side, -side] : [0])) tryIt(H_TWIN, l, b); }
         else if (want === H_WALK) { for (const b of [side, -side]) tryIt(H_WALK, -b, b); }
         else tryIt(H_LANE, l, 0);
@@ -652,11 +659,14 @@ export function stepGame(g, inp, out) {
     }
   } else { g.drT = -1; g.drNext = gt + 3; }
   // where the helicopter hangs and where its searchlight falls: wandering while it searches, on the lane once locked
-  const lk = g.drT >= 0, hT = lk ? g.drLane * L : Math.sin(gt * 0.37) * 6;
+  // (what it aims at: the lane it is firing on or will fire on next; with two lanes lit at once, the one we are in)
+  let aim = g.drLane;
+  if (g.drT >= 0 && g.drPat === H_WALK) { const u = gt - g.drT; for (const [ln, , t1] of heliStrikes(g.drPat, g.drLane, g.drB, g.drW)) { aim = ln; if (u < t1) break; } }
+  const lk = g.drT >= 0, hT = lk ? aim * L : Math.sin(gt * 0.37) * 6;
   g.hb += (clamp((hT - g.hx) * 0.045, -0.3, 0.3) - g.hb) * eK(0.2);          // it banks into its sideways moves
   g.hx += (hT - g.hx) * eK(lk ? 0.3 : 0.9);
   g.ha += (g.hOn - g.ha) * eK(g.hOn ? 0.8 : 1.0);                            // flying in, or flying off
-  g.sx += ((lk ? g.drLane * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
+  g.sx += ((lk ? aim * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
   g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
 
   g.score += inp.vel * DT * G.ptsDist * mult;

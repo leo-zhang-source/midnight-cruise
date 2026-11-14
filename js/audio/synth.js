@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { SR, TICK, TPB, IGN, TURBO, BAR, ignitionBar, cruiseBar, turboNotes, cruiseChord, neonPower } from '../cue.js';
 import { Timeline } from '../timeline.js';
-import { policeClose } from '../game.js';
+import { policeClose, revs } from '../game.js';
 import { REVCRASH_PEAK } from './samples.js';
 
 const TAU = Math.PI * 2;
@@ -378,6 +378,27 @@ class Click extends Voice { // mechanical button: noise tick + body thump
     return t < 0.3;
   }
 }
+class Pass extends Voice { // a vehicle goes by in the next lane: a rush of air on that side, its pitch falling as it passes
+  constructor(s, o, side, big) { super(s, o); this.big = big; this.r = new RNG(s.seed()); this.f = new SVF(); this.l = panL(side * 0.8); this.rg = panR(side * 0.8); }
+  tick(B, i, t) {
+    const d = this.big ? 0.5 : 0.26;
+    if ((this.n & 15) === 0) this.f.set((this.big ? 300 : 520) + (this.big ? 900 : 1700) * exp(-t / (d * 0.45)), 1.1);
+    const y = this.f.bp(this.r.next()) * Math.min(1, t / 0.03) * exp(-t / (d * 0.5)) * (this.big ? 0.085 : 0.055);
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.rg;
+    return t < d * 3;
+  }
+}
+class Skid extends Voice { // tyres: a cruiser swerving hard across a lane
+  constructor(s, o) { super(s, o); this.r = new RNG(s.seed()); this.f = new SVF(); this.ph = 0; }
+  tick(B, i, t) {
+    if ((this.n & 15) === 0) this.f.set(1250 - 380 * t / 0.45 + 60 * sin(TAU * 23 * t), 7);
+    this.ph += (1180 - 300 * t / 0.45) / SR;
+    const env = Math.min(1, t / 0.025) * (t < 0.3 ? 1 : exp(-(t - 0.3) / 0.07));
+    const y = (this.f.bp(this.r.next()) * 0.16 + sin(TAU * this.ph) * 0.012) * env;
+    B.sfxL[i] += y; B.sfxR[i] += y;
+    return t < 0.65;
+  }
+}
 class Squeal extends Voice { // tape rewind / fast-forward chatter
   constructor(s, o, d, up) { super(s, o); this.d = d; this.up = up; this.p = [0, 0, 0]; this.r = new RNG(s.seed()); this.hp = new SVF(); this.hp.set(2500, 0.7); }
   tick(B, i, t) {
@@ -504,7 +525,7 @@ export class Synth {
     // ambience
     this.sirG = 0; this.sirP = 0; this.sirW = 0;   // police siren: level, oscillator phase, wail phase
     this.heliG = 0; this.heliP = 0; this.heliF = new SVF(); this.heliR = new RNG(91);   // helicopter rotor: level, blade phase, noise
-    this.eng = [new Saw(0), new Saw(0.5)]; this.engLp = new SVF(); this.windL = new SVF(); this.windR = new SVF(); this.wr = [new RNG(77), new RNG(78)];
+    this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)]; this.engF = 60; this.engLp = new SVF(); this.windL = new SVF(); this.windR = new SVF(); this.wr = [new RNG(77), new RNG(78)];
     this.levels = { music: 0, peak: 0 };
     this.smp = {};
   }
@@ -560,6 +581,13 @@ export class Synth {
       case 'rewind': v = new Squeal(s, o, n.d ?? 0.6, false); break;
       case 'rewindlong': v = new Squeal(s, o, 1.25, false); break;
       // game
+      case 'passL': v = new Pass(s, o, -1, 0); break;
+      case 'passR': v = new Pass(s, o, 1, 0); break;
+      case 'passBL': v = new Pass(s, o, -1, 1); break;
+      case 'passBR': v = new Pass(s, o, 1, 1); break;
+      case 'skid': v = new Skid(s, o); break;
+      case 'yelp': v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5); for (let k = 1; k < 8; k++) this.voices.push(new Blip(s, o, k % 2 ? 900 : 1250, k % 2 ? 1250 : 900, 0.09, 0.05, k % 2 ? -0.5 : 0.5, k * 0.13)); break;   // the interceptor's siren: a fast yelp
+      case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4)); break;   // the threat level rises
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
       case 'smash': v = new Click(s, o, 1.0, 1); this.voices.push(new Blip(s, o, 1500, 240, 0.09, 0.1), new Blip(s, o, 2600, 900, 0.05, 0.05, 0.3, 0.03)); break;
       case 'swipe': v = new Click(s, o, 1.1, 1); this.voices.push(new Blip(s, o, 260, 85, 0.1, 0.16)); break;
@@ -684,14 +712,22 @@ export class Synth {
     // ambience (engine + wind), follows speed
     const vel = Math.abs(this._st.vel), thr = this._st.thr;
     const ambG = active ? 1 : 0;
-    this.engLp.set(140 + vel * 2.2, 0.8);
+    // On a run the engine works through its gears: its note climbs with the revs and falls back at each change (a short glide, so
+    // the change is heard as one), and it is louder and brighter the harder it is working.
+    let ef = 46 + vel * 0.42, eg = 0.016 * (0.5 + thr) * ambG, ec = 140 + vel * 2.2;
+    if (ph.phase === 'cruise' && this._st.run > 0 && !this._st.over) {
+      const rv = Math.max(-0.25, Math.min(1.15, revs(this._st.g, vel)));
+      this.engF += (50 * (1 + 1.1 * rv) - this.engF) * (1 - exp(-(N / SR) / 0.06));
+      ef = this.engF; eg = (0.019 + 0.013 * Math.max(0, rv)) * (0.45 + 0.55 * thr); ec = 170 + vel * 1.5 + 520 * Math.max(0, rv) * thr;
+    } else this.engF = ef;
+    this.engLp.set(ec, 0.9);
     this.windL.set(250 + vel * 22, 0.7); this.windR.set(280 + vel * 24, 0.7);
-    const ef = 46 + vel * 0.42, eg = 0.016 * (0.5 + thr) * ambG, wg = 0.0009 * Math.pow(vel, 1.1) * ambG;
+    const wg = 0.0009 * Math.pow(vel, 1.1) * ambG;
     // the police siren, behind us for the whole run: distant while they hang back, loud and fast when they are on the tail
     {
       const st = this._st, g = st.g, run = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
       const close = run && (st.over === 2 || policeClose(g));
-      const tgt = !run ? 0 : close ? 0.034 : 0.006 + 0.003 * g.star, rate = close ? 3.1 : 0.62;
+      const tgt = !run ? 0 : close ? 0.034 : 0.006 + 0.003 * Math.min(4, g.star), rate = close ? 3.1 : 0.62;
       if (tgt > 0 || this.sirG > 1e-5) {
         const kA = 1 - exp(-1 / (0.25 * SR));
         for (let i = 0; i < N; i++) {
@@ -754,7 +790,7 @@ export class Synth {
         }
       } else if (mus.since + i / SR < 0.15) { const g = (mus.since + i / SR) / 0.15; mL *= g; mR *= g; }
       // ambience
-      const eo = this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01)) * eg;
+      const eo = this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
       const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
       let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
       // glue compressor (stereo linked, gentle)

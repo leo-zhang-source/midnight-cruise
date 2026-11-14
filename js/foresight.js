@@ -76,6 +76,15 @@ export function markCells(grid, l, t0, t1) {
   for (let k = Math.max(0, Math.floor(t0 / FS_STEP)); k <= Math.min(K, Math.ceil(t1 / FS_STEP)); k++) b[k] = 1;
 }
 export function copyGrid(grid) { return { blocked: grid.blocked.map((b) => b.slice()), K: grid.K }; }
+// Everything that blocks a lane, made to last n steps longer at either end. The police plan on this wider picture: a way through it is
+// a way through with room to spare, so it is still there when things turn out a tenth of a second off the forecast.
+export function widen(grid, n) {
+  for (const b of grid.blocked) {
+    const src = b.slice();
+    for (let k = 0; k <= grid.K; k++) if (src[k]) for (let j = Math.max(0, k - n); j <= Math.min(grid.K, k + n); j++) b[j] = 1;
+  }
+  return grid;
+}
 // A search over (time, lane): from (k, lane), how long can a driver survive (up to the horizon) and with how few lane changes?
 // A lane change takes M steps, during which both lanes must be clear. opt.hold: no lane change may start before this step
 // (the time a driver needs to see what is coming and react).

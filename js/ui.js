@@ -17,7 +17,7 @@ export class UI {
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
-      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'),
+      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'), ovLevel: $('ov-level'), gLv: $('g-lv'),
       gpops: $('gpops'), pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), revive: $('revive'), live: $('g-live'),
       ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovDist: $('ov-dist'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovNear: $('ov-near'), ovTapes: $('ov-tapes'),
     };
@@ -185,6 +185,7 @@ export class UI {
     for (const e of evs) {
       const k = e.k;
       if (k === 'near') this.sfx('near');
+      else if (k === 'pass') this.sfx('pass' + (e.big ? 'B' : '') + (e.side < 0 ? 'L' : 'R'));
       else if (k === 'smash' || k === 'wreck') this.sfx('smash');
       else if (k === 'shake') this.sfx('chime');
       else if (k === 'swipe') this.sfx('swipe');
@@ -192,8 +193,12 @@ export class UI {
       else if (k === 'gear') this.sfx('gear');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
       else if (k === 'stumble' || k === 'tail' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
-      else if (k === 'ramwarn' || k === 'lock') this.sfx('lock');
+      else if (k === 'ramwarn' || k === 'lock' || k === 'ictell') this.sfx('lock');
       else if (k === 'block' || k === 'weave') this.sfx('siren');
+      else if (k === 'icwarn') this.sfx('yelp');
+      else if (k === 'slam' || k === 'mirror') this.sfx('skid');
+      else if (k === 'level') { if (e.n) this.sfx('alert'); }
+      else if (k === 'clear') this.sfx('chime');
       else if (k === 'strike') this.sfx('burst');
       else if (k === 'shove') this.sfx('smash');
       else if (k === 'go') this.sfx('whoosh');
@@ -367,6 +372,7 @@ export class UI {
       set('gMult', Gm.mult.toFixed(1), (v) => { E.gMult.textContent = '×' + v; });
       set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
       set('gStars', Gm.star + (Gm.lives < 2 ? 'h' : ''), () => { E.gStars.dataset.n = Gm.star; E.gStars.dataset.hot = Gm.lives < 2 ? '1' : '0'; });
+      set('gLv', Gm.level, (v) => { E.gLv.textContent = 'LV ' + v; E.gLv.dataset.hot = v >= 6 ? '2' : v >= 3 ? '1' : '0'; });
       set('gTapes', Gm.tapes, (v) => { E.gTapes.dataset.n = v; });
       set('gLives', Gm.over ? 0 : Gm.lives, (v) => { E.gLives.dataset.n = v; });
     }
@@ -395,7 +401,8 @@ export class UI {
     // (steady when motion is reduced)
     const lvl = !on || Gm.paused || Gm.rew ? 0 : Gm.over === 2 ? 1 : Gm.over ? 0 : Gm.pol ? 0.85 : 0.16 + 0.07 * Gm.star;
     const ph = s.reduced ? 0.5 : (T * (lvl > 0.5 ? 2.6 : 1.3)) % 1;
-    const l = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 1 : 0.12), r = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 0.12 : 1);
+    let l = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 1 : 0.12), r = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 0.12 : 1);
+    if (lvl && Gm.ic) { const fl = s.reduced ? 0.7 : (T * 6) % 1 < 0.5 ? 1 : 0.2; if (Gm.ic < 0) l = Math.max(l, fl); else r = Math.max(r, fl); }   // an interceptor on that shoulder: that corner flashes fast
     set('pol', lvl ? l.toFixed(2) + r.toFixed(2) : '', (v) => { E.police.style.visibility = v ? 'visible' : 'hidden'; if (v) { E.police.children[0].style.opacity = l; E.police.children[1].style.opacity = r; } });
     // run over
     const show = on && Gm.over && Gm.overU >= GAME.overLock ? Gm.run * 10 + Gm.over : 0;
@@ -408,7 +415,7 @@ export class UI {
       E.overTitle.textContent = Gm.over === 2 ? 'BUSTED' : 'WRECKED';
       E.ovScore.textContent = Gm.score.toLocaleString('en-US'); E.ovBest.textContent = best.toLocaleString('en-US'); E.ovBestL.textContent = isNew ? 'NEW BEST' : 'BEST';
       E.ovDist.textContent = (S.dist / 1000).toFixed(2) + ' KM'; E.ovSpeed.textContent = Math.round(S.vmax * GAME.mph) + ' MPH';
-      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near; E.ovSmash.textContent = S.smash; E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(3 - S.star);
+      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near; E.ovSmash.textContent = S.smash; E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(5 - S.star); E.ovLevel.textContent = S.level;
       const can = Gm.tapes > 0;
       E.ovTapes.textContent = Gm.tapes === 1 ? '1 TAPE' : Gm.tapes + ' TAPES'; E.revive.disabled = !can; E.ovRk.hidden = !can;
       try { (can ? E.revive : E.home).focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }
