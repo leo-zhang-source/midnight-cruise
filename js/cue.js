@@ -49,7 +49,7 @@ export const IGN = {
 export const TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
-export const AUTO_ENV = { time: 40, dist: 3500 };
+export const AUTO_ENV = { time: 40, dist: 5200 };
 // ── The game: a police chase down the highway into the city (all values in road units and seconds) ──
 // Same-direction traffic shares ONE speed, so formations never close up and a row that was passable when it was
 // generated stays passable. The car always drives flat out; the brake buys reaction time but lets the police close in.
@@ -129,7 +129,7 @@ export const GAME = {
   // from the shoulder into the lane beside it, or, if we are in the middle, straight across that lane (when the traffic leaves a gap) and into us.
   // icPace: the least time it rides level first · icWait: how long it waits on the shoulder for its moment before it drops back ·
   // icMove, icHold: the swerve (one lane; two take 1.7 times as long) and how long it stays · icOut: seconds out of action after we ram it in a nitro burst
-  icEvery: [7, 11], icV: 30, icZ0: -46, icZp: -0.4, icShoulder: 1.74, icPace: 0.5, icWait: 6.5, icMove: 0.4, icHold: 0.45, icBack: 34, icOut: 14,
+  icEvery: [7, 11], icV: 30, icZ0: -46, icZp: -0.4, icShoulder: 1.7, icPace: 0.5, icWait: 6.5, icMove: 0.4, icHold: 0.45, icBack: 34, icOut: 14,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80, ptsDodge: 300,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
   tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash

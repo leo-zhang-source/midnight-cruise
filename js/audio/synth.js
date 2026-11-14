@@ -383,7 +383,7 @@ class Pass extends Voice { // a vehicle goes by in the next lane: a rush of air 
   tick(B, i, t) {
     const d = this.big ? 0.5 : 0.26;
     if ((this.n & 15) === 0) this.f.set((this.big ? 300 : 520) + (this.big ? 900 : 1700) * exp(-t / (d * 0.45)), 1.1);
-    const y = this.f.bp(this.r.next()) * Math.min(1, t / 0.03) * exp(-t / (d * 0.5)) * (this.big ? 0.085 : 0.055);
+    const y = this.f.bp(this.r.next()) * Math.min(1, t / 0.03) * exp(-t / (d * 0.5)) * (this.big ? 0.4 : 0.27);
     B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.rg;
     return t < d * 3;
   }

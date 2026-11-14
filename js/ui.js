@@ -17,7 +17,7 @@ export class UI {
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
-      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'), ovLevel: $('ov-level'), gLv: $('g-lv'),
+      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'), gLv: $('g-lv'),
       gpops: $('gpops'), pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), revive: $('revive'), live: $('g-live'),
       ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovDist: $('ov-dist'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovNear: $('ov-near'), ovTapes: $('ov-tapes'),
     };
@@ -415,7 +415,7 @@ export class UI {
       E.overTitle.textContent = Gm.over === 2 ? 'BUSTED' : 'WRECKED';
       E.ovScore.textContent = Gm.score.toLocaleString('en-US'); E.ovBest.textContent = best.toLocaleString('en-US'); E.ovBestL.textContent = isNew ? 'NEW BEST' : 'BEST';
       E.ovDist.textContent = (S.dist / 1000).toFixed(2) + ' KM'; E.ovSpeed.textContent = Math.round(S.vmax * GAME.mph) + ' MPH';
-      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near; E.ovSmash.textContent = S.smash; E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(5 - S.star); E.ovLevel.textContent = S.level;
+      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near; E.ovSmash.textContent = S.smash + ' · ' + S.dodges; E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(5 - S.star) + ' LV' + S.level;
       const can = Gm.tapes > 0;
       E.ovTapes.textContent = Gm.tapes === 1 ? '1 TAPE' : Gm.tapes + ' TAPES'; E.revive.disabled = !can; E.ovRk.hidden = !can;
       try { (can ? E.revive : E.home).focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }

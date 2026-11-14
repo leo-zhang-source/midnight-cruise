@@ -132,7 +132,7 @@ function makeGlows() {
           float cross = (smoothstep(0.05, 0.02, abs(q.x)) + smoothstep(0.012, 0.004, abs(q.y))) * 0.5 * step(box, 0.8);
           a = outline + stripes + cross + smoothstep(0.9, 0.0, box) * 0.14;
         } else if (t < 7.5) {                        // 7 · chevrons running along +U
-          float c1 = abs(fract(q.x * 2.2 - abs(q.y) * 0.8 - uT * 3.0) - 0.5);
+          float c1 = abs(fract(q.x * 2.2 + abs(q.y) * 0.8 - uT * 3.0) - 0.5);   // (the point of each chevron leads, the way it runs)
           a = smoothstep(0.22, 0.1, c1) * smoothstep(1.0, 0.8, abs(q.y)) * smoothstep(1.0, 0.5, abs(q.x));
         } else if (t < 8.5) {                        // 8 · beam
           a = smoothstep(1.0, 0.0, abs(q.x)) * (0.2 + 0.8 * smoothstep(-1.0, 1.0, q.y)) * 0.5;

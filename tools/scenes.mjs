@@ -12,7 +12,7 @@ const [out = 'renders/scenes', size = '1280x720', seedArg = '1000', only = ''] =
 const [w, h] = size.split('x').map(Number), seed = +seedArg;
 mkdirSync(out, { recursive: true });
 
-const r = play(seed, 200, { nitro: false });
+const r = play(seed, 260, { nitro: false });
 const gev = r.tl.gameEvents(0, 1e9), first = (k, after = 0) => gev.find((e) => e.k === k && e.t > after);
 const shots = [];
 const clean = r.ev;
@@ -24,7 +24,7 @@ shots.push(['traffic_a', clean, 12], ['traffic_b', clean, 21.5], ['traffic_c', c
 const lk = first('lock'); if (lk) shots.push(['heli_search', clean, lk.t - 1.5], ['heli_lock', clean, lk.t + 0.8], ['heli_fire', clean, lk.t + 1.4]);
 const s3 = gev.find((e) => e.k === 'star' && e.n === 3); if (s3) shots.push(['heli_in_a', clean, s3.t + 0.5], ['heli_in_b', clean, s3.t + 1.0], ['heli_in_c', clean, s3.t + 1.7], ['heli', clean, s3.t + 3]);
 // the first vehicle (by id) that satisfies `test` at some moment: when(test) → [T, id] or null
-const when = (test, from = 6, id = 0) => { for (let T = from; T < 200; T += 0.02) { const g = r.tl.stateAt(T).g; for (let i = 0; i < NV; i++) { const o = i * VF; if (g.veh[o] && (!id || g.veh[o + 8] === id) && test(g.veh, o, g.veh[o + 2] - g.gd, g)) return [T, g.veh[o + 8]]; } } return null; };
+const when = (test, from = 6, id = 0) => { for (let T = from; T < 260; T += 0.02) { const g = r.tl.stateAt(T).g; for (let i = 0; i < NV; i++) { const o = i * VF; if (g.veh[o] && (!id || g.veh[o + 8] === id) && test(g.veh, o, g.veh[o + 2] - g.gd, g)) return [T, g.veh[o + 8]]; } } return null; };
 // a taxi steering across a lane: early, half-way, straightening up
 { const m = (v, o, g) => (g.gt - v[o + 7] - GAME.taxiBlink) / GAME.taxiMove, cut = (lo) => (v, o, dz, g) => v[o] === T_TAXI && v[o + 6] !== 0 && v[o + 7] > 0 && m(v, o, g) > lo;
   const a = when(cut(0.3)); if (a) { shots.push(['taxi_cut_a', clean, a[0]]); const b = when(cut(0.5), a[0], a[1]), c = when(cut(0.8), a[0], a[1]); if (b) shots.push(['taxi_cut_b', clean, b[0]]); if (c) shots.push(['taxi_cut_c', clean, c[0]]); } }
@@ -36,16 +36,23 @@ const when = (test, from = 6, id = 0) => { for (let T = from; T < 200; T += 0.02
 // a weaving cruiser: mid-swing, just after it has picked its lane, and as we pass it
 { const a = when((v, o, dz, g) => v[o] === T_WEAVE && dz < 130 && !(v[o + 5] & COMMIT) && Math.abs(v[o + 1]) > 0.35 && Math.abs(v[o + 1]) < 0.65, 20);
   if (a) { shots.push(['weave_a', clean, a[0]]); const b = when((v, o) => v[o + 5] & COMMIT, a[0], a[1]); if (b) shots.push(['weave_b', clean, b[0] + 0.25]); const c = when((v, o, dz) => dz < 16, a[0], a[1]); if (c) shots.push(['weave_c', clean, c[0]]); } }
+// four and five stars: the interceptor on the shoulder, signalling, swerving; twin searchlights; the walking barrage; the cruiser that cuts us off; a merge
+{ const tell = first('ictell'), sl = tell && first('slam', tell.t); if (tell) shots.push(['ic_level', clean, tell.t - 0.5], ['ic_tell', clean, tell.t + 0.6]); if (sl) shots.push(['ic_swerve', clean, sl.t + 0.22], ['ic_after', clean, sl.t + 0.7]);
+  const tw = gev.find((e) => e.k === 'lock' && e.pat === 1); if (tw) { const W = r.tl.stateAt(tw.t + 0.01).g.drW; shots.push(['twin_lock', clean, tw.t + W * 0.7], ['twin_fire', clean, tw.t + W + 0.2]); }
+  const wk = gev.find((e) => e.k === 'lock' && e.pat === 2); if (wk) { const W = r.tl.stateAt(wk.t + 0.01).g.drW, P = GAME.drStrike + GAME.drGap; shots.push(['walk_lock', clean, wk.t + W * 0.7], ['walk_1', clean, wk.t + W + 0.2], ['walk_2', clean, wk.t + W + P + 0.2], ['walk_3', clean, wk.t + W + 2 * P + 0.2]); }
+  const mi = first('mirror'); if (mi) shots.push(['cutoff_a', clean, mi.t + 0.35], ['cutoff_b', clean, mi.t + 0.95]);
+  const mg = when((v, o, dz, g) => (v[o] === 1 || v[o] === 2) && v[o + 6] !== 0 && v[o + 7] > 0 && g.gt - v[o + 7] > 0.8, 20); if (mg) shots.push(['merge', clean, mg[0]]);
+  const lv = gev.find((e) => e.k === 'level' && e.n === 3); if (lv) shots.push(['level3', clean, lv.t + 0.5]); }
 const mod = (a, n) => ((a % n) + n) % n;
-if (s3) for (let T = s3.t + 4, k = 0; T < 200 && k < 3; T += 0.02) {             // the helicopter lifting over a sign gantry
+if (s3) for (let T = s3.t + 4, k = 0; T < 260 && k < 3; T += 0.02) {             // the helicopter lifting over a sign gantry
   const d = Math.min(mod(1500 - r.tl.stateAt(T).pos, 4800), mod(3900 - r.tl.stateAt(T).pos, 4800));
   if (d < [130, 62, 20][k] && d > 5) shots.push(['heli_gantry_' + 'abc'[k++], clean, T]);
 }
-for (let T = 6, sg = 0; T < 200 && !sg; T += 0.05) {             // a roadside sign coming up
+for (let T = 6, sg = 0; T < 260 && !sg; T += 0.05) {             // a roadside sign coming up
   const pos = r.tl.stateAt(T).pos;
   if (!sg && Math.abs(mod(1100 - pos, 4800) - 75) < 4) { shots.push(['roadsign', clean, T]); sg = 1; }
 }
-for (let T = 6, g = 0, bb = 0; T < 200 && !(g && bb); T += 0.05) {
+for (let T = 6, g = 0, bb = 0; T < 260 && !(g && bb); T += 0.05) {
   const pos = r.tl.stateAt(T).pos;
   if (!g && Math.abs(mod(1500 - pos, 4800) - 75) < 4) { shots.push(['gantry', clean, T]); g = 1; }
   if (!bb && T > 30 && Math.abs(mod(2300 - pos, 4800) - 110) < 4) { shots.push(['billboard', clean, T]); bb = 1; }

@@ -5,7 +5,8 @@
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
 import { GAME } from '../js/cue.js';
-import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, STEADY, CAR_HL, freshGame, stepGame, laneV, laneRate, gameBase } from '../js/game.js';
+import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_CAR, T_VAN, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, STEADY, CAR_HL, H_TWIN, H_WALK, I_OFF, freshGame, stepGame, laneV, laneRate, gameBase, baseAt, heliStrikes, revs } from '../js/game.js';
+import { threatGrid, wayThrough } from '../js/foresight.js';
 import { play } from './bot.mjs';
 const ok = (n, c, i = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); if (!c) process.exitCode = 1; };
 const C = 1.9;   // cruise start of the test timelines (start 1.0, skip 1.5, 0.4 s fast-forward)
@@ -37,7 +38,9 @@ let crashT;
   ok('a run opens with the police on the bumper, then the car launches', policeClose(a.g) && a.g.polZ > -8 && a.vel < 25 && !policeClose(b.g) && b.g.polZ < -15 && b.vel > GAME.gears[0] - 2 && b.g.star === 1, `0.8 s: ${a.vel.toFixed(0)} u/s, police ${(-a.g.polZ).toFixed(1)} behind · 4.5 s: ${b.vel.toFixed(0)} u/s, police ${(-b.g.polZ).toFixed(1)} behind`);
   tl.add('brk', C + 4.6, { on: true }); tl.add('brk', C + 6.0, { on: false });
   const c = tl.stateAt(C + 5.95), d = tl.stateAt(C + 7.1);
-  ok('the brake slows to 55 %, releasing it returns to full speed', Math.abs(c.vel / GAME.gears[0] - GAME.brakeMul) < 0.04 && d.vel > GAME.gears[0] * 0.93, `${c.vel.toFixed(1)} → ${d.vel.toFixed(1)} u/s`);
+  ok('the brake slows to 55 %, releasing it returns to full speed', Math.abs(c.vel / gameBase(c.g) - GAME.brakeMul) < 0.04 && d.vel > gameBase(d.g) * 0.93, `${c.vel.toFixed(1)} → ${d.vel.toFixed(1)} u/s`);
+  { const v = [4.6, 4.7, 4.8, 4.9, 6.0, 6.2, 6.4].map((t) => tl.stateAt(C + t).vel), dec = Math.max(v[0] - v[1], v[1] - v[2], v[2] - v[3]) / 0.1, acc = Math.max(v[5] - v[4], v[6] - v[5]) / 0.2;
+    ok('the car has weight: it sheds speed no faster than its brakes allow and regains it no faster than its engine does', dec <= GAME.brake + 0.5 && dec > GAME.brake * 0.6 && acc <= GAME.accel + 0.5 && acc > GAME.accel * 0.6, `at most ${dec.toFixed(0)} u/s² on the brake, ${acc.toFixed(0)} u/s² back up`); }
   const st = tl.stateAt(C + 16);
   crashT = st.overT;
   const evs = tl.gameEvents(0, C + 30), hit1 = evs.find((e) => e.k === 'stumble'), end = evs.find((e) => e.k === 'over'), mid = tl.stateAt(hit1.t + 0.3);
@@ -116,14 +119,21 @@ let crashT;
   const freed = t5.stateAt(hit.T + 3.2), fev = kinds(t5, hit.T + 1, hit.T + 3.2);
   ok('a nitro burst shakes them off and gives the life back', fev.includes('shake') && freed.g.lives === 2 && (freed.over !== 0 || !policeClose(freed.g)), `events ${fev.filter((k) => k !== 'cell').join(',')}`);
   ok('… and counts as the first of three towards clearing the heat', t5.gameEvents(hit.T + 1, hit.T + 3.2).some((e) => e.k === 'nuse' && e.n === 1) && (freed.over !== 0 || freed.g.nUse === 1));
-  // the third nitro burst clears the heat: back to one star, and the road count for the next stars starts again
+  // the third nitro burst cools the heat by two stars, and the road count for the next star starts from there
   { const g = freshGame(5); g.genU = 1e12; const out = [], step = (n, nitro) => { for (let i = 0; i < n; i++) stepGame(g, { dt: 1 / 240, x: 0, lane: 0, vel: 90, brk: 0, nitro }, out); };
-    g.gd = GAME.star3At + 10; step(240, 0); const s0 = g.star; step(240, 1); step(240, 0); step(240, 1); step(240, 0); const s2 = g.star; step(240, 1); step(240, 0); const s3 = g.star, d0 = g.gd;
-    const back2 = () => { while (g.star < 2 && g.gd < d0 + 1e5) step(24, 0); return g.gd - d0; };
+    g.gd = GAME.starAt[4] + 10; step(240, 0); const s0 = g.star; step(240, 1); step(240, 0); step(240, 1); step(240, 0); const s2 = g.star; step(240, 1); step(240, 0); const s3 = g.star, d0 = g.gd;
+    const back = () => { while (g.star < 4 && g.gd < d0 + 1e5) step(24, 0); return g.gd - d0; };
     const ks = out.map((e) => e.k).filter((k) => k === 'nuse' || k === 'clear').join(',');
-    ok('three nitro bursts clear the heat: three stars stay through two bursts and go with the third', s0 === 3 && s2 === 3 && s3 === 1 && ks === 'nuse,nuse,clear', `${s0} → ${s2} → ${s3} (${ks})`);
-    const d2 = back2();
-    ok('after that the stars come back slowly: two only after another star2At of road', Math.abs(d2 - (GAME.star2At - 90 * 1)) < 120, `two stars again ${d2.toFixed(0)} units later`); }
+    ok('three nitro bursts cool the heat: five stars stay through two bursts, the third takes two of them', s0 === 5 && s2 === 5 && s3 === 5 - GAME.clearDrop && ks === 'nuse,nuse,clear', `${s0} → ${s2} → ${s3} (${ks})`);
+    const d2 = back(), want = GAME.starAt[3] - GAME.starAt[2] - 90;
+    ok('after that the next star comes back with the road, as it did the first time', Math.abs(d2 - want) < 120, `four stars again ${d2.toFixed(0)} units later (${want} expected)`); }
+  // the threat level: one more every lvEvery seconds, never down; from starFloorLv it keeps the stars from falling to one
+  { const g = freshGame(5); g.genU = 1e12; const out = [], step = (n, nitro = 0) => { for (let i = 0; i < n; i++) stepGame(g, { dt: 1 / 240, x: 0, lane: 0, vel: 90, brk: 0, nitro }, out); };
+    step(Math.round(240 * (GAME.lvEvery * GAME.starFloorLv[1] + 1)));
+    const lv = out.filter((e) => e.k === 'level').map((e) => e.n);
+    ok('the threat level rises by one every lvEvery seconds', lv.join() === Array.from({ length: GAME.starFloorLv[1] }, (_, i) => i + 1).join() && g.lvN === GAME.starFloorLv[1], `levels ${lv.join(' ')} in ${g.gt.toFixed(0)} s`);
+    g.heat = 1; g.wd0 = g.gd; step(24);
+    ok('… and from level ' + GAME.starFloorLv[1] + ' the wanted level never drops below two stars', g.star === 2, `${g.star}★ straight after the heat is wiped`); }
   // a second stumble while the police are on the tail → busted
   const t3 = new Timeline(); t3.load(base);
   t3.stateAt(hit.T - 0.004); t3._st.g.lives = 1;                  // one life is already gone (edit the live state)
@@ -138,27 +148,66 @@ let crashT;
   const tl = new Timeline(); tl.load(r.ev);
   const ev = tl.gameEvents(0, C + 200);
   const star = (n) => ev.find((e) => e.k === 'star' && e.n === n), at = (e) => tl.stateAt(e.t + 0.01).g.gd;
-  const s2 = star(2), s3 = star(3);
-  ok('stars rise with distance: two after star2At of road, three after star3At', s2 && s3 && Math.abs(at(s2) - GAME.star2At) < 5 && Math.abs(at(s3) - GAME.star3At) < 5, `2★ at ${at(s2).toFixed(0)}, 3★ at ${at(s3).toFixed(0)}`);
+  const s2 = star(2), s3 = star(3), s4 = star(4), s5 = star(5);
+  ok('stars rise with distance: one more at each of starAt', [s2, s3, s4, s5].every((e, i) => e && Math.abs(at(e) - GAME.starAt[i + 1]) < 5), [s2, s3, s4, s5].map((e, i) => `${i + 2}★ at ${e ? at(e).toFixed(0) : '–'}`).join(', '));
   const firstRam = ev.find((e) => e.k === 'ramwarn'), firstLock = ev.find((e) => e.k === 'lock'), firstBlock = (() => { for (let T = s2.t; T < C + 200; T += 0.25) { const g = tl.stateAt(T).g; for (let i = 0; i < NV; i++) if (g.veh[i * VF] === 5) return T; } return null; })();
   ok('2 stars: roadblocks and grappler runs; 3 stars: searchlight locks', firstRam && firstRam.t > s2.t && firstBlock !== null && firstLock && firstLock.t > s3.t && !ev.some((e) => e.k === 'lock' && e.t < s3.t), `first roadblock ${(firstBlock - C).toFixed(0)} s, first grappler run ${(firstRam.t - C).toFixed(0)} s, first lock ${(firstLock.t - C).toFixed(0)} s`);
   ok('a bot that reads the warnings is never hit', r.stats.stumbles === 0 && !r.stats.over, `${ev.filter((e) => e.k === 'ram').length} grappler runs, ${ev.filter((e) => e.k === 'strike').length} strikes`);
   // ignore the warning: the net takes the rear wheel → stumble, slowed for a second while the cruiser hangs on, then it lets go
-  const t2 = new Timeline(); t2.load(r.ev.filter((e) => e.t < firstRam.t));
-  const hitT = firstRam.t + GAME.ramWarn + 0.45, v0 = t2.stateAt(firstRam.t).vel, st = t2.stateAt(hitT + 0.3), e2 = kinds(t2, firstRam.t, hitT + 0.3);
-  const hk = t2.stateAt(firstRam.t + GAME.ramWarn + 0.5).g, rel = t2.stateAt(firstRam.t + GAME.ramWarn + 0.45 + GAME.ramSlow + 1.2).g;
+  // (take a run where staying in lane does not also mean driving into traffic)
+  let t2, ramW, ram1 = null;
+  for (const w of ev.filter((e) => e.k === 'ramwarn')) {
+    t2 = new Timeline(); t2.load(r.ev.filter((e) => e.t < w.t)); ramW = t2.stateAt(w.t + 0.01).g.polW;      // the length of this warning
+    const k = kinds(t2, w.t, w.t + ramW + 0.45 + GAME.ramSlow + 1.3);
+    if (!k.includes('crash') && !k.includes('wreck') && !k.includes('over') && !k.includes('stumble:heli') && !k.includes('stumble:slam')) { ram1 = w; break; }
+  }
+  const hitT = ram1.t + ramW + 0.45, v0 = t2.stateAt(ram1.t).vel, st = t2.stateAt(hitT + 0.3), e2 = kinds(t2, ram1.t, hitT + 0.3);
+  const hk = t2.stateAt(ram1.t + ramW + 0.5).g, rel = t2.stateAt(ram1.t + ramW + 0.45 + GAME.ramSlow + 1.2).g;
   ok('ignoring the grappler warning: hooked = a stumble, slowed', e2.includes('ram') && e2.includes('stumble:hook') && policeClose(st.g) && st.vel < v0 * 0.93 && !st.over, `${v0.toFixed(0)} → ${st.vel.toFixed(0)} u/s, events ${e2.filter((k) => k !== 'cell').join(',')}`);
   ok('hooked: the cruiser hangs on our rear wheel, then lets go and drops back', hk.polM === P_HOOK && Math.abs(hk.polZ + HOOK_Z) < 0.4 && rel.polM !== P_HOOK && rel.polZ < -HOOK_Z - 1, `polZ ${hk.polZ.toFixed(2)} while hooked, ${rel.polZ.toFixed(1)} after`);
   // ignore a searchlight lock: fired on → stumble (take a lock where staying in lane does not also mean hitting traffic)
   let e3 = [], lock = null;
-  for (const l of ev.filter((e) => e.k === 'lock')) {
+  let lockEnd = 0;
+  for (const l of ev.filter((e) => e.k === 'lock' && e.pat === 0)) {
     const t3 = new Timeline(); t3.load(r.ev.filter((e) => e.t < l.t));
-    e3 = kinds(t3, l.t, l.t + GAME.drWarn + GAME.drStrike + 0.1);
-    if (!e3.includes('crash') && !e3.includes('wreck') && !e3.includes('stumble:swipe')) { lock = l; break; }
+    lockEnd = t3.stateAt(l.t + 0.01).g.drW + GAME.drStrike + 0.1;
+    e3 = kinds(t3, l.t, l.t + lockEnd);
+    if (!e3.includes('crash') && !e3.includes('wreck') && !e3.includes('stumble:swipe') && !e3.includes('stumble:hook') && !e3.includes('stumble:slam')) { lock = l; break; }
   }
-  const sT = lock.t + GAME.drWarn + GAME.drStrike + 0.1;
+  const sT = lock.t + lockEnd;
   ok('ignoring the searchlight lock: fired on = a stumble', e3.includes('strike') && e3.includes('stumble:heli'), e3.filter((k) => k !== 'cell').join(','));
   ok('the bust rule applies to police hits too', (() => { const t4 = new Timeline(); t4.load(r.ev.filter((e) => e.t < lock.t)); t4.stateAt(lock.t + 0.2); t4._st.g.lives = 1; return t4.stateAt(sT).over === 2; })());
+}
+
+// ── five stars: the interceptor, twin searchlights, the walking barrage, the cruiser that cuts us off, merging traffic; planning ──
+{
+  const r = play(1000, 300), tl = new Timeline(); tl.load(r.ev);
+  const ev = tl.gameEvents(0, C + 300), of = (k, f = () => true) => ev.filter((e) => e.k === k && f(e)), s4 = ev.find((e) => e.k === 'star' && e.n === 4), s5 = ev.find((e) => e.k === 'star' && e.n === 5);
+  const ic = of('icwarn'), tell = of('ictell'), slam = of('slam'), twin = of('lock', (e) => e.pat === H_TWIN), walk = of('lock', (e) => e.pat === H_WALK), mir = of('mirror');
+  ok('4 stars: the interceptor comes up the shoulder, and signals before it swerves', ic.length >= 3 && ic[0].t >= s4.t && tell.length >= 1 && slam.length === tell.length && tell.every((e, i) => slam[i].t - e.t > GAME.react[1] + GAME.warn - 0.01 && slam[i].lane === e.lane), `${ic.length} visits, ${slam.length} swerves, the first ${(slam[0].t - tell[0].t).toFixed(2)} s after its signal`);
+  ok('… on the shoulder it is beside the lanes, not in one', ic.every((e) => { const g = tl.stateAt(e.t + 1.0).g; return g.icM !== I_OFF && Math.abs(Math.abs(g.icX) - GAME.icShoulder) < 1e-6 && Math.sign(g.icX) === e.side; }));
+  ok('4 stars: twin searchlights; 5 stars: the walking barrage', twin.length >= 1 && twin[0].t >= s4.t && walk.length >= 1 && walk[0].t >= s5.t && twin.every((e) => Math.abs(e.b - e.lane) === 1), `${twin.length} twin, ${walk.length} barrages`);
+  { const w = walk[0], g = tl.stateAt(w.t + 0.01).g, S = heliStrikes(g.drPat, g.drLane, g.drB, g.drW), k = of('strike', (e) => e.t > w.t && e.t < w.t + S[2][2] + 0.05);
+    ok('the barrage walks across all three lanes, one at a time, with a gap between', S.length === 3 && S.map((q) => q[0]).sort().join() === '-1,0,1' && Math.abs(S[1][1] - S[0][2] - GAME.drGap) < 1e-9 && k.length === 3 && k.map((e) => e.lane).join() === S.map((q) => q[0]).join(), `lanes ${S.map((q) => q[0]).join(' → ')}, ${(S[1][1] - S[0][1]).toFixed(2)} s apart`); }
+  ok('a cruiser ahead waits to see our lane, then cuts across into it', mir.length >= 2 && mir.every((e) => { const a = tl.stateAt(e.t - 0.01), g = tl.stateAt(e.t + 0.01).g; let hit = false; for (let i = 0; i < NV; i++) { const o = i * VF; if (g.veh[o] === T_BLOCK && g.veh[o + 6] === e.lane && g.veh[o + 7] > 0) hit = true; } return hit && e.lane === a.lane && e.lane !== 0; }), `${mir.length} times`);
+  let merges = 0; { const seen = new Set(); for (let T = C + 20; T < C + 300; T += 0.25) { const g = tl.stateAt(T).g; for (let i = 0; i < NV; i++) { const o = i * VF; if ((g.veh[o] === T_CAR || g.veh[o] === T_VAN) && g.veh[o + 6] !== 0 && g.veh[o + 7] > 0 && !seen.has(g.veh[o + 8])) { seen.add(g.veh[o + 8]); merges++; } } } }
+  ok('ordinary traffic changes lane too: cars and vans signal and merge into the middle', merges >= 3, `${merges} in five minutes`);
+  // every attack is planned: at the moment it is committed a driver still has a way through, with time to see it
+  const atk = ev.filter((e) => e.k === 'ramwarn' || e.k === 'lock' || e.k === 'ictell');
+  const bad = atk.filter((e) => { const st = tl.stateAt(e.t + 0.004), lv = st.g.gt / GAME.lvEvery, react = Math.max(GAME.react[1], GAME.react[0] - GAME.react[2] * lv); return !wayThrough(threatGrid(st.g, st.vel, { horizon: GAME.fairAhead }), st.lane, react - 0.02, GAME.fairSwitch); });
+  ok('every attack leaves a way through that a driver has time to see and take', atk.length > 30 && bad.length === 0, `${atk.length} attacks checked${bad.length ? ', none left at ' + bad.slice(0, 4).map((e) => e.k + '@' + (e.t - C).toFixed(1)).join(' ') : ''}`);
+  const w0 = tl.stateAt(of('ramwarn')[0].t + 0.01).g.polW, w1 = tl.stateAt(of('ramwarn').pop().t + 0.01).g.polW;
+  ok('warnings get shorter as the threat level rises', w0 > w1 + 0.15 && w1 >= GAME.react[1] + GAME.warn - 1e-9, `${w0.toFixed(2)} s at first, ${w1.toFixed(2)} s after five minutes`);
+  ok('pincers: at five stars two units may attack together', of('pincer').length >= 1 && of('pincer').every((e) => e.t >= s5.t), `${of('pincer').length} times`);
+  ok('the bot comes through five minutes of it untouched', r.stats.stumbles === 0 && !r.stats.over, `${atk.length} attacks, ${of('dodge').length} dodged`);
+  // ignore an interceptor's signal: it swerves into us
+  let hitBy = null;
+  for (const e of tell) { const t2 = new Timeline(); t2.load(r.ev.filter((q) => q.t < e.t)); const k = kinds(t2, e.t, e.t + 2.2); if (k.includes('stumble:slam') || k.includes('bust:slam')) { hitBy = k; break; } }
+  ok('ignoring the interceptor: slammed = a stumble', !!hitBy, hitBy ? hitBy.filter((k) => k !== 'cell' && k !== 'pass').join(',') : 'never hit');
+  // the car accelerates all the way: the road speed rises through the gears without a step, and the revs fall back at each change
+  const steps = []; for (let d = 0; d < 9000; d += 10) steps.push(baseAt(d + 10) - baseAt(d));
+  const g1 = { gear: 1 }, g2 = { gear: 2 };
+  ok('the road speed rises steadily through the gears; the revs climb and fall back at each change', Math.max(...steps) < 0.25 && Math.min(...steps) > 0 && revs(g1, GAME.gears[2] - 0.01) > 0.99 && revs(g2, GAME.gears[2]) < 0.01, `at most ${Math.max(...steps).toFixed(2)} u/s per 10 units`);
 }
 
 // ── nitro canisters ──
@@ -239,7 +288,7 @@ let crashT;
     `${taxis.length} taxis; fastest ${Math.max(...taxis.map((x) => Math.max(...x.sp))).toFixed(2)} lanes/s; in lane ${Math.min(...taxis.map((x) => x.hit.T - x.end.T)).toFixed(2)} s or more before we reach it`);
   // a rolling roadblock: cruisers that drive with the traffic and brake as we come up
   const blocks = of(T_BLOCK), ev = tl.gameEvents(0, C + 200);
-  const braking = blocks.filter((t) => !(t[0].fl & STEADY)), steady = blocks.filter((t) => t[0].fl & STEADY && t[0].a === 0);
+  const braking = blocks.filter((t) => !t.some((q) => q.fl & STEADY)), steady = blocks.filter((t) => t[0].fl & STEADY && t[0].a === 0);
   ok('a rolling roadblock drives with the traffic and brakes as we come up to it',
     braking.length >= 4 && braking.every((t) => t.filter((q) => q.dz > 150).every((q) => Math.abs(q.v - q.vt - laneV(q.lane) * q.lr) < 1) && Math.abs(Math.min(...t.filter((q) => q.dz > 0).map((q) => q.v - q.vt - laneV(q.lane) * q.lr)) + GAME.blockSlow) < 0.3) && ev.some((e) => e.k === 'block'),
     `${braking.length} cruisers, each down to ${GAME.blockSlow} u/s under its lane's speed`);
@@ -257,7 +306,7 @@ let crashT;
     return -1;
   };
   const gapA = sigGap(GAME.gears[0]), gapB = sigGap(GAME.gears[0] * GAME.brakeMul);
-  ok('braking on the way in does not shorten a taxi\'s warning: it signals at the same distance', gapB > 0 && Math.abs(gapB - gapA) < 1, `signals ${gapA.toFixed(0)} units out at full speed, ${gapB.toFixed(0)} on the brake`);
+  ok('braking on the way in does not shorten a taxi\'s warning: it signals no nearer', gapB > 0 && gapB > gapA - 1 && gapB < gapA + 6, `signals ${gapA.toFixed(0)} units out at full speed, ${gapB.toFixed(0)} on the brake`);
 }
 
 // ── pause: the game clock stops (VCR pause), the car halts, inputs are ignored; resume carries on ──

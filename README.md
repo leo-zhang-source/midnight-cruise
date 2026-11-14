@@ -1,6 +1,6 @@
 # MIDNIGHT CRUISE — 1986
 
-A synthwave highway chase on a 1986 videotape. You press PLAY, a 10-second chrome-and-neon ignition sequence plays out, the title flies off toward the horizon, and then you run from the police on a three-lane highway into the neon city, through slower traffic, until they catch you or you wreck the car.
+A synthwave highway chase on a 1986 videotape. You press PLAY, a 10-second chrome-and-neon ignition sequence plays out, the title flies off toward the horizon, and then you run from the police on a three-lane highway that sweeps and rolls its way into the neon city, through slower traffic, until they catch you or you wreck the car. The longer you last the harder it gets, and the police plan their attacks: every one is checked against the road ahead so that it leaves you a way out, but only just.
 
 ## Play online
 
@@ -26,7 +26,7 @@ The car drives flat out by itself. You steer, brake and fire nitro.
 | Start (also enables audio) | **START DRIVE** | `Enter` / `Space` |
 | Skip the intro (it opens every start) | **SKIP INTRO** (top right) | `Esc` / `S` |
 | Change lane (three lanes) | tap or click the left / right half of the scene | `←` `→` or `A` `D`, one lane per press |
-| Brake (slows to 55 %) | hold **BRAKE** | hold `Space` or `↓` |
+| Brake (slows to 55 %; the car has weight, so it takes about a second) | hold **BRAKE** | hold `Space` or `↓` |
 | Nitro, when a canister is aboard | **NITRO** (its pips show how many you carry) | `T`, `↑` or `W` |
 | Pause | the pause key (top right) | `P` or `Esc` |
 | In the pause menu | **RESUME** · **RESTART** · **HOME** | `P` / `Enter` · `R` · `H` |
@@ -40,7 +40,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 ## The game
 
-**How a run goes.** Every run opens with a police cruiser on your bumper ("POLICE! PULL OVER"). After a second you floor it and the cruiser drops back, but it follows you for the whole run: you hear its siren and see its lights at the bottom of the screen. All traffic drives in your direction at a little under half your cruising speed (64 MPH in gear 1, 124 in gear 6), and each lane has its own pace: the left lane is about 7 MPH faster than the middle, the right lane 7 slower, so cars overtake each other all the way to the horizon. A row of traffic starts out strung along the road and closes up as you reach it, but nobody drives exactly abreast: the vehicles of a row arrive a car length or two apart. Everyone is driving: cars drift a little in their lanes, steer into lane changes and lean as they do, their wheels turn, and their tail lamps streak the road behind them. Each press moves the car one lane, in about 0.2 s.
+**How a run goes.** Every run opens with a police cruiser on your bumper ("POLICE! PULL OVER"). After a second you floor it and the cruiser drops back, but it follows you for the whole run: you hear its siren and see its lights at the bottom of the screen. All traffic drives in your direction at a little under half your cruising speed (64 MPH at the start, 124 as top gear engages), and each lane has its own pace: the left lane is about 7 MPH faster than the middle, the right lane 7 slower, so cars overtake each other all the way to the horizon. A row of traffic starts out strung along the road and closes up as you reach it, but nobody drives exactly abreast: the vehicles of a row arrive a car length or two apart. Everyone is driving: cars drift a little in their lanes, steer into lane changes and lean as they do, their wheels turn, and their tail lamps streak the road behind them. Each press moves the car one lane, in about 0.2 s.
 
 **What is on the road**
 
@@ -50,15 +50,17 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 | RELAY van, MULE pickup | A little longer and taller: a dark cab carrying a pale cargo pod with an arch of red light round its doors, and a six-wheel utility truck with an orange tube frame. |
 | LEVIATHAN truck, ORBIT coach | Twelve units long: blocks a lane for longer. A dark banded container behind an angular cab with a visor of cyan light, or a lilac coach with glass its whole length. |
 | FIREFLY taxi | A tall yellow pod round black glass, a lit TAXI sign, two rings of red light at the back. Drives in the middle lane, signals for 0.45 s, then steers across to one side as you close in (0.85 s, nose first, leaning out of the turn). It starts 1.8 s before you reach it and is in its new lane about half a second ahead of you. |
-| Rolling roadblock | From two stars: two police cruisers in echelon, lights on, snaking across their lanes, a warning sign over each. They brake as you come up. One lane is left — and when a cruiser is in the middle lane it usually (half the time at two stars, 60 % at three; that pair does not brake) signals with chevrons and steers across into that open side lane, so the middle becomes the way through. |
+| Merging car or van | From third gear, and more often as the threat level rises: a car or van in a side lane signals and merges into the middle as you close in, timed like the taxi. |
+| Rolling roadblock | From two stars: two police cruisers in echelon, lights on, snaking across their lanes, a warning sign over each. They brake as you come up. One lane is left — and when a cruiser is in the middle lane it usually (half the time at two stars, 60 % from three; that pair does not brake) signals with chevrons and steers across into that open side lane, so the middle becomes the way through. |
 | Weaving cruiser | From two stars: one cruiser swinging between the middle lane and one side; chevrons over the two lanes show which way it is steering. About 1.2 s before you reach it, it takes the lane it is heading for and the sign over that lane turns into a warning triangle. At three stars a second cruiser may hold the third lane. |
-| Energy cells | Mark the open lane. Each adds score and rings like a coin; 100 of them earn a spare tape (up to 3). |
-| Nitro canister | A blue ring with a light pillar: the first about 15 s into a run, then one every 30 to 45 s in top gear. Drive through it to take it aboard; you can carry three. |
+| Cruiser that cuts you off | From four stars: a single cruiser in the middle lane that waits until you are 1.8 s away, looks which lane you are in, and cuts across into it (CRUISER CUTTING YOU OFF). The lane it leaves is your way round. If you are behind it in the middle it stays and brakes. |
+| Energy cells | Mark the open lane. Each adds score (silently); 100 of them earn a spare tape (up to 3). |
+| Nitro canister | A blue ring with a light pillar: the first about 15 s into a run, then one every 30 to 45 s in top gear, and up to half as far apart again as the threat level rises. Drive through it to take it aboard; you can carry three. |
 
 **Two lives**
 
 - You start every run with two lives (the hearts beside the stars).
-- **Any hit takes one**: driving into the back of a vehicle (you plough through it and lose speed), a sideswipe (you bounce back to your lane), the grappler, the helicopter.
+- **Any hit takes one**: driving into the back of a vehicle (you plough through it and lose speed), a sideswipe (you bounce back to your lane), the grappler, the interceptor, the helicopter.
 - With one life left the pursuit car sits off your rear quarter **for good**, its grappler runs come sooner, and the next hit ends the run: wrecked if it was a vehicle, busted if it was the police.
 - **A nitro burst shakes it off and gives the life back.** So a canister in stock is your second chance: spend it on points, or keep it. The game says so once, quietly: NITRO SHAKES THEM OFF shows under the stars for four seconds after the hit, a canister picked up on the last life says FIRE IT TO SHAKE THEM OFF, and the nitro button wears a pink ring while you hold one.
 - After a hit nothing attacks you for two and a half seconds.
@@ -66,27 +68,45 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 
 **After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability and both lives. **HOME** goes back to the home screen. A new run always starts from the home screen, and every start opens the same way: the tape rewinds and the ten-second intro plays, into the run. **SKIP INTRO** cuts it to a 0.4 s fast-forward. **RESTART** in the pause menu opens the same way.
 
-**Wanted level: three stars**
+**Wanted level: five stars**
 
-| Stars | You get there by | What the police do |
+| Stars | You get there by | What the police add |
 |---|---|---|
 | ★ | every run starts here | One cruiser follows you. |
-| ★★ | hits (a sideswipe, a crash or ramming a cruiser with nitro is half a star each), or 2 km of road since the heat was last cleared | Police appear ahead of you: rolling roadblocks and weaving cruisers. The cruiser behind comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for 1.1 s, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second, you lose speed and a life. |
-| ★★★ | more of the same, or 5 km of road since the heat was last cleared | A police helicopter comes and goes. It flies in from one side, holds station far ahead and high up (about 130 units out, 38 up), side-on, sweeping the road with its searchlight, makes up to three attacks, then turns away and climbs out on the other side; it is back 10 to 16 s later. For an attack it turns to face you and the light locks the lane you are in (the beam turns amber, then red, with a target on the lane); 1.2 s later it fires down that lane from its two gun pods. A few more police ahead. |
+| ★★ | hits (a sideswipe, a crash or ramming a cruiser with nitro is half a star each), or 1.4 km of road since the heat was last cooled | Police appear ahead of you: rolling roadblocks and weaving cruisers. The cruiser behind comes up with its grappler, a yellow fork with a net ahead of its bumper: chevrons race up your lane from behind for the length of a warning, then it lunges. Change lane. If the net takes your rear wheel, the cruiser hangs on for a second, you lose speed and a life. |
+| ★★★ | more of the same, or 3.4 km | A police helicopter comes and goes. It flies in from one side, holds station far ahead and high up, side-on, sweeping the road with its searchlight, makes three or more attacks, then turns away and climbs out on the other side; it is back 10 to 16 s later. For an attack it turns to face you and the light locks the lane you are in (the beam turns amber, then red, with a target on the lane); a warning later it fires down that lane from its two gun pods. |
+| ★★★★ | 6.4 km | **The interceptor**: a second, faster cruiser comes up the hard shoulder on your side (INTERCEPTOR ON THE LEFT SHOULDER, and that corner of the screen flashes), draws level and waits for its moment. Then it signals, with chevrons running from it into your lane and a warning over the lane, and swerves into you: from the shoulder into the side lane, or, if you are in the middle, straight across the side lane into it. Go the other way. **Twin searchlights**: the helicopter lights two lanes at once, yours and the one beside it that leaves you the harder way out; take the dark lane. **The cruiser that cuts you off** (see above). |
+| ★★★★★ | 10.4 km | **The walking barrage**: the helicopter fires down all three lanes one after the other, 1.15 s apart. Get out of each lane before its turn and back into the wake. **Pincers**: two units may now attack at the same time, for example the grappler from behind while the helicopter has the lane beside you. |
 
-Heat from hits cools by one star every 12 s once 10 s pass without an incident, but never below the level the road has earned. **The third nitro burst clears the heat**: back to one star, and the road count for the next stars starts again from there. The call-out for each burst counts them (NITRO 1/3 TO CLEAR THE HEAT).
+Heat from hits cools by one star every 12 s once 10 s pass without an incident, but never below the level the road has earned. **The third nitro burst cools the heat by two stars**, and the road count for the next star carries on from there. The call-out for each burst counts them (NITRO 1/3 TO COOL THE HEAT).
+
+**The threat level** (LV beside the stars) is the other clock. It rises by one every 40 seconds of a run and never comes down:
+
+- **Speed.** The car accelerates for the whole run (see below), so everything arrives sooner.
+- **Warnings shorten.** Every warning lasts the reaction time the police allow you plus 0.45 s: 1.2 s at level 0, about 0.03 s less per level, never under 0.87 s.
+- **Attacks come sooner.** The pauses between attacks shrink with every level (intervals ÷ (1 + 0.1 × level)), and the helicopter stays for more attacks.
+- **Traffic thickens.** More rows are pairs and convoys, more cars change lane, more rows are police.
+- **Nitro gets scarce.** Canisters are up to 50 % further apart.
+- **The heat has a floor.** From level 3 (two minutes) the wanted level never drops below two stars, from level 6 (four minutes) never below three.
+
+**How the police think.** They do not attack on a timer. Twenty times a second each unit that is ready looks at a forecast of the road for the next 5.8 s (where every vehicle, every lane change and every attack already under way will block each lane, with a tenth of a second of slack added around all of it) and lays its attack over that. It goes ahead only if a driver in your lane, given the reaction time for the level and a slightly slow lane change, would still have a way through. Among the ways it could attack it picks the one that leaves the hardest way out. Other things they do:
+
+- **They take turns.** The unit that has waited longest goes first; an interceptor on its way goes before the others.
+- **They learn which way you dodge.** Every dodge is counted. If you favour one side, the interceptor comes up that shoulder and the twin searchlights take that lane.
+- **They have the traffic held back for set pieces.** An interceptor's swerve, twin searchlights and the barrage are asked for a few seconds ahead: the traffic leaves a gap, strung with cells, and the attack comes when the gap does.
+- **They hold off near anything unsettled.** A cruiser still weaving, or one waiting to cut you off, has not picked its lane yet; an attack must be over well before you reach it.
 
 **Scoring and speed**
 
 - **Distance** scores points all the time.
-- **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per star above the first.
-- **Gears** engage with distance: the base speed rises from 139 MPH in gear 1 to 269 MPH in gear 6 (reached after 6.4 km), then creeps on up to 336 MPH; rows come closer together.
-- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and police cruisers (a cruiser costs a whole star), and shove the pursuit car back if it is in your way. Each vehicle smashed scores points. Every third burst clears the wanted level.
+- **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. **Dodging a police attack** scores 300 × the multiplier (DODGED). The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per star above the first.
+- **The car accelerates all the way.** It pulls steadily through six gears, from 139 MPH off the line to 269 MPH as top gear engages (after 6.4 km, about 80 s), and in top gear it keeps gaining, up to 374 MPH. You hear it: the engine note climbs through each gear and falls back at the change. It has weight: braking sheds speed at a fixed rate and so does getting it back, so a dab of brake costs you about two seconds.
+- **Nitro** is a 3.6 s burst at 1.85× speed during which you smash through traffic and police cruisers (a cruiser costs a whole star), and shove the pursuit car back if it is in your way. Each vehicle smashed scores points. Every third burst cools the wanted level by two stars. A burst also rams the interceptor off for 14 s.
 - **Slipstream**: staying close behind a vehicle before you pull out scores a bonus.
 
-**The road.** One highway into the city for the whole run: megastructure towers on the horizon, a sign gantry over the road every 2,400 units and a big billboard every 1,600. Along it: reflector posts on the rails and roadside signs on posts. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 3,500 road units, whichever comes first.
+**The road.** One highway into the city for the whole run, and it is a road now, not a grid: three lanes of asphalt with dashed lane lines, solid edge lines, a hard shoulder each side and a steel guardrail on posts beyond it (amber reflectors on the left, white on the right); the neon grid is the plain it crosses. It is not straight or flat. After the opening straight it sweeps left and right in long bends and rises and falls over crests, the camera looks into each bend, the car leans, and the sun and the city swing across the windscreen and come back: the road always returns to the line that leads to them. The bends are in the picture only; the game is still three lanes. On the horizon the megastructure towers, over the road a sign gantry every 2,400 units and a big billboard every 1,600, beside it roadside signs on posts. Traffic passing in the next lane goes by with a rush of air on that side. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 5,200 road units, whichever comes first.
 
-**Fairness.** Every row leaves a lane open within one lane of the previous opening, and rows are spaced for the speed you are really doing, with room for their stagger. The lanes run at different speeds, so each vehicle starts behind or ahead of its place by what its lane will gain or lose, and the speed difference between lanes follows how fast you are closing: a row closes up to its planned stagger when you reach it whether you come in on the brake, at cruising speed or in a nitro burst. A taxi or a crossing cruiser is in its new lane at least 0.8 s before you arrive; a weaving cruiser takes its lane at least 1.2 s before, and the row after it leaves the middle lane open. Warnings are timed for the speed you would be doing flat out, so braking on the way in never shortens one. A grappler run or a searchlight lock only starts when there is a way out: a lane beside you stays clear while the attack lasts, and after it either that lane or your own is open. `tools/bot.mjs` drives 40 different seeds for 5 minutes each without taking a single hit. With nitro, 1 of 16 runs takes a hit (the bar for every change to the numbers is zero hits without nitro): coming out of a burst into dense traffic is the risk you take for the points.
+**Fairness.** Every row leaves a lane open within one lane of the previous opening, and rows are spaced for the speed you are really doing, with room for their stagger. The lanes run at different speeds, so each vehicle starts behind or ahead of its place by what its lane will gain or lose, and the speed difference between lanes follows how fast you are closing: a row closes up to its planned stagger when you reach it whether you come in on the brake, at cruising speed or in a nitro burst. A taxi or a crossing cruiser is in its new lane at least 0.8 s before you arrive; a weaving cruiser takes its lane at least 1.2 s before, and the row after it leaves the middle lane open. Warnings are timed for the speed you would be doing flat out, so braking on the way in never shortens one. No police attack starts unless the forecast of the road leaves a way through it (see *How the police think*), and traffic is laid out 6.6 s of driving ahead, so the forecast covers the whole of even the longest attack. `tools/bot.mjs`, which drives by the same forecast but is told nothing in advance, drives 40 different seeds for 5 minutes each (to threat level 7, most of it at five stars) without taking a single hit, with or without nitro. That is the bar for every change to the numbers.
 
 **Pause.** `P` pauses the run like a VCR: the game clock stops and the music carries on, muffled. The run also pauses by itself when the tab is hidden or the window loses focus, and stays paused until you resume.
 
@@ -101,7 +121,7 @@ Every frame is a pure function of scene time, the seed, the viewport and the eve
 | Parameter | What it does |
 |---|---|
 | `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
-| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with two nitro canisters picked up and fired, the four presets, a music pause, then the home screen and a second start, which opens with the intro again |
+| `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with a nitro canister picked up and fired, the four presets, a music pause, then the home screen and a second start, which opens with the intro again |
 | `?seed=7` | Pin the traffic seed (each visit otherwise gets a random one, stored in its start event) |
 | `?free=1` | Free cruise: no traffic, no police and no game over; a nitro canister is refilled 7 s after you use one |
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
