@@ -65,7 +65,8 @@ export function threatGrid(g, vel, opt = {}) {
       continue;
     }
     const lf = g.veh[o + 1];
-    for (let l = -1; l <= 1; l++) if (Math.abs(lf - l) * ROAD.lane < HALF_W[type] + CAR_HW + 0.3) for (let k = k0; k <= k1; k++) blocked[l + 1][k] = 1;
+    const home = ((g.veh[o + 5] >> 9) & 3) - 1;          // (it always covers the lane it belongs to, however far it is wandering)
+    for (let l = -1; l <= 1; l++) if (l === home || Math.abs(lf - l) * ROAD.lane < HALF_W[type] + CAR_HW + 0.3) for (let k = k0; k <= k1; k++) blocked[l + 1][k] = 1;
   }
   const grid = { blocked, K };
   if (opt.police !== false) policeCells(g, (l, t0, t1) => markCells(grid, l, t0, t1));

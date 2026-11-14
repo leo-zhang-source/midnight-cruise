@@ -7,8 +7,8 @@
 import { GAME, ROAD } from './cue.js';
 import { FS_STEP, threatGrid, markCells, copyGrid, widen, wayThrough, searcher } from './foresight.js';
 
-export const NV = 44, VF = 11;     // vehicle pool: [type, lane, z, v, halfLen, flags, a, b, id, signal time, move time]
-export const NC = 30, CF = 5;      // cell lines:   [count, lane, z0, spacing, takenMask]
+export const NV = 64, VF = 11;     // vehicle pool: [type, lane, z, v, halfLen, flags, a, b, id, signal time, move time]
+export const NC = 40, CF = 5;      // cell lines:   [count, lane, z0, spacing, takenMask]
 export const NI = 4, IF = 3;       // nitro canisters: [active, lane, z]
 // T_BLOCK: a cruiser of a rolling roadblock · T_WEAVE: a cruiser weaving between the middle lane and one side
 export const T_CAR = 1, T_VAN = 2, T_TRUCK = 3, T_TAXI = 4, T_BLOCK = 5, T_WEAVE = 6;
@@ -55,8 +55,19 @@ export const taxiAtFor = (lv) => blinkAt(lv) + moveAt(lv) + 0.5;                
 // Every car, van and taxi wanders across its lane, more as the level rises (lanes; k = 1: its rate of change per second)
 export function sway(type, id, gt, lv, k = 0) {
   if (type > T_TAXI) return 0;
-  const A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * (type === T_TRUCK ? 0.33 : 1), w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
-  return A * (k ? w * Math.cos(p) : Math.sin(p));
+  const tr = type === T_TRUCK ? 0.33 : 1, A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * tr, w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
+  return A * (k ? w * Math.cos(p) : Math.sin(p)) + jink(id, gt, k) * tr;
+}
+// … and now and then a sudden swerve, decided per vehicle and per window of time (so it is the same however the timeline is stepped)
+const h01 = (a, b) => { let t = Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b + 0x632BE5AB, 0xC2B2AE35); t ^= t >>> 15; t = Math.imul(t, 0x2C1B3C6D); t ^= t >>> 12; return (t >>> 0) / 4294967296; };
+export function jink(id, gt, k = 0) {
+  const J = GAME.jink, off = (id % 13) * 0.37, n = Math.floor((gt + off) / J.win); if (n < 2) return 0;
+  const lw = Math.min(GAME.lvCap, (n * J.win - off) / GAME.lvEvery);                     // the level when this window began
+  if (h01(id, n) >= Math.min(J.p[2], J.p[0] + J.p[1] * lw)) return 0;
+  const D = Math.max(J.dur[1], J.dur[0] - J.dur[2] * lw), u0 = h01(id + 7919, n) * (J.win - D), m = (gt + off - n * J.win - u0) / D;
+  if (m <= 0 || m >= 1) return 0;
+  const A = Math.min(J.amp[2], J.amp[0] + J.amp[1] * lw) * (h01(id + 104729, n) < 0.5 ? -1 : 1), sn = Math.sin(Math.PI * m);
+  return k ? A * Math.PI * Math.sin(2 * Math.PI * m) / D : A * sn * sn;                    // a smooth bump: out and straight back
 }
 
 export function freshGame(seed = 1986, free = 0) {
@@ -192,7 +203,7 @@ function genRow(g) {
   const G = GAME, gear = g.gear, p = g.path, i = g.genI++; let u = g.genU;
   const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];   // closing speed at cruise; room for the stagger of this row and the next
   const kf = clamp((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);   // how far through the gears we are, 0..1
-  const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf;
+  const tg = (G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf) * (1 - Math.min(G.dens[1], G.dens[0] * Math.min(G.lvCap, g.gt / G.lvEvery)));   // (closer as the level rises)
   const side = () => (rnd(g) < 0.5 ? -1 : 1);
   if (g.gapWant > 0 && i >= 3) {         // the police have asked for room: the traffic is held back for a set piece. Cells are strung across the gap.
     const D = g.gapWant, n = Math.max(2, Math.round(D * w / 34)); g.gapWant = 0;

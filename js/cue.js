@@ -64,14 +64,16 @@ export const GAME = {
   breathe: 1.5,                                  // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
   gears: [58, 67, 77, 88, 100, 112],             // the speed at which each gear engages: the car accelerates steadily from one to the next
   gearAt: [0, 600, 1500, 2800, 4400, 6400],    // run distance at which each gear engages
-  creep: [400, 60],                              // in top gear it keeps gaining: +1 u/s per 400 units, up to +60 (413 MPH)
+  creep: [300, 117],                             // in top gear it keeps gaining: +1 u/s per 300 units, up to +117 (550 MPH, a third more than before)
   accel: 34, launch: 80, brake: 64, nitroAccel: 170,   // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and, when a hit slows it, sheds at most `brake` u/s²
   coast: 0.55,                                   // off the throttle (paused, or pulling away after a rewind) the car is at 55 % of its speed
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
-  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
+  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 1.0, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
   aheadT: 6.6, fairAhead: 6.8,                   // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police and the traffic plan on all of it
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
   rowGap: [1.1, 0.85],                            // seconds between rows at the closing speed (first gear → top gear). A little more room than before: the traffic now moves about in it
+  dens: [0.015, 0.2],                             // … and the rows close up as the threat level rises: −1.5 % per level, at most −20 % (0.68 s in top gear:
+                                                  //   the closest rows have ever been and stayed passable; −30 % lost a run in 120)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
   taxiAt: 1.8,                                   // the longest a planned lane change starts ahead of you (level 0; see sigBlink, sigMove): in place 0.5 s ahead of you
   introT: 2.8, introHold: 1.1, introClose: 1.7, introV: 16,   // every run opens with the police on your bumper, then you floor it
@@ -102,8 +104,12 @@ export const GAME = {
   //   sudden) and never so late that it is not across cutLate s before we arrive
   // flowFar: only vehicles we reach within this many seconds drift (and only ones far enough off to be straight again before their chance to cut in)
   // flowClear: none changes lane within this many seconds (of our arrival) of a cruiser that has not picked its lane yet
+  // jink: now and then a car, van or taxi swerves hard towards a lane line and straight back, more of them as the level rises. Each one
+  //   has, every jinkWin s, a jinkP chance ([at level 0, more per level, at most]) of a swerve of jinkAmp lanes ([…]) lasting jinkDur s ([…, the
+  //   least, less per level]). With the wander it never comes within reach of a car in the next lane (0.2 + 0.24 lanes at most)
+  jink: { win: 2.0, p: [0.04, 0.03, 0.55], amp: [0.12, 0.012, 0.24], dur: [0.8, 0.45, 0.025] },
   sway: [0.04, 0.011, 0.2], swayRate: 0.03, sigBlink: [0.45, 0.12, 0.022], sigMove: [0.85, 0.5, 0.023],
-  flow: [2.6, 0.45, 0.16], cut: [11, 0.5, 1.1], flowFar: 5.6, cutLead: [1.6, 0.8, 0.07], cutLate: 0.7, flowClear: 0.8,
+  flow: [2.6, 0.45, 0.16], cut: [11, 0.3, 1.1], flowFar: 5.6, cutLead: [1.6, 0.8, 0.07], cutLate: 0.7, flowClear: 0.8,
   // set pieces: for an interceptor's swerve, twin searchlights or a barrage the police have the traffic held back: gapFor[interceptor, twin, barrage]
   // seconds of empty road, asked for gapLead seconds before the unit is due; if no opening has come gapWait seconds after that, the helicopter settles for one lane
   gapFor: [1.7, 1.5, 3.1], gapLead: 3.4, gapWait: 5,

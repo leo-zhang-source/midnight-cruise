@@ -280,7 +280,7 @@ export class UI {
     // speedometer (MPH from the simulated road speed) and the control hints
     const mph = Math.round(Math.abs(s.road.vel) * GAME.mph);
     set('spd', mph, (v) => { E.spd.textContent = String(Math.min(999, v)).padStart(3, '0'); });
-    const segs = Math.round(Math.min(1, Math.abs(s.road.vel) / 180) * 14);
+    const segs = Math.round(Math.min(1, Math.abs(s.road.vel) / (GAME.gears[5] + GAME.creep[1])) * 14);   // (full at the top speed; a nitro burst pegs it)
     set('spdSeg', segs, (n) => this.spdSegs.forEach((g, i) => { g.className = i < n ? (i >= 10 ? 'on hot' : 'on') : ''; }));
     const ha = U.hint;
     set('hint', ha.toFixed(2), () => { E.hints.style.visibility = ha > 0.01 ? 'visible' : 'hidden'; E.hints.style.opacity = ha; E.hints.style.transform = `translateX(-50%) translateY(${(1 - ha) * 10}px)`; });

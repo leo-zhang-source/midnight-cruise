@@ -15,7 +15,7 @@ import { Heli, HELI } from './heli.js';
 import { hash1, lerp, smooth } from './util.js';
 import { ROAD_U, ROAD_GLSL } from './road.js';
 
-const MAXB = 720, MAXG = 900;
+const MAXB = 900, MAXG = 1300;
 const HASH = /* glsl */`
   float h11(float p){ p = fract(p * .1031); p *= p + 33.33; p *= p + p; return fract(p); }
   float h21(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }`;
