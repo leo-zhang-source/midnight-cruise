@@ -63,7 +63,27 @@ export function freshGame(seed = 1986, free = 0) {
 }
 export function copyGame(g) { const c = { ...g }; c.veh = g.veh.slice(); c.cel = g.cel.slice(); c.itm = g.itm.slice(); return c; }
 export const gameMult = (g) => (1 + Math.min(g.combo, GAME.comboCap) * GAME.comboStep) * (1 + GAME.starBonus * (g.star - 1));
-export const gameBase = (g) => GAME.gears[g.gear] + Math.min(GAME.creep[1], Math.max(0, g.gd - GAME.gearAt[5]) / GAME.creep[0]);
+// The road speed at run distance d. The car accelerates all the way: through the gears (GAME.gears[i] is the speed at which
+// gear i engages, at GAME.gearAt[i]) and, in top gear, on towards its top speed.
+export const baseAt = (d) => {
+  const A = GAME.gearAt, V = GAME.gears;
+  if (d >= A[5]) return V[5] + Math.min(GAME.creep[1], (d - A[5]) / GAME.creep[0]);
+  let i = 0; while (d >= A[i + 1]) i++;
+  return V[i] + (V[i + 1] - V[i]) * Math.max(0, d - A[i]) / (A[i + 1] - A[i]);
+};
+// how far up its rev range the engine is (0 = just after a gear change, 1 = about to change up; over 1 in a nitro burst)
+export const revs = (g, vel) => { const i = g.gear, V = GAME.gears, lo = i ? V[i] : V[0] * 0.55, hi = i < 5 ? V[i + 1] : V[5] + GAME.creep[1]; return (vel - lo) / (hi - lo); };
+export const gameBase = (g) => baseAt(g.gd);
+// The police's committed attacks, as lanes and times: mark(lane, from, to) in seconds from now. Used by foresight (js/foresight.js).
+export function policeCells(g, mark) {
+  const G = GAME;
+  // a lunging pursuit car takes its lane from the end of the warning until it has dropped back; a helicopter strike takes its lane for the length of the strike
+  const reachP = POL_HL + CAR_HL + 0.8, tBack = (1.5 + reachP) / G.ramBack + 0.2;   // time the pursuit car needs to drop clear
+  if (g.polM === P_WARN) { const left = G.ramWarn - (g.gt - g.polT); mark(g.polLane, left + 0.05, left + (G.polClose + 3.5) / G.ramV + tBack); }
+  else if (g.polM === P_CHARGE) mark(g.polLane, 0, (1.5 - g.polZ) / G.ramV + tBack);
+  else if (g.polM !== P_TAIL && g.polZ > -reachP) mark(g.polLane, 0, (g.polZ + reachP) / G.ramBack + 0.15);
+  if (g.drT >= 0) { const u = g.gt - g.drT; mark(g.drLane, G.drWarn - u - 0.1, G.drWarn + G.drStrike - u + 0.05); }
+}
 // is the pursuit car on the tail right now (opening of a run, after a stumble, or after lingering on the brake)?
 export const policeClose = (g) => g.gt < GAME.introClose || g.gt < g.pcl || g.lives < 2;
 
@@ -110,7 +130,8 @@ function canister(g, lane, u) {
 function genRow(g) {
   const G = GAME, gear = g.gear, u = g.genU, p = g.path, i = g.genI++;
   const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];   // closing speed at cruise; room for the stagger of this row and the next
-  const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * (gear / 5);
+  const kf = clamp((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);   // how far through the gears we are, 0..1
+  const tg = G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf;
   const side = () => (rnd(g) < 0.5 ? -1 : 1);
   const adj = (l) => (l === 0 ? side() : 0);                 // a lane next to l
   const third = (a, b) => -(a + b);                           // the lane that is neither a nor b (lanes sum to 0)
@@ -128,7 +149,7 @@ function genRow(g) {
   let f = p, pat;
 
   const r = rnd(g);
-  const wConvoy = 0.10 + 0.05 * gear, wGate = 0.08 + 0.02 * gear, wTaxi = gear >= 1 && !block ? 0.14 : 0, wRest = 0.06;
+  const wConvoy = 0.10 + 0.25 * kf, wGate = 0.08 + 0.10 * kf, wTaxi = gear >= 1 && !block ? 0.14 : 0, wRest = 0.06;
   const wSingle = 0.40, wDecoy = 0.20;
   let x = r * (wSingle + wConvoy + wDecoy + wGate + wTaxi + wRest);
   if (weaver) pat = 6;
@@ -216,7 +237,7 @@ function laneClear(g, l, vel, secs, t0 = 0) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     const cr = crossing(veh, o);
     if (Math.abs(veh[o + 1] - l) * L > HALF_W[type] + CAR_HW + 0.4 && !(type === T_WEAVE && (l === 0 || l === veh[o + 6])) && !(cr && (l === cr[0] || l === cr[1]))) continue;
-    const dz = veh[o + 2] - g.gd, reach = veh[o + 4] + CAR_HL + 1.5, rel = Math.max(1, vel * 1.12 - veh[o + 3]);   // margin for a gear change
+    const dz = veh[o + 2] - g.gd, reach = veh[o + 4] + CAR_HL + 1.5, rel = Math.max(1, vel * 1.05 - veh[o + 3]);   // margin for the speed still rising
     if (dz > -reach + Math.max(1, vel - veh[o + 3]) * t0 && dz < reach + rel * (t0 + secs)) return false;
   }
   return true;
@@ -261,9 +282,8 @@ export function stepGame(g, inp, out) {
 
   // ── vehicles ──
   // Warnings are timed for the speed we would be doing flat out, so easing off the brake never shortens one.
-  // (… and for the gear we will be in two seconds on, so a gear change on the way in does not shorten one either)
-  let gearSoon = g.gear; while (gearSoon < 5 && gd + 2 * inp.vel >= G.gearAt[gearSoon + 1]) gearSoon++;
-  const veh = g.veh, vFull = Math.max(inp.vel, gameBase(g), G.gears[gearSoon]), lr = laneRate(g, inp.vel); let draft = 0;
+  // (… and for the speed we will be doing two seconds on, so the car's own acceleration does not shorten one either)
+  const veh = g.veh, vFull = Math.max(inp.vel, baseAt(gd + 2 * inp.vel)), lr = laneRate(g, inp.vel); let draft = 0;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     if (crosses(veh, o)) {                            // a taxi, or a cruiser of a rolling roadblock, that steers across one lane as we close in

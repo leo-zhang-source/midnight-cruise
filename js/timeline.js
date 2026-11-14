@@ -346,7 +346,12 @@ export class Timeline {
         const intro = !g.free && g.gt < GAME.introHold;       // the police have you at the roadside; then you floor it
         vt = intro ? GAME.introV : gameBase(g) * k; tauV = intro ? 0.12 : g.gt < GAME.introT ? 0.5 : 0.2;
       }
-      st.vel += (vt - st.vel) * (1 - Math.exp(-DT / tauV));
+      let dv = (vt - st.vel) * (1 - Math.exp(-DT / tauV));
+      if (cruise && !st.over && !st.paused && st.run > 0) {       // … but it has weight: the engine and the brakes can only do so much
+        const up = (nOn || (tb && T >= tb.I) ? GAME.nitroAccel : st.vel < GAME.gears[0] ? GAME.launch : GAME.accel) * DT;
+        dv = Math.max(-GAME.brake * DT, Math.min(up, dv));
+      }
+      st.vel += dv;
       st.pos += st.vel * DT;
     }
     this._T = T + DT;

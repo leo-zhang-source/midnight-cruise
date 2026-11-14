@@ -62,9 +62,10 @@ export const GAME = {
   // at cruising speed or in a nitro burst alike.
   trafficK: 0.46, laneDv: 3, trafficEase: 2,
   breathe: 1.5,                                  // … give or take: each car, van and truck eases this far ahead of and behind its place, in its own time
-  gears: [58, 67, 77, 88, 100, 112],             // cruising speed per gear
+  gears: [58, 67, 77, 88, 100, 112],             // the speed at which each gear engages: the car accelerates steadily from one to the next
   gearAt: [0, 600, 1500, 2800, 4400, 6400],    // run distance at which each gear engages
-  creep: [800, 28],                              // past the last gear: +1 u/s per 800 units, up to +28
+  creep: [640, 44],                              // in top gear it keeps gaining: +1 u/s per 640 units, up to +44 (374 MPH)
+  accel: 34, launch: 80, brake: 64, nitroAccel: 170,   // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and sheds at most `brake` u/s²
   brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
   nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
