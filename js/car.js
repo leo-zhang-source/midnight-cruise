@@ -299,8 +299,8 @@ export class Car {
     const C = s.car, P = s.pal;
     this.group.visible = C.visible;
     if (!C.visible) return;
-    this.group.position.set(C.x, 0, C.z);
-    this.group.rotation.set(0, C.yaw, 0);
+    this.group.position.set(C.x + (C.bx || 0), C.by || 0, C.z);
+    this.group.rotation.set(C.slope || 0, C.yaw, 0);          // (on a rise or a dip the whole car follows the road)
     this.body.position.y = C.bob;
     this.body.rotation.set(C.pitch, 0, C.roll);
     const u = this.u;

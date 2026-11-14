@@ -4,6 +4,7 @@ import { mulberry32 } from './util.js';
 import { Car } from './car.js';
 import { ROAD } from './cue.js';
 import { GameView } from './gameview.js';
+import { ROAD_U, ROAD_GLSL } from './road.js';
 
 const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
@@ -104,27 +105,31 @@ function makeSky() {
 function makeGrid() {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
+      ...ROAD_U, uPos2: { value: 0 },
       uPos: { value: 0 }, uVel: { value: 0 }, uCamX: { value: 0 }, uTime: { value: 0 }, uPulse: { value: 0 },
       uSunEl: { value: 0.06 }, uSunPow: { value: 1 }, uBright: { value: 1 }, uShutter: { value: 1 / 120 },
       grid: { value: new THREE.Vector3() }, gridAlt: { value: new THREE.Vector3() }, ground: { value: new THREE.Vector3() },
-      horizon: { value: new THREE.Vector3() }, sunLow: { value: new THREE.Vector3() }, sunMid: { value: new THREE.Vector3() }, fog: { value: new THREE.Vector3() },
+      horizon: { value: new THREE.Vector3() }, sunLow: { value: new THREE.Vector3() }, sunMid: { value: new THREE.Vector3() }, fog: { value: new THREE.Vector3() }, uCar: { value: new THREE.Vector3() },
     },
     vertexShader: /* glsl */`
-      varying vec3 vW; uniform float uCamX;
-      void main(){ vec3 p = position; p.x += uCamX; vW = p; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
+      varying vec3 vW, vB; uniform float uCamX;
+      ${ROAD_GLSL}
+      void main(){ vec3 p = position; p.x += uCamX; vW = p; vB = bend(p); gl_Position = projectionMatrix * viewMatrix * vec4(vB, 1.0); }`,
     fragmentShader: /* glsl */`
       precision highp float;
-      varying vec3 vW;
-      uniform float uPos, uVel, uTime, uPulse, uSunEl, uSunPow, uBright, uShutter;
-      uniform vec3 grid, gridAlt, ground, horizon, sunLow, sunMid, fog;
+      varying vec3 vW, vB;
+      uniform float uPos, uPos2, uVel, uTime, uPulse, uSunEl, uSunPow, uBright, uShutter;
+      uniform vec3 grid, gridAlt, ground, horizon, sunLow, sunMid, fog, uCar;
       ${COMMON}
       void main(){
         const float S = ${ROAD.lane.toFixed(2)};   // one grid cell per lane
-        vec3 v = vW - cameraPosition; float dist = length(v); vec3 dir = v / dist;
+        const float RAIL = ${ROAD.rail.toFixed(2)}, SH = ${ROAD.shoulder.toFixed(2)};
+        vec3 v = vB - cameraPosition; float dist = length(v); vec3 dir = v / dist;
+        float ax = abs(vW.x);
         float gx = (vW.x - ${(ROAD.lane / 2).toFixed(2)}) / S;   // lines on the lane edges
         float gz = (vW.z - uPos) / S;
         // motion blur along z for the cross lines (energy conserving)
-        float blur = abs(uVel) * uShutter / S;
+        float blurU = abs(uVel) * uShutter, blur = blurU / S;
         float fwz = max(fwidth(gz), 1e-5);
         float dz = abs(fract(gz - 0.5) - 0.5);
         float hw = 0.0045;
@@ -134,34 +139,68 @@ function makeGrid() {
         cz = mix(cz * mix(clamp(hw / max(hw, fwz*0.65),0.,1.), 1.0, 0.6), 0.06, densz);
         float gzGlow = exp(-max(dz - blur * 0.5, 0.0) / (fwz * 3.0)) * (1.0 - densz);
         vec2 lx = gridLine(gx, 0.0045, 1.3, 3.0);
-        // road edges (x = ±ROAD.rail) — brighter cyan rails
-        float re = abs(abs(vW.x) - ${ROAD.rail.toFixed(2)});
+        // road edges (x = ±ROAD.rail): the solid edge lines, bright
+        float re = abs(ax - RAIL);
         float fwr = max(fwidth(vW.x), 1e-4);
-        float rail = 1.0 - smoothstep(max(0.025, fwr * 0.7) - fwr, max(0.025, fwr * 0.7) + fwr, re);
+        float rail = 1.0 - smoothstep(max(0.06, fwr * 0.7) - fwr, max(0.06, fwr * 0.7) + fwr, re);
         float railGlow = exp(-re / (fwr * 5.0 + 0.05));
         float fade = exp(-dist / 380.0);
         float near = smoothstep(0.0, 6.0, dist);
-        float lines = max(lx.x, cz);
-        float glow = max(lx.y, gzGlow) * 0.22;
+        // the carriageway: three lanes of asphalt and a hard shoulder each side. The neon grid is the plain beside it.
+        float road = 1.0 - smoothstep(SH - fwr, SH + fwr, ax);
+        float lines = max(lx.x, cz) * (1.0 - road);
+        float glow = max(lx.y, gzGlow) * 0.22 * (1.0 - road);
         // floor: dark glossy, picks up the horizon and a sun streak
         float graze = pow(1.0 - abs(dir.y), 6.0);
-        vec3 col = ground + horizon * graze * 0.32;
         float az = atan(dir.x, -dir.z);
         float streak = exp(-pow(az / (0.04 + 0.07 * graze), 2.0)) * pow(graze, 1.5);
         float ripple = 0.55 + 0.45 * sin(log(dist + 1.0) * 26.0 - uPos * 0.0) * sin(vW.x * 0.9 + log(dist + 1.0) * 7.0);
-        col += mix(sunLow, sunMid, graze) * streak * 0.16 * uSunPow * (0.6 + 0.4 * ripple);
+        vec3 sun = mix(sunLow, sunMid, graze) * streak * uSunPow * (0.6 + 0.4 * ripple);
+        vec3 col = ground + horizon * graze * 0.32 + sun * 0.16;
         vec3 lc = mix(grid, mix(grid, horizon, 0.35), smoothstep(150.0, 900.0, dist));
         float pulse = 1.0 + uPulse * 0.25;
         col += lc * (lines * 1.05 + glow) * fade * near * uBright * pulse;
-        col += gridAlt * (rail * 1.2 + railGlow * 0.18) * exp(-dist / 600.0) * near * uBright;
+        if (road > 0.001) {
+          float zr = vW.z - uPos2;                                    // distance along the road (it repeats every 60 units)
+          float fwq = max(fwidth(vW.z), 1e-4);
+          // the surface: a fine grain drawn out along the direction of travel, patches of wear, an expansion joint every 30 units
+          float cellZ = floor(mod(zr, 60.0) / 7.5), gr = hash12(vec2(floor(vW.x * 6.0), cellZ)) - 0.5;
+          float wear = hash12(vec2(floor(vW.x / 2.5 + 0.5), floor(mod(zr, 60.0) / 20.0)));
+          float gk = (1.0 - smoothstep(0.15, 0.6, fwr * 6.0)) * exp(-dist / 70.0);
+          float jz = abs(fract(zr / 30.0 - 0.5) - 0.5) * 30.0, jw = 0.07 + blurU * 0.5;
+          float joint = (1.0 - smoothstep(jw, jw + fwq * 1.5, jz)) * clamp(0.07 / (jw + fwq), 0.0, 1.0) * exp(-dist / 160.0);
+          // the car's headlamps wash the road ahead of it
+          vec2 hp = vec2((vW.x - uCar.x) / 5.2, (uCar.y - 16.0 - vW.z) / 19.0);
+          float pool = exp(-dot(hp, hp)) * uCar.z;
+          vec3 asph = ground * 0.8 + vec3(0.020, 0.021, 0.030);
+          asph *= 1.0 + 0.5 * gr * gk + 0.10 * (wear - 0.5);
+          asph *= 1.0 - 0.45 * joint;
+          asph += horizon * graze * 0.24 + sun * 0.22;
+          asph *= 1.0 + 0.9 * pool;
+          // lane lines: a 5-unit dash every 15 (the grid's cross lines are gone from the road: these carry the speed now)
+          float dl = abs(ax - ${(ROAD.lane / 2).toFixed(2)});
+          float lw = max(0.085, fwr * 0.75);
+          float core = (1.0 - smoothstep(lw - fwr, lw + fwr, dl)) * mix(clamp(0.085 / lw, 0.0, 1.0), 1.0, 0.45);
+          float u = fract(zr / 15.0), eu = max(fwq, blurU) / 15.0 + 1e-4;
+          float dash = smoothstep(0.0, eu, u) * (1.0 - smoothstep(1.0 / 3.0, 1.0 / 3.0 + eu, u));
+          dash = mix(dash, 1.0 / 3.0, smoothstep(0.12, 0.45, fwq / 15.0 * 3.0));
+          vec3 paint = mix(vec3(1.0, 0.97, 0.9), grid, 0.12);
+          vec3 mark = paint * core * dash * (0.55 + 1.1 * pool) * exp(-dist / 520.0) * near * uBright;
+          mark += paint * exp(-dl / (fwr * 4.0 + 0.04)) * dash * 0.05 * exp(-dist / 300.0);
+          col = mix(col, asph + mark, road);
+        }
+        col += gridAlt * (rail * 1.25 + railGlow * 0.18) * exp(-dist / 600.0) * near * uBright;
         col = mix(col, horizon * 0.42 + fog * 0.35, smoothstep(250.0, 3000.0, dist));
         gl_FragColor = vec4(col, 1.0);
       }`,
     extensions: { derivatives: true },
   });
-  const geo = new THREE.PlaneGeometry(30000, 16000, 1, 1);
-  geo.rotateX(-Math.PI / 2);
-  geo.translate(0, 0, -8000 + 8);
+  // a strip of rows across the whole plain, close together near the camera and further apart with distance, so the surface can
+  // follow the road's bends and rises (the pattern is drawn per pixel from the flat coordinates)
+  const zs = [8]; while (zs[zs.length - 1] > -16000) { const d = 8 - zs[zs.length - 1]; zs.push(zs[zs.length - 1] - Math.max(1.5, d * 0.035)); }
+  const pos = new Float32Array(zs.length * 6), idx = [];
+  zs.forEach((z, i) => { pos.set([-15000, 0, z, 15000, 0, z], i * 6); if (i) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
   const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.renderOrder = 0;
   return m;
 }
@@ -320,12 +359,13 @@ function makePalms(seed) {
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
     uniforms: {
-      uTex: { value: tex }, uPos: { value: 0 }, uTime: { value: 0 }, uCamX: { value: 0 },
+      ...ROAD_U, uTex: { value: tex }, uPos: { value: 0 }, uTime: { value: 0 }, uCamX: { value: 0 },
       palm: { value: new THREE.Vector3() }, fog: { value: new THREE.Vector3() }, horizon: { value: new THREE.Vector3() }, rim: { value: new THREE.Vector3() },
     },
     vertexShader: /* glsl */`
       attribute vec3 aX; attribute vec4 aH; uniform float uPos, uTime;
       varying vec2 vUv; varying float vDist; varying float vFade; varying float vVar; varying float vSide;
+      ${ROAD_GLSL}
       void main(){
         float span = aX.z;
         float z = 8.0 - mod(8.0 - (-aX.y) - uPos, span);
@@ -334,7 +374,7 @@ function makePalms(seed) {
         vec3 off = vec3(position.x * w * aH.z, position.y * h, 0.0);
         float sway = sin(uTime * (0.6 + aH.w * 0.5) + aH.w * 20.0) * 0.012 * position.y * position.y;
         off.x += sway * h;
-        vec4 wp = vec4(p + off, 1.0);
+        vec4 wp = vec4(bend(p) + off, 1.0);
         vec4 mv = viewMatrix * wp;
         vDist = -mv.z; vUv = vec2(aH.y * 0.25 + uv.x * 0.25, uv.y); vVar = aH.y;
         vFade = (1.0 - smoothstep(span * 0.72, span * 0.95, -z)) * smoothstep(-1.0, 3.0, -z + 6.0);
@@ -375,16 +415,17 @@ function makeTrails() {
   g.instanceCount = N * 2;
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    uniforms: { uPos: { value: 0 }, uLen: { value: 1 }, uI: { value: 1 }, cA: { value: new THREE.Vector3() }, cB: { value: new THREE.Vector3() } },
+    uniforms: { ...ROAD_U, uPos: { value: 0 }, uLen: { value: 1 }, uI: { value: 1 }, cA: { value: new THREE.Vector3() }, cB: { value: new THREE.Vector3() } },
     vertexShader: /* glsl */`
       attribute vec3 aP; uniform float uPos, uLen;
       varying vec2 vQ; varying float vD; varying float vSide;
+      ${ROAD_GLSL}
       void main(){
         float span = ${(N * S).toFixed(1)};
         float z = 8.0 - mod(8.0 - (-aP.y) - uPos, span);
         vec3 c = vec3(aP.x, 0.55, z);
         float along = (position.x + 0.5);                // 0 head .. 1 tail
-        vec3 p = c + vec3(0.0, 0.0, along * uLen);
+        vec3 p = bend(c + vec3(0.0, 0.0, along * uLen));
         vec3 toCam = normalize(cameraPosition - p);
         vec3 side = normalize(cross(vec3(0.0, 0.0, 1.0), toCam));
         float dist = length(cameraPosition - p);
@@ -481,6 +522,7 @@ export class World {
     su.uStars.value = s.stars * P.stars; su.uFlare.value = s.sun.flare; su.uSunSquash.value = s.sun.squash || 0;
     for (const k of ['skyTop', 'skyMid', 'skyLow', 'horizon', 'haze', 'fog', 'sunTop', 'sunMid', 'sunLow', 'sunGlow']) su[k].value.set(...P[k]);
     const gu = this.grid.material.uniforms;
+    gu.uPos2.value = ((s.road.pos % 60) + 60) % 60; gu.uCar.value.set(s.car.x, s.car.z, s.car.visible ? s.car.lights : 0);
     gu.uPos.value = s.road.gridPhase; gu.uVel.value = s.road.vel; gu.uCamX.value = s.cam.x; gu.uTime.value = s.t; gu.uPulse.value = s.pulse;
     gu.uSunEl.value = s.sun.el; gu.uSunPow.value = s.sun.pow * P.sunPower; gu.uBright.value = s.gridBright;
     for (const k of ['grid', 'gridAlt', 'ground', 'horizon', 'sunLow', 'sunMid', 'fog']) gu[k].value.set(...P[k]);

@@ -13,6 +13,7 @@ import { T_VAN, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE } from './game.js';
 import { Vehicles } from './vehicles.js';
 import { Heli, HELI } from './heli.js';
 import { hash1, lerp, smooth } from './util.js';
+import { ROAD_U, ROAD_GLSL } from './road.js';
 
 const MAXB = 640, MAXG = 480;
 const HASH = /* glsl */`
@@ -27,13 +28,14 @@ function makeSolids() {
   for (const [n, k] of [['aP', 3], ['aS', 3], ['aC', 3], ['aM', 4]]) { A[n] = new THREE.InstancedBufferAttribute(new Float32Array(MAXB * k), k); A[n].setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, A[n]); }
   g.instanceCount = 0;
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uT: { value: 0 }, uFog: { value: new THREE.Vector3() }, uGround: { value: new THREE.Vector3() }, uSky: { value: new THREE.Vector3() } },
+    uniforms: { ...ROAD_U, uT: { value: 0 }, uFog: { value: new THREE.Vector3() }, uGround: { value: new THREE.Vector3() }, uSky: { value: new THREE.Vector3() } },
     vertexShader: /* glsl */`
       attribute vec3 aP, aS, aC; attribute vec4 aM;   // aM: kind (0 neon-edged body, 1 emissive, 3 plain structure), fade, heading, ribs
       varying vec3 vL, vS, vC, vN, vW; varying vec4 vM;
+      ${ROAD_GLSL}
       void main(){ vL = position; vS = aS; vC = aC; vM = aM; vN = normal;
         vec3 q = position * aS; float c = cos(aM.z), s = sin(aM.z);
-        vec3 p = aP + vec3(c * q.x + s * q.z, q.y, c * q.z - s * q.x); vW = p;
+        vec3 p = bend(aP + vec3(c * q.x + s * q.z, q.y, c * q.z - s * q.x)); vW = p;
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: /* glsl */`
       precision highp float;
@@ -58,6 +60,10 @@ function makeSolids() {
           vec3 fill = uGround * 1.5 + vC * 0.03 + uSky * 0.22 * step(0.5, vN.y);
           col = fill + vC * (e * 1.5 + ribs);
         } else if (vM.x < 1.5) col = vC;                                                                   // emissive
+        else if (vM.x > 3.5) {                                                                              // galvanised steel: the guardrail's beam, two ridges catching the sky
+          float rid = an.x > 0.5 ? smoothstep(0.07, 0.0, abs(abs(q.y) - 0.085)) : 0.0;
+          col = uGround * 2.4 + uSky * (0.5 * step(0.5, vN.y) + 0.2 * an.x + 0.55 * rid) + vC * 0.06;
+        }
         else col = uGround * 1.6 + uSky * (0.16 * step(0.5, vN.y) + 0.07 * an.x) + vC * 0.05;              // plain dark structure
         // fade: far things come out of the haze, lights and debris dim (no dither: nothing flickers)
         if (vM.x > 0.5 && vM.x < 1.5) col *= vM.y; else col = mix(uFog, col, vM.y);
@@ -80,12 +86,13 @@ function makeGlows() {
   g.instanceCount = 0;
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-    uniforms: { uT: { value: 0 } },
+    uniforms: { ...ROAD_U, uT: { value: 0 } },
     vertexShader: /* glsl */`
       attribute vec3 aP, aU, aV, aC; attribute vec4 aM;   // aM: type, intensity, seed, parameter
       varying vec2 vQ, vHS; varying vec3 vC; varying vec4 vM; varying float vD;
+      ${ROAD_GLSL}
       void main(){ vQ = position.xy * 2.0; vC = aC; vM = aM; vHS = vec2(length(aU), length(aV));
-        vec3 p = aP + aU * vQ.x + aV * vQ.y; vD = length(cameraPosition - p);
+        vec3 p = bend(aP + aU * vQ.x + aV * vQ.y); vD = length(cameraPosition - p);
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
     fragmentShader: /* glsl */`
       precision highp float;
@@ -260,8 +267,8 @@ const signTexture = (sg) => canvasTexture(640, 320, (g, W, H) => {
 // a lit panel: canvas artwork, fogged and dissolved like the rest of the scene
 function makePanel(w, h, tex) {
   const mat = new THREE.ShaderMaterial({
-    uniforms: { map: { value: tex }, uK: { value: 1 }, uFade: { value: 1 }, uT: { value: 0 }, uFog: { value: new THREE.Vector3() } },
-    vertexShader: 'varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    uniforms: { ...ROAD_U, map: { value: tex }, uK: { value: 1 }, uFade: { value: 1 }, uT: { value: 0 }, uFog: { value: new THREE.Vector3() } },
+    vertexShader: `varying vec2 vUv; varying vec3 vW; ${ROAD_GLSL} void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = bend(w.xyz); gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
     fragmentShader: /* glsl */`
       precision highp float;
       uniform sampler2D map; uniform float uK, uFade, uT; uniform vec3 uFog; varying vec2 vUv; varying vec3 vW;
@@ -277,12 +284,12 @@ function makePanel(w, h, tex) {
 }
 
 const RED = [2.2, 0.14, 0.22], TAIL = [1.5, 0.1, 0.16], AMBER = [2.2, 1.1, 0.1], CELL = [0.72, 1.0, 0.2], NITRO = [0.35, 0.85, 1.0], LAMP = [1.0, 0.95, 0.8];
-const DARK = [0.2, 0.2, 0.3];
+const DARK = [0.2, 0.2, 0.3], STEEL = [0.5, 0.55, 0.7];
 const GRAP = [1.0, 0.8, 0.1], NET = [0.9, 1.0, 0.2];
 const BB_SPAN = 4800, BB = [{ z0: 700, side: 1 }, { z0: 2300, side: -1 }, { z0: 3900, side: 1 }];      // a billboard every 1600 units
 const GA_SPAN = 4800, GA = [1500, 3900];                                                              // a sign gantry every 2400
 const SG_SPAN = 4800, SG = [{ z0: 1100, side: 1, k: 0 }, { z0: 3250, side: 1, k: 1 }, { z0: 4450, side: -1, k: 2 }];   // roadside signs
-const POST_S = 30;                                                                                    // reflector posts on the rails
+const POST_S = 15;                                                                                    // reflector posts on the rails
 const mod = (a, n) => ((a % n) + n) % n, V1 = new THREE.Vector3();
 // each body: where its tail lamps are (tz behind its middle, ty up, tx = 0: one bar across; else a lamp each side), how much road
 // it lights and in what colour, and the paints it comes in (the fixed-colour ones take none)
@@ -359,12 +366,16 @@ export class GameView {
       for (const l of [-1, 0, 1]) this.box(l * L, 6.6, z + 0.2, 0.9, 0.09, 0.2, [0.2, 1, 0.5], 1, f, 1.4);     // green lane lamps
     });
 
-    // ── scenery: the highway's furniture. Reflector posts on the rails ──
+    // ── scenery: the highway's furniture. A steel guardrail beyond each hard shoulder: a post every POST_S, the beam between
+    //    them, a reflector on every other post (amber on the left, white on the right) ──
     if (sc > 0.003) {
-      for (const side of [-1, 1]) for (let k = 0; k < 14; k++) {
-        const d = mod(-pos, POST_S) + k * POST_S, z = 30 - d, f = smooth((430 - d) / 100) * sc;
+      const n0 = Math.ceil(pos / POST_S);
+      for (const side of [-1, 1]) for (let k = 0; k < 30; k++) {
+        const d = mod(-pos, POST_S) + k * POST_S, z = 30 - d, f = smooth((440 - d) / 110) * sc;
         if (f < 0.01) continue;
-        this.box(side * (R + 0.35), 0.45, z, 0.1, 0.9, 0.1, DARK, 3, f); this.sprite(side * (R + 0.35), 0.84, z, 0.3, side < 0 ? [1, 0.72, 0.2] : [1, 1, 1], 0.9 * f);
+        const x = side * (ROAD.trail + 0.14);
+        this.box(x + side * 0.1, 0.4, z, 0.12, 0.8, 0.14, DARK, 3, f); this.box(x, 0.6, z + POST_S / 2, 0.07, 0.32, POST_S, STEEL, 4, f);
+        if ((n0 + k) % 2 === 0) this.sprite(x - side * 0.08, 0.86, z, 0.28, side < 0 ? [1, 0.72, 0.2] : [1, 1, 1], 0.8 * f);
       }
     }
     // ── scenery: roadside signs on two posts ──

@@ -367,24 +367,6 @@ class Blip extends Voice { // generic UI tone: freq sweep f0→f1, decay
     return u < this.dur * 7;
   }
 }
-class Coin extends Voice { // an energy cell picked up: the classic arcade coin. A plain square wave on B5 for a moment, then up a fourth to E6, which rings out.
-  // One at a time, as on a console with a single channel to spare: the next pickup cuts this one off, so a line of cells is a row of clean coins.
-  constructor(s, o, amp = 0.09) { super(s, o); this.amp = amp; this.ph = 0; this.lp = 0; this.end = Infinity; }
-  cut(o) { this.end = Math.min(this.end, this.n + o); }
-  tick(B, i, t) {
-    const hi = t >= 0.06, u = hi ? t - 0.06 : t, dp = (hi ? 1318.5 : 987.8) / SR;              // B5, then E6
-    this.ph += dp; if (this.ph >= 1) this.ph -= 1;
-    const p = this.ph, q = (p < 0.5 ? 1 : -1) + blep(p, dp) - blep(p < 0.5 ? p + 0.5 : p - 0.5, dp);
-    this.lp += (q - this.lp) * 0.73;                                                            // the top taken off above 10 kHz, as the old hardware did
-    const env = hi ? Math.max(0, 1 - u / 0.8) * exp(-u / 0.3) : Math.min(1, t / 0.001);         // the first note held flat, the second fading over most of a second
-    let y = this.lp * env * this.amp;
-    const k = (this.n - this.end) / (0.006 * SR);
-    if (k >= 1) return false;
-    if (k > 0) y *= 1 - k;
-    B.sfxL[i] += y; B.sfxR[i] += y;
-    return t < 0.87;
-  }
-}
 class Click extends Voice { // mechanical button: noise tick + body thump
   constructor(s, o, amp = 1, heavy = 0) { super(s, o); this.amp = amp; this.heavy = heavy; this.r = new RNG(s.seed()); this.lp = new SVF(); this.lp.set(heavy ? 1600 : 5200, 0.8); this.ph = 0; }
   tick(B, i, t) {
@@ -578,7 +560,6 @@ export class Synth {
       case 'rewind': v = new Squeal(s, o, n.d ?? 0.6, false); break;
       case 'rewindlong': v = new Squeal(s, o, 1.25, false); break;
       // game
-      case 'cell': if (this.coin) this.coin.cut(o); v = this.coin = new Coin(s, o); break;
       case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
       case 'smash': v = new Click(s, o, 1.0, 1); this.voices.push(new Blip(s, o, 1500, 240, 0.09, 0.1), new Blip(s, o, 2600, 900, 0.05, 0.05, 0.3, 0.03)); break;
       case 'swipe': v = new Click(s, o, 1.1, 1); this.voices.push(new Blip(s, o, 260, 85, 0.1, 0.16)); break;

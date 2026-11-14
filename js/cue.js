@@ -107,7 +107,7 @@ export const GAME = {
 // Road layout (world units, x across): a three-lane highway. Lanes are `lane` wide (a car is ~2 wide, a truck ~2.8),
 // centred on −lane, 0, +lane. The grid cell equals the lane width, so grid lines fall on the lane edges and on the
 // cyan rails (±1.5·lane). `traffic`: the ambient tail lights of the intro sit in the outer lanes.
-export const ROAD = { lane: 5.0, rail: 7.5, traffic: 5.0, trail: 9.7 };
+export const ROAD = { lane: 5.0, rail: 7.5, shoulder: 9.3, traffic: 5.0, trail: 9.7 };   // shoulder: where the asphalt ends; the guardrail stands at `trail`
 // Lane change feel (sim, 240 Hz): the lateral move is a critically damped spring on a lightly smoothed target
 // (≈ 0.21 s to 90 %), so a second press mid-move retargets with the velocity it already has. The drift is
 // visual only: body yaw follows the lateral speed (capped at yawMax, so a two-lane dash stays slight) through an

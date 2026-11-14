@@ -8,6 +8,7 @@
 // bright metal, rubber, lamps, and painted lettering.
 // Per instance: position, heading, lean and dive of the body on its springs, scale, body colour, fade, and its lights.
 import * as THREE from '../vendor/three.module.min.js';
+import { ROAD_U, ROAD_GLSL } from './road.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const within = (s, a, b) => s > a && s < b;
@@ -516,6 +517,7 @@ function makeStyle(style, uniforms) {
       uniform float uSpin;
       attribute float aPart, aShade; attribute vec2 aHub, aUv, aR; attribute vec3 aP, aC, aCol; attribute vec4 aS, aL;   // aS: heading, scale, fade, – · aL: tail, roof left, roof right, brake · aR: roll, pitch
       varying vec3 vN, vW, vC, vL; varying float vPart, vFade, vShade; varying vec4 vLi; varying vec2 vUv, vYaw;
+      ${ROAD_GLSL}
       vec3 lean(vec3 q){                                                   // roll about the vehicle's long axis, then pitch about the axle line
         float cr = cos(aR.x), sr = sin(aR.x), cp = cos(aR.y), sp = sin(aR.y);
         q = vec3(q.x * cr - q.y * sr, q.x * sr + q.y * cr, q.z);
@@ -530,7 +532,7 @@ function makeStyle(style, uniforms) {
         } else { p = lean(p - vec3(0.0, 0.4, 0.0)) + vec3(0.0, 0.4, 0.0); n = lean(n); }   // … the body moves on its springs
         float c = cos(aS.x), s = sin(aS.x);
         mat3 R = mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
-        vec3 w = aP + R * (p * aS.y); vW = w; vN = R * n; vPart = aPart; vFade = aS.z; vLi = aL; vShade = aShade; vUv = aUv; vYaw = vec2(c, s);
+        vec3 w = bend(aP + R * (p * aS.y)); vW = w; vN = R * n; vPart = aPart; vFade = aS.z; vLi = aL; vShade = aShade; vUv = aUv; vYaw = vec2(c, s);
         vC = aPart > 8.5 && aPart < 9.5 ? aC * aCol : aCol;
         gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
       }`,
@@ -592,7 +594,7 @@ function makeStyle(style, uniforms) {
 export class Vehicles {
   constructor() {
     const v3 = () => ({ value: new THREE.Vector3() });
-    this.u = { cSky: v3(), cTop: v3(), cHor: v3(), cSun: v3(), cGrid: v3(), cFog: v3(), uT: { value: 0 }, uSpin: { value: 0 }, uInk: { value: lettering() } };
+    this.u = { ...ROAD_U, cSky: v3(), cTop: v3(), cHor: v3(), cSun: v3(), cGrid: v3(), cFog: v3(), uT: { value: 0 }, uSpin: { value: 0 }, uInk: { value: lettering() } };
     this.group = new THREE.Group();
     this.m = {};
     for (const k of VEHICLE_STYLES) { this.m[k] = makeStyle(k, this.u); this.group.add(this.m[k]); }

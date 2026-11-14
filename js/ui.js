@@ -182,11 +182,9 @@ export class UI {
   announce(T) {
     if (this.annT === undefined || T < this.annT || T - this.annT > 0.5) { this.annT = T; return; }
     const evs = this.app.tl.gameEvents(this.annT, T); this.annT = T;
-    let cell = false;
     for (const e of evs) {
       const k = e.k;
-      if (k === 'cell') { if (!cell) { cell = true; this.sfx('cell'); } }
-      else if (k === 'near') this.sfx('near');
+      if (k === 'near') this.sfx('near');
       else if (k === 'smash' || k === 'wreck') this.sfx('smash');
       else if (k === 'shake') this.sfx('chime');
       else if (k === 'swipe') this.sfx('swipe');

@@ -4,6 +4,7 @@
 // Local frame: nose towards −z, y up, y = 0 under the skids, the rotor mast on the y axis.
 import * as THREE from '../vendor/three.module.min.js';
 import { ENV_GLSL } from './vehicles.js';
+import { ROAD_U, ROAD_GLSL } from './road.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, sat = (x) => Math.max(0, Math.min(1, x)), smooth = (x) => { x = sat(x); return x * x * (3 - 2 * x); };
 // a smooth curve through [x, y] keys (Catmull-Rom)
@@ -156,12 +157,13 @@ const AY = new THREE.Vector3(0, 1, 0), QY = new THREE.Quaternion(), QT = new THR
 export class Heli {
   // pal: the palette uniforms the vehicles already keep up to date (sky, horizon, sun, road, fog)
   constructor(pal) {
-    const u = this.u = { ...pal, uFade: { value: 1 }, uLamp: { value: new THREE.Vector3(1, 1, 1) }, uMap: { value: lettering() } };
+    const u = this.u = { ...ROAD_U, ...pal, uFade: { value: 1 }, uLamp: { value: new THREE.Vector3(1, 1, 1) }, uMap: { value: lettering() } };
     const body = new THREE.Mesh(build(), new THREE.ShaderMaterial({
       uniforms: u,
       vertexShader: /* glsl */`
         attribute float aPart; varying vec3 vN, vW, vL; varying float vPart;
-        void main(){ vL = position; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = mat3(modelMatrix) * normal; vPart = aPart; gl_Position = projectionMatrix * viewMatrix * w; }`,
+        ${ROAD_GLSL}
+        void main(){ vL = position; vec4 w = modelMatrix * vec4(position, 1.0); vW = bend(w.xyz); vN = mat3(modelMatrix) * normal; vPart = aPart; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
       fragmentShader: /* glsl */`
         precision highp float;
         uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog, uLamp; uniform float uFade; uniform sampler2D uMap;
@@ -201,8 +203,8 @@ export class Heli {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(2 * r, 2 * r), new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, side: THREE.DoubleSide,
         blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-        uniforms: { cHor: pal.cHor, uT: { value: 0 }, uFade: u.uFade, uSpin: { value: spin }, uBlades: { value: blades } },
-        vertexShader: 'varying vec2 vQ; void main(){ vQ = uv * 2.0 - 1.0; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        uniforms: { ...ROAD_U, cHor: pal.cHor, uT: { value: 0 }, uFade: u.uFade, uSpin: { value: spin }, uBlades: { value: blades } },
+        vertexShader: `varying vec2 vQ; ${ROAD_GLSL} void main(){ vQ = uv * 2.0 - 1.0; gl_Position = projectionMatrix * viewMatrix * vec4(bend((modelMatrix * vec4(position, 1.0)).xyz), 1.0); }`,
         fragmentShader: /* glsl */`
           precision highp float;
           uniform vec3 cHor; uniform float uT, uFade, uSpin, uBlades; varying vec2 vQ;

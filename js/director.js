@@ -5,6 +5,7 @@ import { DT } from './timeline.js';
 import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
+import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
 
 // Catmull-Rom through keys [[t, v], ...] (clamped ends) — C1 camera paths.
 function cr(keys, t) {
@@ -498,6 +499,22 @@ export function frameState(tl, T, w, h, opt = {}) {
   if (ph.phase === 'cruise') ui.autoP = tl.autoProgress(T);
   if (reduced) { post.tracking *= 0.2; post.flash *= 0.2; post.noise = Math.min(post.noise, 0.06); }
 
+  // ── the road's shape: the camera rides it and looks along the road ahead; the car sits on it and leans in the bends ──
+  let roadS = 0, roadOn = 0, latG = 0;
+  if (ph.phase === 'cruise' && sim.run > 0 && !reduced) {
+    const stepping = !rew && !sim.over && T >= sim.hold && !sim.paused;
+    roadOn = 1; roadS = sv.g.gd - (stepping ? (1 - sim.gf) * DT * sv.vel : 0) + car.z;
+  }
+  setRoad(roadS, roadOn);
+  if (roadOn) {
+    const sc = roadS - car.z, look = 30;
+    yaw -= Math.atan((roadX(roadS + look) - roadX(roadS)) / look); pitch += Math.atan((roadY(roadS + look) - roadY(roadS)) / look);
+    latG = roadK(sc) * sv.vel * sv.vel;                              // the sideways load in the bend (units/s²; + = the road turns right)
+    roll -= clamp(latG * 0.0009, -0.03, 0.03);                       // the camera leans into it a little
+    const [bx, by] = bendAt(-car.z);
+    car.bx = bx; car.by = by; car.yaw -= Math.atan(roadDX(sc)); car.slope = Math.atan(roadDY(sc));
+    car.roll += clamp(latG * 0.0022, -0.05, 0.05);                   // the body leans out of it
+  }
   const vfov = L.vfov * fovK;
   s.cam = { x: camX, y: camY, pitch, yaw, roll, fov: clamp(vfov, 20, 100), shift: L.shift + post.shake[1], shiftX: post.shake[0] };
   s.sun = { el: sunEl, r: L.sunR, pow: sunPow, band, flare, squash: 0 };
