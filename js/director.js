@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate } from './game.js';
+import { NV, VF, NC, CF, NI, IF, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, P_WARN, P_CHARGE, P_BACK, P_HOOK, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
@@ -85,7 +85,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const g = sv.g, G = GAME, L = ROAD.lane;
   const stepping = !sim.over && T >= sim.hold && !sim.paused;
   const back = stepping ? (1 - sim.gf) * DT : 0;          // the state is from the step after T: step positions back
-  const far = (dz) => smooth(lin(dz, G.ahead - 2, G.ahead - 60));
+  const ahead = aheadFor(g), far = (dz) => smooth(lin(dz, ahead - 2, ahead - 70));
   const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, grap: null, heli: null };
   if (g.free) { ui.g = { on: 1, free: 1, run: sim.run, gear: g.gear + 1, nstock: sim.g.nstock, tapes: 0, over: 0, overU: 0, paused: sim.paused, rew: 0, pops: [], star: 0, lives: 2, close: 0, hint: 0, pol: 0 }; return out; }
   const veh = g.veh;
@@ -127,7 +127,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     for (let k = 0; k < n; k++) {
       if (cel[o + 4] & (1 << k)) continue;
       const dz = z0 + k * cel[o + 3];
-      if (dz > -8 && dz < G.ahead) out.cells.push({ x, dz, fade: far(dz) });
+      if (dz > -8 && dz < ahead) out.cells.push({ x, dz, fade: far(dz) });
     }
   }
   for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ x: g.itm[o + 1] * L, dz, fade: far(dz) }); } }

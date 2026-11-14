@@ -503,7 +503,7 @@ function lettering() {
   return t;
 }
 
-const MAX = 40;
+const MAX = 56;
 function makeStyle(style, uniforms) {
   const base = STYLES[style]();
   const g = new THREE.InstancedBufferGeometry();

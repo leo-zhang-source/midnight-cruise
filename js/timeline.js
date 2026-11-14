@@ -242,6 +242,7 @@ export class Timeline {
     const g = st.g;
     g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.brkAcc = 0; g.lives = 2;
     g.polM = P_TAIL; g.polZ = Math.min(g.polZ, -GAME.polFar + 2); g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
+    g.icM = 0; g.icZ = -60; g.icNext = Math.max(g.icNext, g.gt + 6); g.aiNext = 0; g.atkGap = g.gt + 3; g.drWant = -1;
     st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
     this._endNitro(T);
     this._gev.push({ t: T, k: 'revive' });
@@ -349,7 +350,7 @@ export class Timeline {
       let dv = (vt - st.vel) * (1 - Math.exp(-DT / tauV));
       if (cruise && !st.over && !st.paused && st.run > 0) {       // … but it has weight: the engine and the brakes can only do so much
         const up = (nOn || (tb && T >= tb.I) ? GAME.nitroAccel : st.vel < GAME.gears[0] ? GAME.launch : GAME.accel) * DT;
-        dv = Math.max(-GAME.brake * DT, Math.min(up, dv));
+        dv = Math.max(-(tb ? 400 : GAME.brake) * DT, Math.min(up, dv));       // (a nitro burst dies away as fast as it came: the car is back at road speed by the time it can be hit again)
       }
       st.vel += dv;
       st.pos += st.vel * DT;

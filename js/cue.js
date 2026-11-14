@@ -69,6 +69,7 @@ export const GAME = {
   brakeMul: 0.55, brakeLinger: 2.2,              // braking: 55 % speed; on the brake for 2.2 s and the police are on your tail
   // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
   nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 0.7, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
+  aheadT: 6.6, fairAhead: 5.8,                   // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police plan 5.8 s ahead
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
   rowGap: [1.05, 0.68],                           // seconds between rows at the gear's closing speed (gear 1 → 6)
   nearT: 0.32, draftT: 0.9,                      // close-call and slipstream windows, in seconds of closing time
@@ -83,24 +84,50 @@ export const GAME = {
   // Wanted level. Stars come slowly: two after star2At of road, three after star3At, counted from the last time the heat was
   // cleared; a hit adds half a star (so does ramming a cruiser in a nitro burst). The third nitro burst clears the heat: back to
   // one star, and the road count starts again. Heat from hits cools by a star every heatDecay s once heatHold s pass quietly.
-  star2At: 2000, star3At: 5000, nitroClear: 3,
+  // Five stars now: 1 = the pursuit car · 2 = roadblocks, weaving cruisers, the grappler · 3 = the helicopter · 4 = an interceptor on
+  // your flank, cruisers that cut you off, twin searchlights · 5 = all of it, two attacks at a time, the walking barrage.
+  // starAt: road since the heat was last cleared at which each star arrives. The third nitro burst clears clearDrop stars.
+  starAt: [0, 1400, 3400, 6400, 10400], nitroClear: 3, clearDrop: 2,
+  // The threat level rises by one every lvEvery seconds of a run and never comes down. With it: from level starFloorLv[1] there are
+  // never fewer than two stars, from starFloorLv[2] never fewer than three; the police attack sooner (intervals ÷ (1 + cadence × level));
+  // a driver is given less time to see an attack coming (react: seconds at level 0, the least it ever gets, lost per level);
+  // more of the traffic comes in pairs and convoys and more of it changes lane; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
+  lvEvery: 40, starFloorLv: [0, 3, 6], cadence: 0.1, react: [0.75, 0.42, 0.035], nitroLv: 0.05, nitroLvMax: 1.5,
+  // rest: the pause after one attack before the next may start (at level 0, the least, lost per level) · fairSwitch: the police plan with a
+  // lane change this slow, a little slower than the car really is · weaveFree: an attack must be over this long before we reach a weaving cruiser
+  rest: [1.8, 0.6, 0.12], fairSwitch: 0.4, weaveFree: 2.0,
+  // every warning lasts the reaction time plus `warn` (so warnings shorten as the level rises: 1.2 s at level 0, 0.87 s at its shortest);
+  // the helicopter may hold its fire up to drLate longer, to strike at the moment that leaves the fewest ways out
+  warn: 0.45, drLate: [0, 0.25, 0.5, 0.75],
   heatSwipe: 0.5, heatSmash: 0, heatCruiser: 0.5, heatHold: 10, heatDecay: 12,
   stumbleGrace: 1.2, hitInv: 1.0, hitRest: 2.5, polClose: 6.5, polFar: 19, chaseZ: 8.5, chaseX: 2.4, chaseRam: 0.6,   // chaseZ, chaseX: where it sits for the long chase: behind and half a lane to the side, so it does not hide your car;   // chaseRam: grappler runs come this much sooner while it is on your tail
-  ramFirst: 4, ramEvery: [3, 4.8], ramWarn: 1.1, ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7, ramClear: 2.5, ramOwn: 1.8, clearAfter: 1.3, holdOff: 3,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
-  blockP: [0, 0, 0.18, 0.26],                      // share of rows that are police units ahead of you, by star
+  ramFirst: 4, ramEvery: [4.2, 6.5], ramV: 26, ramBack: 34, ramSlow: 1.0, ramSlowMul: 0.7,   // an attack only starts when a lane beside you stays clear while it lasts (ramClear, drClear) and, for clearAfter s more, that lane or your own is open again
+  blockP: [0, 0, 0.18, 0.23, 0.27, 0.31], blockLv: 0.008,   // share of rows that are police units ahead of you, by star; more per threat level
   // a rolling roadblock (two cruisers abreast) brakes when you are blockAt s away; the other kind is one cruiser weaving
   // across two lanes: it holds each lane for weaveHold s and steers across in weaveMove s, and weaveLock s before you
   // reach it, it commits to the lane it is heading for and stays there. At three stars a second cruiser may hold the third lane.
   // stagger: nobody drives exactly abreast: vehicles of one row sit this far ahead of or behind the row's line (police: echelon).
   // shiftP: share of rolling roadblocks (of those with a cruiser in the middle lane), by star, in which that cruiser steers across into
   // the open side lane as you close in, timed like a taxi: the middle lane becomes the way through
-  stagger: [3.5, 6.5], echelon: [3, 5], shiftP: [0, 0, 0.5, 0.6],
-  blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.5, 0.6], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
+  stagger: [3.5, 6.5], echelon: [3, 5], shiftP: [0, 0, 0.5, 0.6, 0.6, 0.6],
+  // mirrorP: share of single-cruiser rows, by star, whose cruiser waits in the middle lane and cuts across into YOUR lane as you close in
+  mirrorP: [0, 0, 0, 0, 0.55, 0.75], mergeP: [0.04, 0.012, 0.15],   // mergeP: share of rows that are a car merging from a side lane into the middle: at level 0, more per level, at most
+  blockAt: 1.3, blockSlow: 9, blockDecel: 14, weaveP: [0, 0, 0.5, 0.55, 0.6, 0.6], weaveHold: 0.45, weaveMove: 1.4, weaveLock: 1.25, weaveSnap: 8, weaveWarn: 3,
   // the helicopter comes and goes: it flies in, settles for heliSettle s, makes heliPasses attacks drEvery s apart, flies off,
   // and is back heliAway s later
   heliPasses: 3, heliSettle: 2.5, heliAway: [10, 16],
-  drEvery: 3.5, drWarn: 1.2, drStrike: 0.45, drClear: 2.1,
-  ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80,
+  drEvery: 3.5, drStrike: 0.45,
+  // its attacks: one lane (from three stars); two lanes at once, the one you are in and the one it expects you to dodge to (from four);
+  // the walking barrage, lane after lane across the road with drGap between them: you dodge back into its wake (five). drWarn2: extra warning for those.
+  // heliPat: by star, the shares of [twin, barrage] (the rest are single lanes)
+  drGap: 0.7, heliPat: [[0, 0], [0, 0], [0, 0], [0, 0], [0.45, 0], [0.35, 0.35]],
+  // the interceptor (from four stars): a second, faster cruiser that comes up the hard shoulder, where there is never traffic (icV: closing speed),
+  // on the side we are on, and draws level with us. When it sees its moment it signals for the length of a warning and swerves into our lane:
+  // from the shoulder into the lane beside it, or, if we are in the middle, straight across that lane (when the traffic leaves a gap) and into us.
+  // icPace: the least time it rides level first · icWait: how long it waits on the shoulder for its moment before it drops back ·
+  // icMove, icHold: the swerve (one lane; two take 1.7 times as long) and how long it stays · icOut: seconds out of action after we ram it in a nitro burst
+  icEvery: [7, 11], icV: 30, icZ0: -46, icZp: -0.4, icShoulder: 1.74, icPace: 0.5, icWait: 4.5, icMove: 0.4, icHold: 0.45, icBack: 34, icOut: 14,
+  ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80, ptsDodge: 300,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
   tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash
   overLock: 0.7, rewindSec: 3, reviveHold: 1.3,
