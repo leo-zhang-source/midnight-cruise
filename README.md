@@ -116,19 +116,19 @@ Heat from hits cools by one star every 12 s once 10 s pass without an incident, 
 
 **How it sounds and hits.** Every sound is synthesised, no samples beyond the drum kit:
 
-- **Hits.** Ramming a vehicle in a nitro burst is a crunch: a body thump, a crack, sheet metal ringing at its own inharmonic pitches, glass, debris rattling down, heard on the side it happened. Ploughing through one or crashing is the same, bigger. A sideswipe, the grappler's net and an interceptor slamming in grind metal on metal with sparks in it. Big hits duck the music for a moment.
+- **Hits.** Ramming a vehicle in a nitro burst is a bright, sharp crunch: a hard crack, a bang of crushed panels, sheet metal ringing at its own inharmonic pitches, a shower of glass, debris rattling down, over a short low punch, driven hard; heard on the side it happened. Ploughing through one or crashing is the same, bigger. A sideswipe, the grappler's net and an interceptor slamming in grind metal on metal with sparks in it. Big hits duck the music for a moment.
 - **The guns.** The helicopter's strike is a burst of rounds down the lane, 22 a second, each a crack and a thud, with the odd ricochet whining off the road, panned to where it lands.
-- **Countdowns.** Every attack's warning beeps faster and higher and ends exactly when it lands: the grappler low, the interceptor in the middle, the helicopter high, so you know which it is without looking.
-- **The car.** The engine climbs through each gear and falls back at the change, with the hiss and clunk of the shift; at speed a turbo whine comes in. A nitro burst roars like a jet.
+- **The car.** The engine climbs through each gear and falls back at the change, with the hiss and clunk of the shift; at speed a turbo whine comes in. A nitro burst roars like a jet. Attack warnings are silent: the picture carries them.
 - **The music follows the chase.** From three stars a low pulse runs under it, from four toms drive into every fourth bar, at five a brass hit lands on every other downbeat and a high alarm motif plays. On the last life the music goes muffled and a heartbeat thumps on the beat.
 
 And it hits on screen:
 
-- **Hit-stop.** The picture holds for a few frames on every impact and then catches up: a smash 35 ms, a hit that costs a life 90 ms, a crash 140 ms.
+- **Hit-stop.** The picture holds for a few frames on every impact and then catches up: a smash 55 ms, a hit that costs a life 140 ms, a crash 240 ms.
 - **The camera** kicks towards the side a hit came from, the lens punches in on a smash and out on a hit, gunfire close by rattles it, and the faster you go the wider it opens.
 - **Light.** Smashes throw sparks and light the grid under them with a ring running out from the wreck; a sideswipe sprays sparks along your flank; a nitro burst sends a shockwave over the grid; flashes are tinted by what they were (amber smash, red police hit, white-hot crash, magenta level-up). Streaks of light rush past at the roadside at speed.
 - **The last life** is a state you can see: the edges of the picture glow red in time with the heartbeat and the car trails smoke and sheds sparks until a nitro burst gives the life back.
-- With reduced motion the hit-stop, camera kicks and lens punches are off and the flashes are dimmed.
+- A crash is the biggest of all: a white-hot core, 70 sparks and 44 shards of the car, a ring 30 units out over the grid, the lens slamming back, the picture shaking for most of a second.
+- All of this stays on at full force with reduced motion too (only the intro is calmer there).
 
 **Pause.** `P` pauses the run like a VCR: the game clock stops and the music carries on, muffled. The run also pauses by itself when the tab is hidden or the window loses focus, and stays paused until you resume.
 

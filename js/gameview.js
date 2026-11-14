@@ -557,7 +557,7 @@ export class GameView {
         const a = b.age;
         if (b.kind === 'scrape') { sparks(b.x, 0.55, cz + 0.3, a, 26, b.seed, 5, 34, 0.45); this.sprite(b.x, 0.6, cz, 1.4, SPARK, Math.max(0, 1.6 - a * 6)); continue; }   // along the side we rubbed
         if (b.kind === 'sparks') { sparks(b.x, 0.5, cz + b.dz, a, 22, b.seed, 7, 26, 0.5); continue; }
-        const n = b.car ? 26 : 18, life = b.car ? 1.1 : 0.7;
+        const n = b.car ? 44 : 28, life = b.car ? 1.3 : 0.8;
         if (a >= life) continue;
         const cA = b.car ? P.neon : b.type === T_TAXI ? [1, 0.82, 0.12] : b.type >= T_BLOCK ? [1, 0.15, 0.2] : edge, cB = b.car ? P.gridAlt : b.type >= T_BLOCK ? [0.2, 0.4, 1] : edge2;
         for (let k = 0; k < n; k++) {
@@ -565,15 +565,16 @@ export class GameView {
           const ang = h1 * Math.PI * 2, sp = 5 + 13 * h2;
           const x = b.x + Math.cos(ang) * sp * a * 0.7, y = 0.8 + (2 + 7 * h3) * a - 9 * a * a, z = cz - b.dz + Math.sin(ang) * sp * a * 0.5;
           if (y < 0.05) continue;
-          const sz = (0.24 + 0.42 * h3) * (1 - a / life);
+          const sz = (0.3 + 0.55 * h3) * (1 - a / life) * (b.car ? 1.2 : 1);
           this.box(x, y, z, sz, sz, sz * (1 + 2 * h2), k % 2 ? cA : cB, 1, 1 - a / life, 2.4);
         }
         this.sprite(b.x, 1.0, cz - b.dz, 3 + 10 * a, b.car ? P.neon : cA, Math.max(0, 1.8 - a * 5));
-        sparks(b.x, 0.9, cz - b.dz, a, b.car ? 40 : 30, b.seed + 0.5, 12, 18, 0.6, b.car ? 1.3 : 1);
+        sparks(b.x, 0.9, cz - b.dz, a, b.car ? 70 : 46, b.seed + 0.5, b.car ? 16 : 13, 18, b.car ? 0.85 : 0.65, b.car ? 1.5 : 1.15);
         const fl = Math.exp(-a / 0.12);                                                     // the flash lights the road around it, and a ring runs out over the grid
-        this.glow(b.x, 0.06, cz - b.dz, 9, 0, 0, 0, 0, 11, b.car ? [1, 0.7, 0.4] : [1, 0.5, 0.2], 2, 0.9 * fl);
-        const R = 2 + 17 * Math.sqrt(a);
-        this.glow(b.x, 0.07, cz - b.dz, R, 0, 0, 0, 0, R, b.car ? P.neon : cA, 11, 1.1 * (1 - a / life) * (1 - a / life), 0, 0.07);
+        this.glow(b.x, 0.06, cz - b.dz, b.car ? 14 : 10, 0, 0, 0, 0, b.car ? 16 : 12, b.car ? [1, 0.7, 0.4] : [1, 0.5, 0.2], 2, 1.3 * fl);
+        this.sprite(b.x, 1.2, cz - b.dz, (b.car ? 9 : 6) * (0.4 + a), [1, 0.85, 0.6], 2.2 * Math.exp(-a / 0.07));       // the white-hot core of it
+        const R = 2 + (b.car ? 30 : 20) * Math.sqrt(a);
+        this.glow(b.x, 0.07, cz - b.dz, R, 0, 0, 0, 0, R, b.car ? P.neon : cA, 11, 1.5 * (1 - a / life) * (1 - a / life), 0, 0.08);
       }
       // ── a nitro burst: a shockwave runs out over the grid from the car as it fires ──
       if (G.shock !== undefined && G.shock < 0.7) {

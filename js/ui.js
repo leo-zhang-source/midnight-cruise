@@ -173,16 +173,12 @@ export class UI {
       else if (k === 'gear') this.sfx('gear');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
       else if (k === 'stumble' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
-      else if (k === 'ramwarn') this.sfx('lock', { d: r2(e.w), f: 1250 });            // each unit's countdown has its own pitch: the grappler low,
-      else if (k === 'ictell') this.sfx('lock', { d: r2(e.w), f: 1550 });             // the interceptor in the middle,
-      else if (k === 'lock') this.sfx('lock', { d: r2(e.w), f: 1900 });               // the helicopter high
       else if (k === 'block' || k === 'weave') this.sfx('siren');
       else if (k === 'icwarn') this.sfx('yelp');
       else if (k === 'cutin') this.sfx('horn');
       else if (k === 'slam' || k === 'mirror') this.sfx('skid');
       else if (k === 'level') { if (e.n) this.sfx('alert'); }
       else if (k === 'clear') this.sfx('chime');
-      else if (k === 'dodge') this.sfx('dodge');
       else if (k === 'strike') this.sfx('burst', { d: r2(e.d || 0.45), pan: r2(pan(e.lane)) });
       else if (k === 'shove') this.sfx('smash', { pan: 0, v: 1.05 });
       else if (k === 'go') this.sfx('whoosh');

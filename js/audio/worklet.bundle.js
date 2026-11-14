@@ -3227,7 +3227,9 @@
   };
   var rnd01 = (r) => r.next() * 0.5 + 0.5;
   var Crunch = class extends Voice {
-    // a vehicle hit hard: a body thump, a crack, sheet metal ringing, glass, debris rattling down
+    // a vehicle hit hard. Bright and sharp, not a thud: a hard crack, a bang of crushed panels in the upper mids,
+    // sheet metal ringing at its own inharmonic pitches, a shower of glass, debris rattling down — over a short, tight low punch. Driven
+    // into a soft clip so it lands dense and loud
     constructor(s, o, v = 1, pan = 0, big = 0) {
       super(s, o);
       this.v = v;
@@ -3236,36 +3238,42 @@
       this.r = panR(pan * 0.75);
       const R = this.rn = new RNG(s.seed());
       this.hp = new SVF();
-      this.hp.set(big ? 1400 : 2e3, 0.7);
+      this.hp.set(3e3, 0.7);
+      this.bang = new SVF();
+      this.bang.set(big ? 1500 : 1900, 1.1);
       this.lp = new SVF();
-      this.lp.set(big ? 700 : 1100, 0.8);
+      this.lp.set(big ? 3200 : 4200, 0.7);
+      this.air = new SVF();
+      this.air.set(7500, 0.8);
       this.ph = 0;
       this.gate = 1;
-      const base = [312, 517, 788, 1144, 1690, 2380, 3210];
-      this.md = base.map((f) => [f * (0.82 + 0.36 * rnd01(R)) * (big ? 0.78 : 1), (0.05 + 0.22 * rnd01(R)) * (big ? 1.7 : 1), 0.5 + 0.5 * rnd01(R), rnd01(R) * TAU2]);
+      const base = [520, 830, 1260, 1790, 2470, 3330, 4410, 5650];
+      this.md = base.map((f) => [f * (0.85 + 0.3 * rnd01(R)) * (big ? 0.88 : 1), (0.04 + 0.2 * rnd01(R)) * (big ? 1.6 : 1), 0.5 + 0.5 * rnd01(R), rnd01(R) * TAU2]);
       this.gl = [];
-      for (let k = 0; k < (big ? 11 : 6); k++) this.gl.push([0.015 + Math.pow(rnd01(R), 1.6) * (big ? 0.7 : 0.32), 2600 + 5200 * rnd01(R), 0.4 + 0.6 * rnd01(R)]);
-      this.len = big ? 2.4 : 1.1;
+      for (let k = 0; k < (big ? 26 : 14); k++) this.gl.push([4e-3 + Math.pow(rnd01(R), 1.8) * (big ? 0.8 : 0.4), 3200 + 6500 * rnd01(R), 0.4 + 0.6 * rnd01(R)]);
+      this.len = big ? 2 : 1;
     }
     tick(B, i, t) {
       const R = this.rn, big = this.big, n = R.next();
-      this.ph += (big ? 58 : 74) * (0.55 + 0.45 * exp(-t / 0.09)) / SR;
-      const thump = sin(TAU2 * this.ph) * exp(-t / (big ? 0.34 : 0.17)) * Math.min(1, t / 15e-4) * (big ? 0.9 : 0.62);
-      const crack = this.hp.hp(n) * exp(-t / (big ? 0.022 : 0.011)) * (big ? 0.8 : 0.65);
-      if ((this.n & 511) === 0) this.gate = 0.25 + 0.75 * rnd01(R);
-      const crumble = this.lp.lp(n) * exp(-t / (big ? 0.6 : 0.28)) * this.gate * (big ? 0.5 : 0.32);
+      this.ph += (big ? 70 : 90) * (0.6 + 0.4 * exp(-t / 0.05)) / SR;
+      const punch = sin(TAU2 * this.ph) * exp(-t / (big ? 0.12 : 0.07)) * Math.min(1, t / 1e-3) * (big ? 0.55 : 0.4);
+      const crack = this.hp.hp(n) * exp(-t / (big ? 0.03 : 0.018)) * 1.2 + this.air.hp(n) * exp(-t / 6e-3) * 0.5;
+      const bang = this.bang.bp(n) * exp(-t / (big ? 0.09 : 0.05)) * (big ? 1.4 : 1.1);
+      if ((this.n & 255) === 0) this.gate = 0.2 + 0.8 * rnd01(R);
+      const crumble = this.lp.lp(n) * exp(-t / (big ? 0.45 : 0.22)) * this.gate * (big ? 0.45 : 0.3);
       let metal = 0;
-      for (const m of this.md) metal += sin(TAU2 * m[0] * t * (1 - 0.02 * Math.min(1, t / 0.15)) + m[3]) * m[2] * exp(-t / m[1]);
-      metal *= Math.min(1, t / 2e-3) * (big ? 0.075 : 0.06);
+      for (const m of this.md) metal += sin(TAU2 * m[0] * t * (1 - 0.03 * Math.min(1, t / 0.12)) + m[3]) * m[2] * exp(-t / m[1]);
+      metal *= Math.min(1, t / 1e-3) * (big ? 0.15 : 0.13);
       let glass = 0;
       for (const g of this.gl) {
         const u = t - g[0];
-        if (u > 0 && u < 0.12) glass += sin(TAU2 * g[1] * u) * exp(-u / 0.028) * g[2];
+        if (u > 0 && u < 0.09) glass += sin(TAU2 * g[1] * u) * exp(-u / 0.018) * g[2];
       }
-      const y = (thump + crack + crumble + metal + glass * 0.07) * this.v * 0.62;
+      let y = (punch + crack + bang + crumble + metal + glass * 0.22) * this.v * 0.95;
+      y = Math.tanh(y * 1.7) / 1.15;
       B.sfxL[i] += y * this.l;
       B.sfxR[i] += y * this.r;
-      B.rev[i] += (crack + metal + glass * 0.07) * this.v * 0.05;
+      B.rev[i] += (crack * 0.5 + metal + glass * 0.2) * this.v * 0.06;
       return t < this.len;
     }
   };
@@ -3340,33 +3348,6 @@
       return t < this.d + 0.25;
     }
   };
-  var Countdown = class extends Voice {
-    // a lock-on: beeps that come faster and climb, ending exactly when the attack lands. f: its pitch (each unit has its own)
-    constructor(s, o, d = 1, f = 1900, v = 1) {
-      super(s, o);
-      this.d = d;
-      this.f = f;
-      this.v = v;
-      this.ph = 0;
-      this.b = [];
-      for (let t = 0, iv = 0.17; t < d - 0.035; t += iv, iv = Math.max(0.042, iv * 0.8)) this.b.push(t);
-    }
-    tick(B, i, t) {
-      let y = 0;
-      for (const t0 of this.b) {
-        const u = t - t0;
-        if (u < 0) break;
-        if (u < 0.03) {
-          const p = TAU2 * this.f * (1 + 0.3 * t / this.d) * u;
-          y += (sin(p) + 0.25 * sin(3 * p)) * Math.min(1, u / 2e-3) * (1 - u / 0.03);
-        }
-      }
-      y *= 0.17 * this.v;
-      B.sfxL[i] += y;
-      B.sfxR[i] += y;
-      return t < this.d;
-    }
-  };
   var Shift = class extends Voice {
     // a gear change: the blow-off valve's hiss and the gearbox's clunk
     constructor(s, o) {
@@ -3384,23 +3365,6 @@
       B.sfxL[i] += y * 0.9;
       B.sfxR[i] += y;
       return t < 0.5;
-    }
-  };
-  var Swish = class extends Voice {
-    // a dodge: the air you just left, a short sweep up
-    constructor(s, o, pan = 0) {
-      super(s, o);
-      this.rn = new RNG(s.seed());
-      this.f = new SVF();
-      this.l = panL(pan * 0.6);
-      this.r = panR(pan * 0.6);
-    }
-    tick(B, i, t) {
-      if ((this.n & 15) === 0) this.f.set(600 * Math.pow(6, Math.min(1, t / 0.18)), 2.2);
-      const y = this.f.bp(this.rn.next()) * Math.sin(Math.PI * Math.min(1, t / 0.22)) * 0.2;
-      B.sfxL[i] += y * this.l;
-      B.sfxR[i] += y * this.r;
-      return t < 0.22;
     }
   };
   var Squeal = class extends Voice {
@@ -3819,8 +3783,7 @@
           v = new Skid(s, o);
           break;
         case "dodge":
-          v = new Swish(s, o, n.pan || 0);
-          break;
+          return;
         case "pickup":
           v = new Riser(s, o, 0.2, 0.4);
           this.voices.push(new Blip(s, o, 1320, 1318.5, 0.25, 0.05, -0.2, 0.2), new Blip(s, o, 1980, 1975.5, 0.3, 0.045, 0.2, 0.26));
@@ -3857,13 +3820,13 @@
           break;
         case "crashfx":
           v = new Crunch(s, o, 1.25, 0, 1);
-          this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false));
+          this.voices.push(new Impact(s, o, 0.5), new Squeal(s, o, 0.5, false));
           this.duck(o, 0.6, 0.35);
           break;
         // the run ends against a vehicle
         case "wreck":
           v = new Crunch(s, o, 1.1, n.pan || 0, 1);
-          this.voices.push(new Sub(s, o, 0.45));
+          this.voices.push(new Sub(s, o, 0.25));
           this.duck(o, 0.5, 0.22);
           break;
         // ploughed through one: a life gone
@@ -3879,13 +3842,8 @@
           this.voices.push(new Blip(s, o, 1040, 780, 0.16, 0.05, 0.4, 0.26), new Blip(s, o, 780, 1040, 0.16, 0.05, -0.4, 0.52), new Blip(s, o, 1040, 780, 0.2, 0.05, 0.4, 0.78));
           break;
         case "lock":
-          if (n.d) {
-            v = new Countdown(s, o, n.d, n.f || 1900);
-            break;
-          }
-          v = new Blip(s, o, 1900, 1890, 0.05, 0.05);
-          this.voices.push(new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.14), new Blip(s, o, 1900, 1890, 0.05, 0.05, 0, 0.28));
-          break;
+          return;
+        // (attack warnings are silent: the picture carries them)
         case "zap":
           v = new Blip(s, o, 2600, 180, 0.12, 0.1);
           this.voices.push(new Click(s, o, 0.8));

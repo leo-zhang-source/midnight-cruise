@@ -19,6 +19,26 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 35: a brighter crash, two sounds gone, hits at full force everywhere
+
+| Asked for | Done |
+|---|---|
+| The crash sound is too dull | Rebuilt bright and sharp. Its brightness (spectral centroid over the first 0.3 s) went from 2.4 to 6.8 kHz for a smash and from 1.9–2.5 to 5.2–5.3 kHz for a wreck or a crash; a smash is also 1.5 dB louder. The low thump is now a short punch under it; on top: a hard crack with an airy top, a bang of crushed panels around 1.5–1.9 kHz, eight metal modes up to 5.6 kHz, twice the glass, a brighter debris rattle, all driven into a soft clip. The extra sub boom under a wreck and the impact under a crash are halved. |
+| No wind sound | The dodge swish is removed (the rush of a car passing in the next lane, asked for earlier, and the road wind under the engine stay). |
+| No enemy attack warning sounds | The countdown beeps for the grappler, the interceptor and the helicopter are removed. Attack warnings are silent; the picture carries them. The interceptor's siren on arrival, the horn on a cut-in and the tyre squeal of a slam stay. |
+| Reduced motion: do not switch the effects off, strengthen them, crashes above all | Hit-stop, camera kicks, lens punches, flashes, the last-life pulse, the score jump and the speed lens now work the same with reduced motion (only the intro stays calmer there). And every hit is stronger: |
+
+| | Revision 34 | Now |
+|---|---|---|
+| Hit-stop: smash / hit / crash | 35 / 90 / 140 ms | 55 / 140 / 240 ms |
+| Camera kick: smash / sideswipe / hit / crash | 0.006 / 0.012 / 0.016 / 0.016 | 0.012 / 0.02 / 0.026 / 0.034 |
+| Lens punch: smash / hit | +4.5 % / −6 % | +7.5 % / −9 % (−13 % when it is a crash into a vehicle, and −16 % more as the run ends) |
+| Flash: smash / hit / crash | tint 0.11 / white 0.08 + tint 0.22 / white 0.22 | white 0.06 + tint 0.2 / white 0.13 + tint 0.34 / white 0.4 + tint 0.3, a darker vignette, shaking for 0.9 s |
+| Debris from a smash / the car | 18 / 26 shards, 30 / 40 sparks | 28 / 44 bigger shards, 46 / 70 sparks |
+| Smash light | ground glow 9 units | 10–14 units, with a white-hot core flare, and a ring 20–30 units out |
+
+Checked: the new crash sound measured against the old (above); frames of a wreck and a crash, with and without reduced motion. game-test 82, game-ui 43, interact 41, touch 8, auto-env-test 7, all pass; the smoke test passes on all three built pages and the audio smoke test finds the worklet running. Not heard by me, not played by hand.
+
 ## Revision 34: sound, impact and the feel of the chase
 
 The brief was the sensory side, with the judgement left to me. What was weak, judged from the code, from measurements of every sound and from frames of the key moments:
