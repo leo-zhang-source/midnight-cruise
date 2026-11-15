@@ -353,7 +353,7 @@ export class Timeline {
       }
       let dv = (vt - st.vel) * (1 - Math.exp(-DT / tauV));
       if (cruise && !st.over && !st.paused && st.run > 0 && (st.g.free || st.g.gt >= GAME.introHold)) {       // … but it has weight: the engine and the brakes can only do so much
-        const up = (nOn || (tb && T >= tb.I) ? GAME.nitroAccel : st.vel < GAME.gears[0] ? GAME.launch : GAME.accel) * DT;
+        const up = (nOn || (tb && T >= tb.I) ? GAME.nitroAccel : st.vel < GAME.gears[0] || (st.g.d0 && st.g.gt < GAME.introT + 3) ? GAME.launch : GAME.accel) * DT;   // (a run that starts higher up gets to its speed off the line)
         dv = Math.max(-(tb ? 400 : GAME.brake) * DT, Math.min(up, dv));       // (a nitro burst dies away as fast as it came: the car is back at road speed by the time it can be hit again)
       }
       st.vel += dv;

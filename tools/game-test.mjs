@@ -135,6 +135,11 @@ let crashT;
   { const tl = fresh(7, { lv: 6 }); const a = tl.stateAt(C + 1).g.lvN; tl.add('diff', C + 5, { lv: 2 }); const b = tl.stateAt(C + 6).g.lvN;
     tl.add('pause', C + 7, { on: true }); tl.add('restart', C + 7.5); tl.add('skip', C + 8.3); const T2 = C + 7.5 + 0.6 + 2; const c = tl.stateAt(T2).g.lvN, r = tl.stateAt(T2).run;
     ok('the starting level comes with the start; a change during a run waits for the next one', a === 6 && b === 6 && c === 2 && r === 2, `run 1 at ${a}, still ${b} after the change, run ${r} at ${c}`); }
+  { const r0 = play(4242, 200, {}), lvAt = (r) => r.tl.gameEvents(0, 1e9).find((e) => e.k === 'level' && e.n === 8);
+    const at8 = r0.tl.stateAt(lvAt(r0).t), tl = fresh(7, { lv: 8 }), s1 = tl.stateAt(C + 0.05), s4 = tl.stateAt(C + 5), gears = tl.gameEvents(0, C + 5).filter((e) => e.k === 'gear').length;
+    const base8 = gameBase(at8.g), base1 = gameBase(s1.g);
+    ok('a run that starts at level 8 has the speed and gear a level-0 run has when it reaches level 8, and is up to that speed within 5 s', Math.abs(base1 / base8 - 1) < 0.04 && s1.g.gear === at8.g.gear && gears === 0 && s4.vel > 0.95 * gameBase(s4.g),
+      `road speed ${(base1 * GAME.mph).toFixed(0)} MPH (a level-0 run at level 8: ${(base8 * GAME.mph).toFixed(0)}), gear ${s1.g.gear + 1}, ${(s4.vel * GAME.mph).toFixed(0)} MPH after 5 s`); }
   { const r0 = play(4242, 60, {}), t1 = new Timeline(); t1.load(r0.ev.map((e) => (e.type === 'start' ? { ...e, lv: 0 } : e)));
     ok('starting at level 0 is the game as it was', sig(r0.tl.stateAt(C + 60)) === sig(t1.stateAt(C + 60))); }
   // a second stumble while the police are on the tail → busted

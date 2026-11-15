@@ -647,7 +647,7 @@
   function threatGrid(g, vel, opt = {}) {
     const STEP = FS_STEP, horizon = opt.horizon ?? 4, K = Math.round(horizon / STEP);
     const blocked = [new Uint8Array(K + 2), new Uint8Array(K + 2), new Uint8Array(K + 2)];
-    const base = gameBase(g), vFast = Math.max(vel, baseAt(g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base)), lvNow = lvOf(g);
+    const base = gameBase(g), vFast = Math.max(vel, baseAt(g.d0 + g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base)), lvNow = lvOf(g);
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = g.veh[o];
       if (!type) continue;
@@ -701,7 +701,7 @@
       }
       const cr = crossing(g.veh, o);
       if (cr) {
-        const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.gd + 2 * vel)) - g.vt) * taxiAtFor(lvNow)) / Math.max(1, vFast - v));
+        const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.d0 + g.gd + 2 * vel)) - g.vt) * taxiAtFor(lvNow)) / Math.max(1, vFast - v));
         const kEnd = Math.ceil((tSig + (b > 0 ? g.veh[o + 9] + g.veh[o + 10] * 0.6 : blinkAt(lvNow) + moveAt(lvNow) * 0.6) + 0.05) / STEP);
         for (let k = k0; k <= k1; k++) {
           blocked[cr[1] + 1][k] = 1;
@@ -864,11 +864,13 @@
     return k ? A * Math.PI * Math.sin(2 * Math.PI * m) / D : A * sn * sn;
   }
   function freshGame(seed = 1986, free = 0, lv0 = 0) {
-    lv0 = Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
+    lv0 = free ? 0 : Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
+    const d0 = startDist(lv0);
     return {
       seed,
       free: free ? 1 : 0,
       lv0,
+      d0,
       rs: seed | 0,
       gt: 0,
       gd: 0,
@@ -882,7 +884,7 @@
       lastPat: 0,
       mid: 0,
       itmNext: GAME.nitroFirst,
-      vt: GAME.trafficK * GAME.gears[0],
+      vt: GAME.trafficK * baseAt(d0),
       tr: 0,
       // the traffic's speed now, and how far it has carried the rows
       score: 0,
@@ -894,7 +896,7 @@
       passed: 0,
       vmax: 0,
       starMax: 1,
-      gear: 0,
+      gear: gearAtDist(d0),
       nstock: free ? 1 : 0,
       nfree: 0,
       lvN: lv0,
@@ -991,7 +993,22 @@
     const i = g.gear, V = GAME.gears, lo = i ? V[i] : V[0] * 0.55, hi = i < 5 ? V[i + 1] : V[5] + GAME.creep[1];
     return (vel - lo) / (hi - lo);
   };
-  var gameBase = (g) => baseAt(g.gd);
+  var gameBase = (g) => baseAt(g.d0 + g.gd);
+  var D0 = [0];
+  function startDist(lv) {
+    lv = Math.max(0, Math.min(GAME.lvCap, lv | 0));
+    for (let k = D0.length; k <= lv; k++) {
+      let d = D0[k - 1];
+      for (let i = 0, n = GAME.lvEvery * 20; i < n; i++) d += baseAt(d) * 0.05;
+      D0[k] = d;
+    }
+    return D0[lv];
+  }
+  var gearAtDist = (d) => {
+    let i = 0;
+    while (i < 5 && d >= GAME.gearAt[i + 1]) i++;
+    return i;
+  };
   var aheadFor = (g) => Math.max(GAME.ahead, (gameBase(g) - g.vt) * GAME.aheadT);
   function heliStrikes(pat, l, b, W) {
     const G = GAME, S = G.drStrike, Q = G.walkStrike, P2 = Q + G.walkGap;
@@ -1357,7 +1374,7 @@
     return false;
   }
   function laneWin(g, l, vel, t0, t1) {
-    const veh = g.veh, L = ROAD.lane, base = gameBase(g), vF = Math.max(vel, baseAt(g.gd + vel * t1)) * 1.02, vS = Math.max(1, Math.min(vel, base));
+    const veh = g.veh, L = ROAD.lane, base = gameBase(g), vF = Math.max(vel, baseAt(g.d0 + g.gd + vel * t1)) * 1.02, vS = Math.max(1, Math.min(vel, base));
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
       if (!type) continue;
@@ -1375,7 +1392,7 @@
     g.gd += inp.vel * DT2;
     const gt = g.gt, gd = g.gd, px = inp.x;
     let gear = g.gear;
-    while (gear < 5 && gd >= G.gearAt[gear + 1]) gear++;
+    while (gear < 5 && g.d0 + gd >= G.gearAt[gear + 1]) gear++;
     if (gear !== g.gear) {
       g.gear = gear;
       out.push({ k: "gear", n: gear + 1 });
@@ -1426,7 +1443,7 @@
       for (const [l, t0, t1] of cells) markCells(c, l, t0, t1);
       return wayThrough(c, inp.lane, react, G.fairSwitch, G.fairPause, endLane);
     };
-    const veh = g.veh, vFull = Math.max(inp.vel, baseAt(gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv);
+    const veh = g.veh, vFull = Math.max(inp.vel, baseAt(g.d0 + gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv);
     let draft = 0;
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
@@ -2570,7 +2587,7 @@
         }
         let dv = (vt - st.vel) * (1 - Math.exp(-DT / tauV));
         if (cruise && !st.over && !st.paused && st.run > 0 && (st.g.free || st.g.gt >= GAME.introHold)) {
-          const up = (nOn || tb && T >= tb.I ? GAME.nitroAccel : st.vel < GAME.gears[0] ? GAME.launch : GAME.accel) * DT;
+          const up = (nOn || tb && T >= tb.I ? GAME.nitroAccel : st.vel < GAME.gears[0] || st.g.d0 && st.g.gt < GAME.introT + 3 ? GAME.launch : GAME.accel) * DT;
           dv = Math.max(-(tb ? 400 : GAME.brake) * DT, Math.min(up, dv));
         }
         st.vel += dv;

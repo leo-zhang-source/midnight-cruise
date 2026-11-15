@@ -72,13 +72,14 @@ export function jink(id, gt, k = 0, lv0 = 0) {
 }
 
 export function freshGame(seed = 1986, free = 0, lv0 = 0) {
-  lv0 = Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
+  lv0 = free ? 0 : Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
+  const d0 = startDist(lv0);
   return {
-    seed, free: free ? 1 : 0, lv0, rs: seed | 0, gt: 0, gd: 0,
+    seed, free: free ? 1 : 0, lv0, d0, rs: seed | 0, gt: 0, gd: 0,
     veh: new Float64Array(NV * VF), cel: new Float64Array(NC * CF), itm: new Float64Array(NI * IF), nid: 1,
     genU: GAME.firstRow, genI: 0, path: 0, lastPat: 0, mid: 0, itmNext: GAME.nitroFirst,
-    vt: GAME.trafficK * GAME.gears[0], tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
-    score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: 0,
+    vt: GAME.trafficK * baseAt(d0), tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
+    score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: gearAtDist(d0),
     nstock: free ? 1 : 0, nfree: 0,
     lvN: lv0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0, gapWant: 0, flowNext: 6, cutNext: 12, flowN: 0, cuts: 0,   // … the traffic's next lane change, how many so far, how many aimed at us                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
     heat: 1, heatGt: -1e9, star: 1, nUse: 0, wd0: 0,                                 // nitro bursts since the heat was last cleared, and the road position where it was
@@ -105,7 +106,17 @@ export const baseAt = (d) => {
 };
 // how far up its rev range the engine is (0 = just after a gear change, 1 = about to change up; over 1 in a nitro burst)
 export const revs = (g, vel) => { const i = g.gear, V = GAME.gears, lo = i ? V[i] : V[0] * 0.55, hi = i < 5 ? V[i + 1] : V[5] + GAME.creep[1]; return (vel - lo) / (hi - lo); };
-export const gameBase = (g) => baseAt(g.gd);
+export const gameBase = (g) => baseAt(g.d0 + g.gd);
+// A run that starts part-way up the threat level (settings) starts at the speed a run from level 0 has by then: as if it had
+// already driven the road a level-0 run covers in lv × lvEvery seconds. That distance (`d0`) only sets the gear and the road speed;
+// the traffic, the stars and the run's own distance still count from its start.
+const D0 = [0];
+export function startDist(lv) {
+  lv = Math.max(0, Math.min(GAME.lvCap, lv | 0));
+  for (let k = D0.length; k <= lv; k++) { let d = D0[k - 1]; for (let i = 0, n = GAME.lvEvery * 20; i < n; i++) d += baseAt(d) * 0.05; D0[k] = d; }
+  return D0[lv];
+}
+export const gearAtDist = (d) => { let i = 0; while (i < 5 && d >= GAME.gearAt[i + 1]) i++; return i; };
 // how far ahead of the car the traffic is laid out: at least GAME.ahead, and as far as the car will close in GAME.aheadT seconds
 // (the police plan their longer attacks on what can be seen, so it has to be seen early enough)
 export const aheadFor = (g) => Math.max(GAME.ahead, (gameBase(g) - g.vt) * GAME.aheadT);
@@ -396,7 +407,7 @@ function nearUndecided(g, vel, eta, clear) {
 }
 // will lane l be clear of traffic beside the car from t0 to t1 seconds from now? (room for a unit to cut across it)
 function laneWin(g, l, vel, t0, t1) {
-  const veh = g.veh, L = ROAD.lane, base = gameBase(g), vF = Math.max(vel, baseAt(g.gd + vel * t1)) * 1.02, vS = Math.max(1, Math.min(vel, base));
+  const veh = g.veh, L = ROAD.lane, base = gameBase(g), vF = Math.max(vel, baseAt(g.d0 + g.gd + vel * t1)) * 1.02, vS = Math.max(1, Math.min(vel, base));
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     const cr = crossing(veh, o);
@@ -415,7 +426,7 @@ export function stepGame(g, inp, out) {
   const DT = inp.dt, G = GAME, L = ROAD.lane;
   g.gt += DT; g.gd += inp.vel * DT;
   const gt = g.gt, gd = g.gd, px = inp.x;
-  let gear = g.gear; while (gear < 5 && gd >= G.gearAt[gear + 1]) gear++;
+  let gear = g.gear; while (gear < 5 && g.d0 + gd >= G.gearAt[gear + 1]) gear++;
   if (gear !== g.gear) { g.gear = gear; out.push({ k: 'gear', n: gear + 1 }); }
   if (gt > G.introT && inp.vel > g.vmax) g.vmax = inp.vel;
   if (g.free) {                                              // free cruise: no traffic, no police, a canister every few seconds
@@ -449,7 +460,7 @@ export function stepGame(g, inp, out) {
   // ── vehicles ──
   // Warnings are timed for the speed we would be doing flat out, so being slowed by a hit never shortens one.
   // (… and for the speed we will be doing two seconds on, so the car's own acceleration does not shorten one either)
-  const veh = g.veh, vFull = Math.max(inp.vel, baseAt(gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv); let draft = 0;
+  const veh = g.veh, vFull = Math.max(inp.vel, baseAt(g.d0 + gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv); let draft = 0;
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     if (type === T_BLOCK && (veh[o + 5] & MIRROR) && veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - g.vt) * tAt) {

@@ -35,7 +35,7 @@ The car drives flat out by itself and has no brake. You steer and fire nitro.
 | Music play / pause, mute, volume | settings panel | `M` toggles mute |
 | Colours | settings panel: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
 | Automatic colour change | settings panel **AUTO** key (on by default; its bar fills towards the next change) | — |
-| Difficulty: the threat level a run starts at | settings panel **DIFFICULTY** slider, LV 0–20 (ROOKIE 0–3 · STREET 4–7 · WANTED 8–13 · MOST WANTED 14–20; the stars show the wanted level a run never drops below). It applies from the next run, is remembered in this browser, and the level still climbs one every 20 s from there | — |
+| Difficulty: the threat level a run starts at | settings panel **DIFFICULTY** slider, LV 0–20 (ROOKIE 0–3 · STREET 4–7 · WANTED 8–13 · MOST WANTED 14–20; the stars show the wanted level a run never drops below). A run that starts higher also starts at the speed and gear a run from level 0 has by then (LV 8: 358 MPH in gear 6, like a run 2:40 in); the note under the slider says which. It applies from the next run, is remembered in this browser, and the level still climbs one every 20 s from there | — |
 
 The cassette deck is the settings panel: it is off the screen until you press the gear key, and nothing of it sits over the road while you drive. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
 

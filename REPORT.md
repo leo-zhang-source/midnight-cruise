@@ -19,6 +19,33 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 46: a higher start comes with the speed to match
+
+You asked for a high starting level to come with the speed a normal run has when it reaches that level.
+
+- **How it is worked out.** In a normal run your speed follows the road you have covered: the gears come in at fixed distances, then top gear keeps gaining a little. A run that starts at level L now starts as if it had already covered the road a level-0 run covers in L × 20 s. That sets the gear and the road speed, and the traffic's speed follows it. It is checked against a real level-0 run: at level 15 that run has covered 43,861 units, and the table says about 44,000.
+
+| Start at | Speed | Gear | Same as a normal run at |
+|---|---|---|---|
+| LV 0 | 139 MPH | 1 | the start |
+| LV 1 | 180 MPH | 2 | 0:20 |
+| LV 4 | 274 MPH | 6 | 1:20 |
+| LV 8 | 358 MPH | 6 | 2:40 |
+| LV 12 | 468 MPH | 6 | 4:00 |
+| LV 14 | 534 MPH | 6 | 4:40 |
+| LV 16–20 | 550 MPH (top speed) | 6 | 5:20 on |
+
+- **Off the line.** The run still opens with the police on your bumper. Then you floor it, and for the first few seconds a run that starts higher pulls away as hard as first gear does. At LV 8 the car reaches 358 MPH about 2 s after it sets off.
+- **What stays counted from your start:** the distance on the results panel, the stars that come with the road (the level's floor of stars still applies at once), and where the first nitro canister and the first rows of traffic are.
+- **In the settings** the note under the slider now says what you will start at, for example "Starts at 358 MPH in gear 6, the speed of a run 2:40 in."
+- LV 0 is unchanged.
+
+| Check | Result |
+|---|---|
+| Simulation tests (`game-test.mjs`) | 87/87 (new: a run at LV 8 has the speed and gear of a level-0 run at level 8, 358 against 357 MPH, with no gear-change pops at the start, and is up to speed within 5 s) |
+| Bot soak, 300 s per run, from LV 0 / 4 / 8 / 12 / 16 / 20 | 16 / 40 / 40 / 40 / 40 / 40 runs, all clean. That includes the LV 8 run that hit a truck in Revision 45: with the speed to match, its road is now laid out the way a normal run's is at that level |
+| Bot soak firing nitro, from LV 14, 16 × 300 s | all clean |
+
 ## Revision 45: ↑ is boost; choose the level a run starts at
 
 You asked for forward to be the boost key and for a setting that picks where the difficulty starts.
@@ -26,7 +53,7 @@ You asked for forward to be the boost key and for a setting that picks where the
 - **↑ is boost.** The up arrow already fired nitro, but everything on screen said `T`. Now the controls hint shows ↑, the NITRO button reads **READY · ↑**, and the home screen says "↑ nitro". `W` and `T` still work. On a touch screen it is still the NITRO button: a tap on the scene changes lane the moment your finger lands, so a swipe up could not be told apart from a lane change without slowing every lane change down.
 - **DIFFICULTY in the settings panel.** A slider from LV 0 to LV 20 sets the threat level a run starts at. Over it an LCD reads, for example, **START AT LV 9 · WANTED ★★★☆☆**. The stars are the wanted level a run at that level never drops below, and the readout's colour moves from green to red. The four bands on the slider are where that floor steps up: levels 4, 8 and 14.
   - Starting higher means everything that comes with the level comes at once: police attacks come sooner and leave less time to react, rows of traffic sit closer, there are more lane changes and swerves, and canisters are further apart. The level still climbs one every 20 s from there.
-  - Your speed is not part of it: the car still starts in first gear and works up through the gears.
+  - Since Revision 46 the speed comes with it too: see there.
   - The level applies from the next run (a restart, or START from the home screen). The run you are in keeps its level. The setting is remembered in this browser.
   - The run starts at that level quietly: no THREAT LEVEL alarm on the first frame.
 - **How it works.** The start event carries the setting, and a change makes a `diff` event, so replays and rewinds stay exact. Starting at LV 0 is exactly the game as it was: the same seed gives the same run, checked state for state.

@@ -2,6 +2,7 @@
 // All UI motion (pop-in, drag, settle) is evaluated from the timeline, not CSS transitions.
 import { PRESETS, IGN, GAME, drumPulse } from './cue.js';
 import { clamp, lerp, smooth, spring, ring, sat } from './util.js';
+import { startDist, baseAt, gearAtDist } from './game.js';
 
 const $ = (id) => document.getElementById(id);
 const CIRC = 282.74;
@@ -12,7 +13,7 @@ export class UI {
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
       skip: $('skip'), drivebar: $('drivebar'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
-      gain: $('gain'), buff: $('buff'), buffBar: $('buff-bar'), buffX: $('buff-x'), speedo: $('speedo'), cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), diff: $('diff'), diffLv: $('diff-lv'), diffName: $('diff-name'), diffStars: $('diff-stars'), auto: $('auto'), autoFill: $('auto-fill'),
+      gain: $('gain'), buff: $('buff'), buffBar: $('buff-bar'), buffX: $('buff-x'), speedo: $('speedo'), cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), diff: $('diff'), diffLv: $('diff-lv'), diffName: $('diff-name'), diffStars: $('diff-stars'), diffNote: $('diff-note'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
@@ -118,6 +119,10 @@ export class UI {
     E.diffLv.textContent = 'LV ' + lv;
     E.diffName.textContent = ['ROOKIE', 'STREET', 'WANTED', 'MOST WANTED'][floor - 1];
     E.diffStars.textContent = '★'.repeat(floor) + '☆'.repeat(5 - floor);
+    // … and the speed it starts at: what a run from level 0 is doing by then
+    const d = startDist(lv), mph = Math.round(baseAt(d) * GAME.mph), gear = gearAtDist(d) + 1, t = lv * GAME.lvEvery;
+    E.diffNote.textContent = lv ? `Starts at ${mph} MPH in gear ${gear}, the speed of a run ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} in. The level climbs one every ${GAME.lvEvery} s.`
+      : `Starts at ${mph} MPH in first gear. The level climbs one every ${GAME.lvEvery} s.`;
     E.diff.setAttribute('aria-valuetext', `Level ${lv}, ${E.diffName.textContent.toLowerCase()}`);
     E.diff.closest('.diff').dataset.tier = String(floor);
   }

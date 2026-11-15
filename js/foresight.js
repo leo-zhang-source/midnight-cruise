@@ -18,7 +18,7 @@ export function threatGrid(g, vel, opt = {}) {
   const blocked = [new Uint8Array(K + 2), new Uint8Array(K + 2), new Uint8Array(K + 2)];
   // how soon the car can be `d` ahead of where it is relative to a vehicle doing v: at the fastest it will go inside the
   // horizon (the road speed rises with distance); and how late: at the slower of its speed now and its cruising speed
-  const base = gameBase(g), vFast = Math.max(vel, baseAt(g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base)), lvNow = lvOf(g);
+  const base = gameBase(g), vFast = Math.max(vel, baseAt(g.d0 + g.gd + Math.max(vel, base) * horizon)), vSlow = Math.max(1, Math.min(vel, base)), lvNow = lvOf(g);
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = g.veh[o]; if (!type) continue;
     // ordinary traffic eases a little ahead of and behind its place in the row: plan with that place and allow for the drift
@@ -59,7 +59,7 @@ export function threatGrid(g, vel, opt = {}) {
     const cr = crossing(g.veh, o);
     if (cr) {
       // (one already signalling carries its own times; one still to start will use the times of the level then, about those of now)
-      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.gd + 2 * vel)) - g.vt) * taxiAtFor(lvNow)) / Math.max(1, vFast - v));
+      const b = g.veh[o + 7], gap = dz - (g.veh[o + 4] + CAR_HL), tSig = b > 0 ? b - g.gt : Math.max(0, (gap - (Math.max(vFast, baseAt(g.d0 + g.gd + 2 * vel)) - g.vt) * taxiAtFor(lvNow)) / Math.max(1, vFast - v));
       const kEnd = Math.ceil((tSig + (b > 0 ? g.veh[o + 9] + g.veh[o + 10] * 0.6 : blinkAt(lvNow) + moveAt(lvNow) * 0.6) + 0.05) / STEP);                     // it is clear of the lane it leaves a little past half-way across
       for (let k = k0; k <= k1; k++) { blocked[cr[1] + 1][k] = 1; if (k <= kEnd) blocked[cr[0] + 1][k] = 1; }
       continue;
