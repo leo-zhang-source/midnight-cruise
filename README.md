@@ -49,7 +49,7 @@ Every start from the home screen plays a 26-second film, cut on the bar lines of
 | 8 s | AIR | From above the helicopter: its searchlight hunts across the lanes and finds him. |
 | 12 s | BUMPER | From the cruiser on his tail, through the traffic: three swerves, three close passes. |
 | 16 s | FRONT | Head on, long lens: him, and everything that is after him stacked up behind. The searchlight swings into the lens. |
-| 20 s | TITLE | The title lands on the downbeat. He lifts off, the cruiser closes on his bumper, the controls come up, and the drive starts from exactly that picture: POLICE! PULL OVER, then FLOOR IT. |
+| 20 s | TITLE | The searchlight's white dissolves into the wide shot and the title glides in from the distance. He lifts off, the cruiser closes on his bumper, the controls come up, and the drive starts from exactly that picture: POLICE! PULL OVER, then FLOOR IT. |
 
 The score is thirteen bars in A minor at 120 BPM: a pedal bass, a ticking hat and a four-note figure that climbs a semitone at a time and falls back, with a hit on every cut and a wind-up into the title. Under it each shot has its own sound: the engines going by the standing lens, the sirens, the rotor.
 

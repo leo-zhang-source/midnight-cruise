@@ -341,34 +341,32 @@ export function frameState(tl, T, w, h, opt = {}) {
       post.flash = f.flash; post.shake = f.shake; post.rgb = f.rgb; post.speed = f.speed; post.vignette = f.vignette; post.bloom = f.bloom;
       for (let k = 0; k < 3; k++) post.tint[k] += f.tint[k];
     } else {
-      // the title lands on the bar line; the car lifts off and the cruiser closes on its bumper
-      const u = it - SL, uR = (ph0.phase === 'ign' ? ph0.it : it) - SL;   // post effects run on real time through the hit-stop
-      camX = 0.1 * Math.sin(u * 0.9) * Math.exp(-u / 3); camY = CHASE_Y; roll = 0; yaw = -camX * 0.02;
-      fovK = lerp(0.86, 1.0, spring(u, 16, 0.42)) + (reduced ? 0 : 0.06 * Math.exp(-u / 0.12));
-      if (reduced) { post.fgA = smooth(lin(u, 0, 1.2)); title.sweep = lerp(-160, 1040, easeInOutCubic(lin(u, 0.2, 1.2))); title.sweepI = 0.6 * Math.sin(Math.PI * lin(u, 0.2, 1.2)); }
+      // The title glides in: the white of the searchlight dissolves into the wide shot, and the title comes out of the distance
+      // on one long ease, tilting upright and brightening as it settles, with no jolt. The lens eases out and cranes up to the
+      // game's own position while it does. The car lifts off and the cruiser closes on its bumper.
+      const u = it - SL, G = IGN.glide, e = 1 - (1 - sat(u / G)) ** 4, eS = smoother(sat(u / (G + 0.6)));
+      camX = 0.1 * Math.sin(u * 0.9) * Math.exp(-u / 3); camY = CHASE_Y - 0.55 * (1 - eS); roll = 0; yaw = -camX * 0.02; pitch = 0.03 * (1 - eS);
+      fovK = lerp(0.9, 1.0, eS);
+      post.fgA = smooth(u / 0.55);
+      if (reduced) { title.sweep = lerp(-160, 1040, easeInOutCubic(lin(u, 0.2, 1.2))); title.sweepI = 0.6 * Math.sin(Math.PI * lin(u, 0.2, 1.2)); }
       else {
-        title.z = 260 * (1 - spring(u, 22, 0.38));
-        title.sx = 1 + 0.06 * ring(u, 34, 0.3);
-        title.sy = 1 - 0.09 * ring(u, 34, 0.3);
-        title.flash = 0.38 * Math.exp(-uR / 0.045);
-        title.sweep = lerp(-160, 1040, easeInOutCubic(lin(it, IGN.glint[0], IGN.glint[1])));
-        title.sweepI = it < IGN.glint[1] ? 1.6 * Math.sin(Math.PI * lin(it, IGN.glint[0], IGN.glint[1])) : 0;
-        post.glint = { tx: lerp(40, 820, easeInOutCubic(lin(it, IGN.glint[0], IGN.glint[1]))), ty: 102, i: it < IGN.glint[1] ? Math.sin(Math.PI * lin(it, IGN.glint[0], IGN.glint[1])) ** 0.7 : 0, size: 1.2 };
-        post.flare = { tx: 430, ty: 60, i: uR < 0.95 ? Math.exp(-uR / 0.22) * (1 - uR / 0.95) : 0 };
-        post.flash = 0.3 * Math.exp(-uR / 0.05);
-        post.rgb = 1 + 2.4 * Math.exp(-uR / 0.18);
-        post.tracking = Math.max(post.tracking, 0.35 * Math.exp(-uR / 0.08));
-        post.trackY = 0.42;
-        flare = 0.6 * Math.exp(-uR / 0.4);
-        sunPow *= 1 + 0.22 * Math.exp(-uR / 0.35);
-        post.bloom = 1 + 0.25 * Math.exp(-uR / 0.2);
-        if (uR < IGN.shake[1] - SL) post.shake = [ring(uR, 55, 0.18) * 0.008, ring(uR, 47, 0.2) * 0.011];
-        pulse = Math.exp(-uR / 0.2);
-        car.bob = -0.05 * ring(u, 30, 0.3); car.pitch = 0.012 * ring(u, 26, 0.3);
+        title.z = -5200 * (1 - e); title.rx = 0.34 * (1 - e); title.y = -34 * (1 - e);
+        title.dim = lerp(0.55, 1, smooth(u / (G * 0.7)));
+        title.blur = u < G ? 1 : 0;
+        const gk = lin(it, IGN.glint[0], IGN.glint[1]), gOn = it >= IGN.glint[0] && it < IGN.glint[1];
+        title.sweep = lerp(-160, 1040, easeInOutCubic(gk)); title.sweepI = gOn ? 1.4 * Math.sin(Math.PI * gk) : 0;
+        post.glint = { tx: lerp(40, 820, easeInOutCubic(gk)), ty: 102, i: gOn ? Math.sin(Math.PI * gk) ** 0.7 : 0, size: 1.2 };
+        post.flare = { tx: 430, ty: 60, i: gOn ? 0.5 * Math.sin(Math.PI * gk) : 0 };
+        post.flash = 0.85 * Math.exp(-u / 0.3);                       // out of the white
+        post.rgb = 1 + 1.6 * Math.exp(-u / 0.45);
+        flare = 0.45 * Math.exp(-u / 0.6);
+        sunPow *= 1 + 0.25 * Math.exp(-u / 0.5);
+        post.bloom = 1 + 0.6 * Math.exp(-u / 0.45);
+        pulse = Math.exp(-u / 0.25);
       }
       const lift = Math.exp(-u / 1.2);                             // the car comes off the throttle
       car.z = carZ0; car.x = 0; car.yaw = 0;
-      car.flame = 0.9 * lift; car.flameHot = 0.5 * lift; car.exhaust = 0.3 + 0.7 * lift; car.tail = 0.85 + 0.9 * (1 - lift) * (1 - smooth(lin(it, 24.5, 26))); car.streak = 3.5 * lift; car.glow = 1 + 0.8 * Math.exp(-u / 0.3);
+      car.flame = 0.9 * lift; car.flameHot = 0.5 * lift; car.exhaust = 0.3 + 0.7 * lift; car.tail = 0.85 + 0.9 * (1 - lift) * (1 - smooth(lin(it, 24.5, 26))); car.streak = 3.5 * lift; car.glow = 1 + 0.8 * Math.exp(-u / 0.6);
       post.speed = 0.14 * lift;
       cine = cinemaTail(it, T, car.z);
       // neon write-on, then the plate

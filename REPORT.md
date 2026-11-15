@@ -19,6 +19,17 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 40: the title glides in
+
+The title's entrance was a hard cut: it appeared at full size on the downbeat with a hit-stop, a flash, a shake and a spring. Now:
+
+- The white of the searchlight at the end of the head-on shot **dissolves** into the wide shot over about half a second (the two shots meet at the same white).
+- The title **comes out of the distance on one long ease** (1.9 s): small and dim at first, tilting upright and brightening as it settles, with motion blur while it moves. No hit-stop, no shake, no overshoot.
+- The lens eases out and cranes up half a unit to the game's position over the same time.
+- The glint crosses the chrome once it has settled (21.5 s), the neon writes itself after that (21.4–22.6 s), and the letterbox slides away more slowly (22.4–24 s).
+
+The music is unchanged: the chord still lands on the cut at 20 s. Tests: all suites pass.
+
 ## Revision 39: an opening film, the nitro bottle, the deck in settings
 
 **1. The opening is a 26-second film** (`js/cinema.js`, score and timecodes in `js/cue.js`). It replaces the ten-second title flight and plays on every start from the home screen; SKIP INTRO cuts it short as before.

@@ -13,7 +13,7 @@
 // round: everything in it faces the lens and the road runs backwards under it.
 // ─────────────────────────────────────────────────────────────────────────────
 import { CINE, CINE_AT, ROAD } from './cue.js';
-import { lerp, lin, smooth, sat, ring, vnoise } from './util.js';
+import { lerp, lin, smooth, smoother, sat, ring, vnoise } from './util.js';
 
 const L = ROAD.lane, V = 150, PI = Math.PI;
 const LAMP = [1.0, 0.95, 0.8], COLD = [0.85, 0.93, 1.0], RED = [1, 0.1, 0.2], BLUE = [0.15, 0.4, 1];
@@ -192,7 +192,7 @@ export function cinemaTail(it, T, cz) {
 // The letterbox, and the lines typed over the picture: where and when, then what the radio says.
 const CAPS = [[1.0, 3.75, 'NEON CITY BELTWAY\nNOV. 8 1986 · 12:00 AM'], [8.35, 11.75, 'AIR-7: VISUAL ON THE PHANTOM'], [16.35, 19.4, 'ALL UNITS: BOX HIM IN']];
 export function cinemaUI(it) {
-  const bars = smooth(lin(it, 0.5, 1.0)) * (1 - smooth(lin(it, 22.6, 23.8)));
+  const bars = smooth(lin(it, 0.5, 1.0)) * (1 - smoother(lin(it, 22.4, 24.0)));
   let cap = '';
   for (const [t0, t1, text] of CAPS) if (it >= t0 && it < t1) { const n = Math.floor((it - t0) * 30); cap = text.slice(0, n) + (n < text.length || Math.floor(it * 3) % 2 ? '▌' : ''); }
   return { bars, cap };

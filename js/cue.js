@@ -28,14 +28,13 @@ export const IGN = {
   crtHold: [0.0, 0.5],
   crtExpand: [0.5, 1.0],
   breath: [19.5, 20.0],
-  slam: 20.0,                  // the title
-  hitStop: [20.0, 20.067],
-  glint: [20.06, 20.72],
-  flare: [20.0, 20.95],
-  shake: [20.0, 20.6],
-  neonWrite: [20.125, 21.0],
-  neonFlicker: [21.0, 21.375],
-  aux: [21.5, 22.6],
+  slam: 20.0,                  // the cut to the title shot, on the downbeat
+  glide: 1.9,                  // … and the title takes this long to come in from the distance
+  hitStop: [20.0, 20.0],       // (no hit-stop: the title glides in)
+  glint: [21.5, 22.2],
+  neonWrite: [21.375, 22.25],
+  neonFlicker: [22.25, 22.625],
+  aux: [22.7, 23.7],
   controls: [24.0, 24.8],
   hold: [24.8, 26.0],
 };
@@ -342,14 +341,14 @@ export function ignitionBar(bar, emit) {
       emit(24, { i: 'tom', n: 52, v: 0.8 }); emit(26, { i: 'tom', n: 47, v: 0.85 });
       emit(28, { i: 'tom', n: 43, v: 0.9 }); emit(30, { i: 'tom', n: 38, v: 1.0 });
       break;
-    case 10: // THE SLAM at 20.000 s: the title
+    case 10: // 20.000 s: the cut to the wide shot, the title gliding in
       emit(0, { i: 'crash', v: 1.0 }); emit(0, { i: 'sub', v: 1.0 }); emit(0, { i: 'stab', notes: SLAM_CHORD, d: 1.7, v: 1.0 });
       emit(0, { i: 'impact', v: 1.0 });
       drumsBar(emit, KICK_A, SNARE, HAT8, { v: 1 });
       emit(0, { i: 'snare', v: 0.9 });
       bassBar(emit, ch, BASS1, 1.0);
       emit(0, { i: 'pad', notes: CHORDS.F.pad, d: 2.0, v: 0.75 });
-      emit(2, { i: 'buzz', d: 1.3 });               // neon write-on hum at 20.125
+      emit(22, { i: 'buzz', d: 1.3 });              // neon write-on hum at 21.375, once the title has settled
       break;
     case 11:
       drumsBar(emit, KICK_B, SNARE, HAT8, { v: 1 });

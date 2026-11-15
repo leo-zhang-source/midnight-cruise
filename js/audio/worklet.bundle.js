@@ -22,14 +22,15 @@
     crtExpand: [0.5, 1],
     breath: [19.5, 20],
     slam: 20,
-    // the title
-    hitStop: [20, 20.067],
-    glint: [20.06, 20.72],
-    flare: [20, 20.95],
-    shake: [20, 20.6],
-    neonWrite: [20.125, 21],
-    neonFlicker: [21, 21.375],
-    aux: [21.5, 22.6],
+    // the cut to the title shot, on the downbeat
+    glide: 1.9,
+    // … and the title takes this long to come in from the distance
+    hitStop: [20, 20],
+    // (no hit-stop: the title glides in)
+    glint: [21.5, 22.2],
+    neonWrite: [21.375, 22.25],
+    neonFlicker: [22.25, 22.625],
+    aux: [22.7, 23.7],
     controls: [24, 24.8],
     hold: [24.8, 26]
   };
@@ -550,7 +551,7 @@
         emit(0, { i: "snare", v: 0.9 });
         bassBar(emit, ch, BASS1, 1);
         emit(0, { i: "pad", notes: CHORDS.F.pad, d: 2, v: 0.75 });
-        emit(2, { i: "buzz", d: 1.3 });
+        emit(22, { i: "buzz", d: 1.3 });
         break;
       case 11:
         drumsBar(emit, KICK_B, SNARE, HAT8, { v: 1 });
