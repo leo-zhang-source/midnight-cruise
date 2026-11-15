@@ -144,7 +144,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
       if (dz > -8 && dz < ahead) out.cells.push({ x: fo ? cel[o + 9] * L : x, dz, fade: far(dz) * (fo ? gone : 1) });
     }
   }
-  for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ x: g.itm[o + 1] * L, dz, fade: far(dz) * (g.itm[o + 5] ? 1 - sat((g.gt - g.itm[o + 5]) / PICK_FADE) : 1) }); } }
+  for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ id: i, x: g.itm[o + 1] * L, dz, fade: far(dz) * (g.itm[o + 5] ? 1 - sat((g.gt - g.itm[o + 5]) / PICK_FADE) : 1) }); } }
   // the police: pursuit car (dz < 0 = behind us) and its grappler, the lane warning, the helicopter at three stars
   const close = policeClose(g);
   out.pol = { x: g.polX, dz: g.polZ, mode: g.polM, close: close ? 1 : 0, star: g.star };
@@ -279,7 +279,7 @@ export function frameState(tl, T, w, h, opt = {}) {
   const aux = { a: 1, wipe: 1 };
   const post = {
     crt: 0, fgA: 1, tracking: 0, trackY: 0.5, noise: 0.045, rgb: 1, flash: 0, shake: [0, 0], vignette: 0.42, bloom: 1, scan: 1,
-    glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, whip: [0, 0], ffwd: 0, rewind: 0, warp: 0, tint: [0, 0, 0], danger: 0,
+    glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, ffwd: 0, rewind: 0, warp: 0, tint: [0, 0, 0], danger: 0,
   };
   const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, bars: 0, cap: '', controls: 1, start: 0, skip: 0, replay: 0, ready: 1, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
   let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0, game = null, trafficI = 1;
@@ -338,7 +338,7 @@ export function frameState(tl, T, w, h, opt = {}) {
       sunPow = sh.sunPow; stars = sh.stars;
       title.visible = false; neon.pow = 0; neon.prog = 0; aux.a = 0;
       const f = sh.fx;
-      post.flash = f.flash; post.shake = f.shake; post.rgb = f.rgb; post.speed = f.speed; post.vignette = f.vignette; post.bloom = f.bloom; post.whip = f.whip;
+      post.flash = f.flash; post.shake = f.shake; post.rgb = f.rgb; post.speed = f.speed; post.vignette = f.vignette; post.bloom = f.bloom;
       for (let k = 0; k < 3; k++) post.tint[k] += f.tint[k];
     } else {
       // The title glides in: the white of the searchlight dissolves into the wide shot, and the title comes out of the distance
@@ -380,7 +380,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     if (ff) {
       const u = ph.u;
       post.ffwd = 1 - smooth(lin(u, 0.25, 0.4));
-      post.crt = 0; post.tracking = Math.max(post.tracking, 0.5 * (1 - u / 0.4)); post.flash = 0; post.shake = [0, 0]; post.whip = [0, 0];
+      post.crt = 0; post.tracking = Math.max(post.tracking, 0.5 * (1 - u / 0.4)); post.flash = 0; post.shake = [0, 0];
       car.flame = 0.6; car.streak = 2.5; ui.bars = 0; ui.cap = '';
       ui.osd = 'FF';
     }

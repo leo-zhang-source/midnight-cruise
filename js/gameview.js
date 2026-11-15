@@ -458,7 +458,8 @@ export class GameView {
   nitro(x, z, k, T, seed = 0) {
     const i = this.nbt; if (i >= this.bottles.length || k <= 0.004) return; this.nbt++;
     const m = this.bottles[i], u = m.material.uniforms, bob = Math.sin(T * 2.2 + seed) * 0.1, y = 1.75 + bob;
-    m.visible = true; u.uP.value.set(x, y, z); u.uYaw.value = T * 0.85 + seed; u.uTilt.value = 0.26; u.uS.value = 1.35; u.uFade.value = k;
+    m.visible = true; u.uP.value.set(x, y, z); u.uYaw.value = T * Math.PI + seed;                       // one turn every two seconds
+    u.uTilt.value = 0.26; u.uS.value = 1.35; u.uFade.value = k;
     this.glow(x, 0.05, z, 2.0, 0, 0, 0, 0, 2.0, GOLD, 12, 1.7 * k);                                  // the seal on the road
     this.glow(x, 0.04, z, 2.7, 0, 0, 0, 0, 2.7, GOLD, 0, 0.5 * k);
     this.glow(x, y, z + 0.6, 2.7, 0, 0, 0, 2.7, 0, GOLD, 13, 0.42 * k);                               // rays behind it
@@ -590,7 +591,7 @@ export class GameView {
       // ── energy cells and nitro canisters ──
       const bob = Math.sin(T * 5.0) * 0.08;
       for (const c of G.cells) this.glow(c.x, 0.95 + bob, cz - c.dz, 0.36, 0, 0, 0, 0.5, 0, CELL, 4, 1.9 * c.fade);
-      for (const c of G.items) this.nitro(c.x, cz - c.dz, c.fade, T, c.dz * 0.37);
+      for (const c of G.items) this.nitro(c.x, cz - c.dz, c.fade, T, c.id * 1.7);     // (seed: which pickup it is, so each keeps its own steady turn)
       // ── the police ──
       const pol = G.pol;
       if (pol) {

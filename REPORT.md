@@ -19,6 +19,13 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 42: the blur joins are gone; the bottle turns once every two seconds
+
+- **The whip-pan joins of Revision 41 are removed**, blur and all. The first five shots are cut on the bar lines again, as in Revision 40. **The move into the title stays**: the head-on shot tilts up into the searchlight, and the title shot comes down out of the same white, from the sky to the road, while the title glides in.
+- **The bottle turns once every two seconds.** It had looked far too fast in both earlier versions because of a mistake of mine: the angle it was drawn at included its distance from your car, so it spun faster the faster you closed on it (tens of turns a second at speed), whatever turn rate was set. The angle now depends on time alone, and each pickup keeps its own steady phase. Its size is as in Revision 41.
+
+Tests: all suites pass.
+
 ## Revision 41: no hard cuts in the opening; a smaller, slower bottle
 
 **1. The shots are joined by moves of the lens, not cuts** (`js/cinema.js`: `join`; the smear is a new whip-pan blur in `js/post.js`). Each shot is left on a swing of the lens that gathers speed, and the next is entered on the rest of the same swing as it settles; the picture is smeared along the swing while it is fast, so the two shots meet in the same blur. The bar lines of the music fall in the middle of each swing.

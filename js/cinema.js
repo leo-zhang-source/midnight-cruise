@@ -162,34 +162,17 @@ function front(it, T, a, calm) {
   return s;
 }
 
-// No shot is cut to. Each one is left on a swing of the lens and the next is entered on the rest of the same swing, the picture
-// smeared along it while it is fast (a whip pan): right from the road onto the car, up into the sky and down onto the lanes, down
-// out of the air onto his tail, round him to the front. The last one tilts up into the searchlight, and the title shot comes
-// down out of the same white. [bar line, seconds out, seconds in, pan (+ = left), tilt (+ = up)]
-const JOIN = [[CINE.track, 0.42, 0.5, -1, 0], [CINE.air, 0.42, 0.55, 0, 1], [CINE.bumper, 0.45, 0.55, 0, -1], [CINE.front, 0.42, 0.5, 1, 0]];
-function join(s, it, calm) {
-  s.fx.whip = [0, 0];
-  if (calm) return;
-  const amp = Math.max(0.16, 0.75 * s.cam.fov / 60);                      // how far it swings: less on a long lens, where a little is a lot
-  for (const [t, out, inn, pan, tilt] of JOIN) {
-    let k = 0, sign = 0;
-    if (it < t && it > t - out) { const x = (it - (t - out)) / out; k = x * x * x; sign = 1; }                    // leaving: it gathers speed
-    else if (it >= t && it < t + inn) { const x = (it - t) / inn; k = (1 - x) * (1 - x) * (1 - x); sign = -1; }   // arriving: it settles
-    if (!k) continue;
-    s.cam.yaw += sign * pan * amp * k; s.cam.pitch += sign * tilt * amp * 0.75 * k;
-    if (tilt < 0) s.cam.y += (sign > 0 ? -14 : 3.5) * k;                                                          // out of the air: it drops as it tilts
-    const w = Math.min(1, k * 2.2) * 0.55; s.fx.whip = [Math.abs(pan) * w, Math.abs(tilt) * w];
-    s.fx.rgb = Math.max(s.fx.rgb, 1 + 2.5 * k);
-  }
-  // the last shot: up into the light
-  const up = smooth(lin(it, CINE_AT.flare - 0.15, CINE.title));
-  if (it < CINE.title && up > 0) s.cam.pitch += 0.055 * up * up;
-}
-// The five shots before the title. Returns everything the picture needs for the moment `it` (seconds from START).
+// The five shots before the title, cut on the bar lines. Returns everything the picture needs for the moment `it` (seconds from START).
+// Only the last one is not cut away from: it tilts up into the searchlight, and the title shot comes down out of the same white.
 export function cinemaShot(it, T, aspect, calm) {
   const C = CINE;
   const s = it < C.track ? road(it, T, aspect, calm) : it < C.air ? track(it, T, aspect, calm) : it < C.bumper ? air(it, T, aspect, calm) : it < C.front ? bumper(it, T, aspect, calm) : front(it, T, aspect, calm);
-  join(s, it, calm);
+  // each cut lands with a jolt of the tape: a frame of colour split
+  const cut = [C.track, C.air, C.bumper, C.front].reduce((m, t) => (it >= t ? t : m), -1);
+  if (cut >= 0 && it - cut < 0.12 && !calm) s.fx.rgb = Math.max(s.fx.rgb, 1 + 5 * (1 - (it - cut) / 0.12));
+  // the last shot: up into the light
+  const up = smooth(lin(it, CINE_AT.flare - 0.15, C.title));
+  if (!calm && up > 0) s.cam.pitch += 0.055 * up * up;
   return s;
 }
 
