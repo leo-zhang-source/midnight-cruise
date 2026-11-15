@@ -66,7 +66,7 @@ If the game is silent, click or tap inside it and check **Settings → volume**,
 The world is rendered in real time with three.js and WebGL 2. The score, engines and effects are synthesised in the browser, with CC0 drum and cymbal samples. The gameplay simulation records a deterministic timeline, which also powers the rewind.
 
 - [Gameplay & technical reference](REFERENCE.md) — complete controls, pursuit mechanics, local setup, testing and builds.
-- [Press kit](press/README.md) — approved descriptions, cover art and screenshots captured from the game.
+- [Press kit](press/README.md) — publication-ready descriptions, cover art and screenshots captured from the game.
 - [Creative treatment & audio measurements](REPORT.md).
 - [Credits & third-party licences](CREDITS.md).
 
