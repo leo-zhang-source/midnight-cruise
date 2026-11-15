@@ -2,32 +2,34 @@
 // Free mode (no traffic), so the drive is never cut short by a crash.
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
+import { IGNITION } from '../js/cue.js';
+const D = IGNITION - 10;   // (the times below were written when the opening was ten seconds long)
 const ok = (n, c, i = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 const auto = (tl, T) => tl.envChanges(T).filter((e) => e.auto).map((e) => `${e.t.toFixed(2)}→${e.preset}`);
-// 1) cruising only: the time rule fires first (cruise starts at 11 s)
+// 1) cruising only: the time rule fires first (cruise starts at 11 + D s)
 let tl = new Timeline(); tl.add('start', 1, { free: 1 });
-let a = auto(tl, 140); ok('time rule: switches every 40 s of cruising', a.length === 3 && Math.abs(parseFloat(a[0]) - 51) < 0.01, a.join(' '));
+let a = auto(tl, 140 + D); ok('time rule: switches every 40 s of cruising', a.length === 3 && Math.abs(parseFloat(a[0]) - 51 - D) < 0.01, a.join(' '));
 // 2) covering ground faster (nitro bursts): the distance rule fires first
 // (in top gear, where 40 s of plain cruising just falls short of the distance: the third change, due at 131 s by the clock)
-tl = new Timeline(); tl.add('start', 1, { free: 1 }); for (const t of [93, 101, 109, 117, 125]) tl.add('turbo', t);
-a = auto(tl, 135); ok('distance rule: nitro bursts switch sooner', a.length >= 3 && Math.abs(parseFloat(a[1]) - 91) < 0.01 && parseFloat(a[2]) < 130.5, a.join(' '));
+tl = new Timeline(); tl.add('start', 1, { free: 1 }); for (const t of [93, 101, 109, 117, 125]) tl.add('turbo', t + D);
+a = auto(tl, 135 + D); ok('distance rule: nitro bursts switch sooner', a.length >= 3 && Math.abs(parseFloat(a[1]) - 91 - D) < 0.01 && parseFloat(a[2]) < 130.5 + D, a.join(' '));
 // 3) a manual choice restarts the countdown and the cycle continues from it
-tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('env', 30, { preset: 2 });
-a = auto(tl, 75); ok('manual preset restarts the countdown', a.length === 1 && Math.abs(parseFloat(a[0]) - 70) < 0.01 && a[0].endsWith('→3'), a.join(' '));
+tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('env', 30 + D, { preset: 2 });
+a = auto(tl, 75 + D); ok('manual preset restarts the countdown', a.length === 1 && Math.abs(parseFloat(a[0]) - 70 - D) < 0.01 && a[0].endsWith('→3'), a.join(' '));
 // 4) AUTO off stops switching; back on restarts the timer
-tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('auto', 20, { on: false }); tl.add('auto', 80, { on: true });
-a = auto(tl, 125); ok('AUTO off pauses, on resumes with a fresh timer', a.length === 1 && parseFloat(a[0]) > 100 && parseFloat(a[0]) <= 120.01, a.join(' ') + ' (no switch while off; the next one within 40 s of switching back on, sooner by distance at this speed)');
+tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('auto', 20 + D, { on: false }); tl.add('auto', 80 + D, { on: true });
+a = auto(tl, 125 + D); ok('AUTO off pauses, on resumes with a fresh timer', a.length === 1 && parseFloat(a[0]) > 100 + D && parseFloat(a[0]) <= 120.01 + D, a.join(' ') + ' (no switch while off; the next one within 40 s of switching back on, sooner by distance at this speed)');
 // 5) no switching during ignition / rewind; replay resets
-tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('replay', 45);
-a = auto(tl, 100); ok('ignition and replay reset the countdown', a.length === 1 && Math.abs(parseFloat(a[0]) - (45.6 + 10 + 40)) < 0.02, a.join(' '));
+tl = new Timeline(); tl.add('start', 1, { free: 1 }); tl.add('replay', 45 + D);
+a = auto(tl, 100 + 2 * D); ok('ignition and replay reset the countdown', a.length === 1 && Math.abs(parseFloat(a[0]) - (45.6 + D + IGNITION + 40)) < 0.02, a.join(' '));
 // 6) determinism: same events → same switches, regardless of query order
-const ev = [{ type: 'start', t: 1, free: 1 }, { type: 'lane', t: 14, dir: 1 }, { type: 'lane', t: 30, dir: -1 }, { type: 'turbo', t: 40 }];
+const ev = [{ type: 'start', t: 1, free: 1 }, { type: 'lane', t: 14 + D, dir: 1 }, { type: 'lane', t: 30 + D, dir: -1 }, { type: 'turbo', t: 40 + D }];
 const t1 = new Timeline(); t1.load(ev); const t2 = new Timeline(); t2.load(ev);
 t2.stateAt(90); t2.stateAt(20); t2.stateAt(55);
 ok('deterministic regardless of seek order', JSON.stringify(auto(t1, 200)) === JSON.stringify(auto(t2, 200)), auto(t1, 200).join(' '));
 // 7) the audio engine sees the same switch (music layers follow)
 const s = new Synth(); s.event({ type: 'start', t: 1, free: 1 });
 const L = new Float32Array(128), R = new Float32Array(128);
-for (let f = 0; f < Math.round(53.5 * 48000 / 128); f++) s.process(L, R, 128);
-const w = s.tl.envWeights(53.5).map((v) => +v.toFixed(2));
+for (let f = 0; f < Math.round((53.5 + D) * 48000 / 128); f++) s.process(L, R, 128);
+const w = s.tl.envWeights(53.5 + D).map((v) => +v.toFixed(2));
 ok('audio timeline crossfades to the next preset', w[1] > 0.99, JSON.stringify(w));

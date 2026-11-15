@@ -7,10 +7,12 @@
   var BAR = BEAT * 4;
   var TICK = BEAT / 8;
   var TPB = 32;
-  var IGNITION = 10;
+  var IGNITION = 26;
   var SKIP_FF = 0.4;
   var REWIND = 0.6;
   var SEED = 1986;
+  var CINE = { road: 0, track: 4, air: 8, bumper: 12, front: 16, title: 20 };
+  var CINE_AT = { hero: 2.25, cop1: 3.2, cop2: 3.5, wipe: 5.7, lock: 10.1, swerve: [12.75, 14.25, 15.25], flare: 19.5 };
   var IGN = {
     vhsNoise: [0, 0.62],
     osdPlay: [0, 1.75],
@@ -18,27 +20,35 @@
     // tape hesitation: picture steps at 15 fps
     crtHold: [0, 0.5],
     crtExpand: [0.5, 1],
-    firstPulse: 0.5,
-    bassIn: 1,
-    drumsIn: 2,
-    fly: [1, 4],
-    sunRise: [0.55, 4.4],
-    settle: [4, 6],
-    fovTighten: [4.5, 5.94],
-    gather: [4, 6],
-    breath: [5.5, 6],
-    slam: 6,
-    hitStop: [6, 6.067],
-    glint: [6.06, 6.72],
-    flare: [6, 6.95],
-    shake: [6, 6.6],
-    neonWrite: [6.125, 7],
-    neonFlicker: [7, 7.375],
-    aux: [7.5, 8.6],
-    cassette: 7.625,
-    controls: [8, 8.8],
-    hold: [8.8, 10]
+    breath: [19.5, 20],
+    slam: 20,
+    // the title
+    hitStop: [20, 20.067],
+    glint: [20.06, 20.72],
+    flare: [20, 20.95],
+    shake: [20, 20.6],
+    neonWrite: [20.125, 21],
+    neonFlicker: [21, 21.375],
+    aux: [21.5, 22.6],
+    controls: [24, 24.8],
+    hold: [24.8, 26]
   };
+  function cineMix(it) {
+    const C = CINE, A = CINE_AT, bell = (t, w) => Math.exp(-((it - t) / w) * ((it - t) / w));
+    if (it < C.track) return { eng: 0, rev: 0, siren: 0.05 * bell(A.cop1 + 0.15, 0.45) + 0.012 * Math.min(1, Math.max(0, (it - 2.6) / 0.6)), rate: 3.1, heli: 0 };
+    if (it < C.air) {
+      const u = (it - C.track) / 4;
+      return { eng: 1, rev: 0.35 + 0.5 * (u * 2 % 1), siren: 0.012, rate: 0.62, heli: 0 };
+    }
+    if (it < C.bumper) return { eng: 0.3, rev: 0.6, siren: 7e-3, rate: 0.62, heli: 1 };
+    if (it < C.front) {
+      const u = (it - C.bumper) / 4;
+      return { eng: 1.25, rev: 0.55 + 0.4 * (u * 2.67 % 1), siren: 0.03, rate: 3.1, heli: 0.25 };
+    }
+    if (it < C.title) return { eng: 0.7, rev: 0.8, siren: 0.02, rate: 3.1, heli: 0.7 + 0.5 * Math.min(1, Math.max(0, (it - 19) / 1)) };
+    const k = Math.min(1, Math.max(0, (it - C.title) / 4.5));
+    return { eng: 0.9 - 0.45 * k, rev: 0.7 * (1 - k), siren: 0.02 + 0.014 * k, rate: 3.1, heli: 0.6 * (1 - Math.min(1, (it - C.title) / 3)) };
+  }
   var TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
   var ENV_XFADE = 1.6;
   var AUTO_ENV = { time: 40, dist: 5200 };
@@ -265,17 +275,17 @@
   var LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 46e-4, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
   var THROTTLE = { rise: 0.32, fall: 0.2 };
   var FLICK = [
-    // [time, level] steps
-    [7, 0],
-    [7.035, 1],
-    [7.07, 0.15],
-    [7.11, 0.9],
-    [7.135, 0],
-    [7.19, 1],
-    [7.215, 0.35],
-    [7.25, 1],
-    [7.29, 0.6],
-    [7.315, 1]
+    // [time after the write-on, level] steps
+    [0, 0],
+    [0.035, 1],
+    [0.07, 0.15],
+    [0.11, 0.9],
+    [0.135, 0],
+    [0.19, 1],
+    [0.215, 0.35],
+    [0.25, 1],
+    [0.29, 0.6],
+    [0.315, 1]
   ];
   function neonPower(it) {
     const [a, b] = IGN.neonWrite;
@@ -283,7 +293,7 @@
     if (it < b) return 0.55;
     if (it >= IGN.neonFlicker[1]) return 1;
     let v = 0.55;
-    for (const [t, l] of FLICK) if (it >= t) v = l;
+    for (const [t, l] of FLICK) if (it >= IGN.neonFlicker[0] + t) v = l;
     return v;
   }
   var CHORDS = {
@@ -385,7 +395,7 @@
   function cruiseChord(bar) {
     return CRUISE_CHORDS[(bar % 32 + 32) % 32];
   }
-  var IGN_CHORDS = ["Am", "C", "Gs", "F", "G"];
+  var IGN_CHORDS = ["Am", "Am", "Am", "Am", "Am", "Am", "Am", "Am", "Am", "Am", "F", "G", "Em"];
   function drumsBar(emit, kick, snare, hat, opts = {}) {
     const v = opts.v ?? 1;
     for (let s = 0; s < 16; s++) {
@@ -413,35 +423,125 @@
     const lo = bar * 16, hi = lo + 16;
     for (const [st, n, len] of notes) if (st >= lo && st < hi) emit((st - lo) * 2, { i: "lead", n: n + oct, d: len * TICK * 2 * 0.92, v });
   }
+  var SPY = [64, 65, 66, 65];
+  function spyBar(emit, v, oct = 0, eighths = false) {
+    for (let h = 0; h < 4; h++) {
+      const n = SPY[h] + oct;
+      emit(h * 8, { i: "pluck", n, v });
+      emit(h * 8, { i: "pluck", n: n + 12, v: v * 0.6 });
+      emit(h * 8 + 6, { i: "pluck", n, v: v * 0.7 });
+      if (eighths) {
+        emit(h * 8 + 3, { i: "pluck", n: n + 12, v: v * 0.5 });
+        emit(h * 8 + 4, { i: "pluck", n, v: v * 0.6 });
+      }
+    }
+  }
+  var cutHit = (emit, v = 1) => {
+    emit(0, { i: "sub", v });
+    emit(0, { i: "impact", v: 0.8 * v });
+    emit(0, { i: "kick", v: 1.05 });
+  };
   function ignitionBar(bar, emit) {
     const ch = IGN_CHORDS[bar];
+    const tick16 = (v0, v1, from = 0) => {
+      for (let s = from; s < 16; s++) emit(s * 2, { i: "hat", v: (v0 + (v1 - v0) * s / 15) * (s % 4 === 0 ? 1 : 0.7) });
+    };
     switch (bar) {
       case 0:
         emit(0, { i: "tape" });
         emit(0, { i: "vhs", d: 0.62 });
         emit(8, { i: "kick", v: 1.05 });
         emit(8, { i: "sub", v: 0.85 });
-        emit(8, { i: "pad", notes: CHORDS.Am.pad, d: 3.4, v: 0.75, slow: 1 });
-        emit(24, { i: "kick", v: 0.7 });
-        bassBar(emit, "Am", BASS1, 0.85, 8, 16, (s) => 0.55 + (s - 8) * 0.05);
+        emit(8, { i: "pad", notes: CHORDS.Am.pad, d: 3.4, v: 0.6, slow: 1 });
+        tick16(0.1, 0.24, 8);
+        bassBar(emit, "Am", BASS1, 0.55, 8, 16, (s) => 0.4 + (s - 8) * 0.04);
+        emit(27, { i: "flyby", v: 1, pan: 0.5 });
         break;
       case 1:
-        drumsBar(emit, P("x...x...x...x..."), SNARE, P("..........x.x.x."), { v: 0.92 });
-        bassBar(emit, ch, BASS1, 0.95);
-        padChord(emit, ch, 2, 0.7);
+        tick16(0.24, 0.34);
+        bassBar(emit, ch, BASS1, 0.62, 0, 16, (s) => 0.7 + s * 0.02);
+        emit(10, { i: "flyby", v: 0.8, pan: -0.6, f: 0.9 });
+        emit(15, { i: "flyby", v: 0.8, pan: 0.4, f: 0.95 });
+        emit(24, { i: "tom", n: 52, v: 0.7 });
+        emit(26, { i: "tom", n: 47, v: 0.8 });
+        emit(28, { i: "tom", n: 43, v: 0.9 });
+        emit(30, { i: "tom", n: 38, v: 1 });
         break;
       case 2:
-        emit(0, { i: "riser", d: 2 });
+      case 3:
+        if (bar === 2) {
+          cutHit(emit);
+          emit(0, { i: "crash", v: 0.7 });
+          emit(0, { i: "stab", notes: [45, 52, 57, 60, 64], d: 0.9, v: 0.7 });
+        }
+        drumsBar(emit, P("x...x...x...x..."), SNARE, null, { v: 0.95 });
+        tick16(0.36, 0.4);
+        bassBar(emit, ch, BASS2, 0.95);
+        spyBar(emit, 0.5);
+        if (bar === 3) {
+          emit(22, { i: "gear" });
+          for (let s = 12; s < 16; s++) emit(s * 2, { i: "snare", v: 0.4 + (s - 12) * 0.12, fill: 1 });
+        }
+        break;
+      case 4:
+      case 5:
+        if (bar === 4) {
+          cutHit(emit, 0.9);
+          emit(0, { i: "pad", notes: [57, 60, 64, 69], d: 4, v: 0.7 });
+        }
+        drumsBar(emit, P("x.........x....."), P("........x......."), null, { v: 0.9 });
+        tick16(0.22, 0.26);
+        bassBar(emit, ch, BASS1, 0.85);
+        spyBar(emit, 0.42, 12);
+        if (bar === 5) {
+          emit(2, { i: "bell", n: 88, v: 0.5 });
+          emit(24, { i: "tom", n: 47, v: 0.8 });
+          emit(27, { i: "tom", n: 43, v: 0.9 });
+          emit(30, { i: "tom", n: 38, v: 1 });
+        }
+        break;
+      case 6:
+      case 7:
+        if (bar === 6) {
+          cutHit(emit);
+          emit(0, { i: "crash", v: 0.8 });
+        }
+        drumsBar(emit, P("x...x...x...x.x."), SNARE, null, { v: 1 });
+        tick16(0.4, 0.44);
+        bassBar(emit, ch, BASS2, 1);
+        spyBar(emit, 0.55, 0, true);
+        if (bar === 6) {
+          emit(12, { i: "stab", notes: [45, 57, 60, 64], d: 0.35, v: 0.75 });
+          emit(12, { i: "skid" });
+        } else {
+          emit(4, { i: "stab", notes: [45, 57, 61, 65], d: 0.35, v: 0.8 });
+          emit(4, { i: "horn" });
+          emit(20, { i: "stab", notes: [45, 57, 62, 66], d: 0.35, v: 0.85 });
+          emit(20, { i: "skid" });
+        }
+        break;
+      case 8:
+        cutHit(emit);
+        emit(0, { i: "stab", notes: [33, 45, 52, 57, 60, 64], d: 1.6, v: 0.85 });
+        drumsBar(emit, P("x...x...x...x..."), null, null, { v: 0.95 });
+        tick16(0.3, 0.36);
+        bassBar(emit, ch, BASS1, 0.95);
+        spyBar(emit, 0.5, 12);
+        break;
+      case 9:
+        emit(0, { i: "riser", d: 2, v: 0.8 });
         emit(0, { i: "revcrash", d: 2 });
-        bassBar(emit, ch, BASS2, 0.9, 0, 12, (s) => 1 - s * 0.045);
-        emit(0, { i: "pad", notes: CHORDS.Gs.pad, d: 1.4, v: 0.6 });
-        for (let s = 0; s < 8; s++) emit(s * 2 + 1, { i: "hat", v: 0.22 + s * 0.02 });
+        drumsBar(emit, P("x...x...x...x..."), null, null, { v: 0.95 });
+        bassBar(emit, ch, BASS2, 0.95, 0, 12, (s) => 1 - s * 0.03);
+        spyBar(emit, 0.55, 12, true);
+        for (let s = 0; s < 12; s++) emit(s * 2, { i: "snare", v: 0.25 + s * 0.045, fill: 1 });
+        for (let s = 8; s < 12; s++) emit(s * 2 + 1, { i: "snare", v: 0.4 + (s - 8) * 0.08, fill: 1 });
         emit(24, { i: "tom", n: 52, v: 0.8 });
         emit(26, { i: "tom", n: 47, v: 0.85 });
         emit(28, { i: "tom", n: 43, v: 0.9 });
         emit(30, { i: "tom", n: 38, v: 1 });
         break;
-      case 3:
+      case 10:
         emit(0, { i: "crash", v: 1 });
         emit(0, { i: "sub", v: 1 });
         emit(0, { i: "stab", notes: SLAM_CHORD, d: 1.7, v: 1 });
@@ -451,12 +551,16 @@
         bassBar(emit, ch, BASS1, 1);
         emit(0, { i: "pad", notes: CHORDS.F.pad, d: 2, v: 0.75 });
         emit(2, { i: "buzz", d: 1.3 });
-        emit(26, { i: "pop" });
         break;
-      case 4:
+      case 11:
         drumsBar(emit, KICK_B, SNARE, HAT8, { v: 1 });
         bassBar(emit, ch, BASS1, 1);
         emit(0, { i: "pad", notes: CHORDS.G.pad, d: 2, v: 0.75 });
+        break;
+      case 12:
+        drumsBar(emit, P("x.......x......."), null, HAT8, { v: 0.9 });
+        bassBar(emit, ch, BASS1, 0.95);
+        emit(0, { i: "pad", notes: CHORDS.Em.pad, d: 2, v: 0.75 });
         for (let s = 12; s < 16; s++) emit(s * 2, { i: "snare", v: 0.45 + (s - 12) * 0.12, fill: 1 });
         emit(28, { i: "hat", open: 1, v: 0.6 });
         break;
@@ -1987,10 +2091,13 @@
   var runSeed = (seed, run) => Math.imul((seed | 0) ^ 2654435769, 2246822507) + Math.imul(run, 3266489909) | 0;
   function ignitionSpeed(it) {
     if (it < 0.5) return 2;
-    if (it < 1) return lerp(2, 8, (it - 0.5) / 0.5);
-    if (it < 4) return 8 + 30 * smooth((it - 1) / 3);
-    if (it < 6) return lerp(38, 17, easeInOutCubic((it - 4) / 1.9));
-    return 24 + 22 * Math.exp(-(it - 6) / 0.55);
+    if (it < CINE.track) return 6;
+    if (it < CINE.title) return 150;
+    if (it < CINE.title + 2) {
+      const u = (it - CINE.title) / 2;
+      return 46 + 104 * (1 - u * u * (3 - 2 * u));
+    }
+    return 24 + 22 * Math.exp(-(it - CINE.title - 2) / 0.55);
   }
   var Timeline = class {
     constructor() {
@@ -2530,6 +2637,47 @@
     if (seg.home !== void 0 && T >= seg.home) return { phase: "home", ht: T - seg.home, seg };
     return { phase: "cruise", ct: T - seg.C, seg };
   }
+  var CANONICAL_10 = [
+    { type: "start", t: 1 },
+    { type: "lane", t: 17.55, dir: -1 },
+    { type: "lane", t: 20.95, dir: 1 },
+    { type: "lane", t: 22.2, dir: -1 },
+    { type: "lane", t: 23.05, dir: 1 },
+    { type: "lane", t: 26.1, dir: -1 },
+    { type: "lane", t: 28, dir: 1 },
+    { type: "lane", t: 28.95, dir: 1 },
+    { type: "lane", t: 30, dir: -1 },
+    { type: "turbo", t: 30.15 },
+    { type: "env", t: 34, preset: 1 },
+    { type: "lane", t: 35.1, dir: 1 },
+    { type: "lane", t: 36.8, dir: -1 },
+    { type: "lane", t: 38.5, dir: -1 },
+    { type: "lane", t: 39.7, dir: 1 },
+    { type: "lane", t: 40.65, dir: -1 },
+    { type: "lane", t: 43.85, dir: 1 },
+    { type: "env", t: 44, preset: 2 },
+    { type: "lane", t: 46.75, dir: -1 },
+    { type: "lane", t: 48.85, dir: 1 },
+    { type: "lane", t: 49.2, dir: 1 },
+    { type: "lane", t: 50.15, dir: -1 },
+    { type: "env", t: 54, preset: 3 },
+    { type: "lane", t: 56.2, dir: -1 },
+    { type: "lane", t: 59.85, dir: 1 },
+    { type: "lane", t: 63.1, dir: -1 },
+    { type: "env", t: 64, preset: 0 },
+    { type: "lane", t: 65.15, dir: 1 },
+    { type: "lane", t: 69.2, dir: 1 },
+    { type: "music", t: 70, on: false },
+    { type: "lane", t: 72.15, dir: -1 },
+    { type: "music", t: 73, on: true },
+    { type: "lane", t: 73.6, dir: 1 },
+    { type: "lane", t: 74.9, dir: -1 },
+    { type: "lane", t: 75.8, dir: -1 },
+    { type: "lane", t: 79.45, dir: 1 },
+    { type: "home", t: 80 },
+    { type: "start", t: 83 }
+  ];
+  var CANONICAL = CANONICAL_10.map((e) => e.t > 1 ? { ...e, t: e.t + IGNITION - 10 } : e);
 
   // js/audio/samples.js
   var REVCRASH_PEAK = 3.044;
@@ -2856,6 +3004,28 @@
       B.fxR[i] += yr;
       B.rev[i] += (yl + yr) * 0.1;
       return t < this.d + 0.08;
+    }
+  };
+  var Flyby = class extends Voice {
+    // a car goes by a standing camera: its engine note, falling as it passes (no air noise)
+    constructor(s, o, v, pan, f = 1) {
+      super(s, o);
+      this.v = v;
+      this.pan = pan;
+      this.f = f;
+      this.a = new Saw(0);
+      this.b = new Saw(0.37);
+      this.c = new Saw(0.71);
+      this.lp = new SVF();
+    }
+    tick(B, i, t) {
+      const u = t - 0.55, f = 118 * this.f * (1 - 0.2 * Math.tanh(u * 5.5));
+      if ((this.n & 15) === 0) this.lp.set(420 + 2400 * exp(-u * u * 9), 1);
+      const y = this.lp.lp(this.a.run(f) + this.b.run(f * 1.007) + this.c.run(f * 0.5) * 0.8) * exp(-u * u * (u < 0 ? 7 : 3.2)) * 0.3 * this.v;
+      const p = this.pan * exp(-u * u * 4);
+      B.fxL[i] += y * panL(p);
+      B.fxR[i] += y * panR(p);
+      return t < 2.3;
     }
   };
   var Bass = class extends Voice {
@@ -3771,6 +3941,9 @@
         case "riser":
           v = new Riser(s, o, n.d, n.v ?? 1);
           break;
+        case "flyby":
+          v = new Flyby(s, o, n.v ?? 1, n.pan || 0, n.f || 1);
+          break;
         case "whoosh":
           return;
         // (no whooshes: no wind noise of any kind)
@@ -3959,7 +4132,7 @@
       for (let si = Math.max(0, segs.length - 2); si < segs.length; si++) {
         const sg = segs[si];
         const ignTicks = Math.round((sg.end - sg.s) / TICK);
-        runClock(sg.s, 0, Math.min(160, ignTicks), (bar, emit) => ignitionBar(bar, emit));
+        runClock(sg.s, 0, ignTicks, (bar, emit) => ignitionBar(bar, emit));
         if (sg.C < sg.until) {
           const maxK = sg.until === Infinity ? 1e12 : Math.round((sg.until - sg.C) / TICK);
           runClock(sg.C, 0, maxK, (bar, emit) => cruiseBar(bar, Math.floor(bar / 32), emit, { thr: st.thr, w, heat: ph.phase === "cruise" && st.run > 0 && st.g && !st.g.free && !st.over ? st.g.star : 0, edge: ph.phase === "cruise" && st.g && !st.g.free && st.g.lives < 2 && !st.over ? 1 : 0 }));
@@ -4004,9 +4177,11 @@
       let bc = 760 * (1 + 2.6 * st.thr);
       if (ph.phase === "ign") {
         const it = ph.it;
-        if (it < 4) bc = 260 + 900 * Math.min(1, Math.max(0, (it - 1) / 3));
-        else if (it < 6) bc = 1160 - 820 * Math.min(1, (it - 4) / 1.5);
-        else bc = 760 + 1100 * exp(-(it - 6) / 0.6);
+        const SL = IGN.slam;
+        if (it < 4) bc = 260 + 500 * Math.min(1, Math.max(0, (it - 1) / 3));
+        else if (it < SL - 2) bc = 1e3 + 300 * Math.min(1, (it - 4) / 8);
+        else if (it < SL) bc = 1300 - 900 * Math.min(1, (it - (SL - 2)) / 1.5);
+        else bc = 760 + 1100 * exp(-(it - SL) / 0.6);
       }
       p.bassCut = bc * (1 - 0.25 * w[1]) * (1 + 0.2 * w[3]);
       p.bassDrive = 1.3 + 2.4 * w[2] + 0.6 * st.thr;
@@ -4025,7 +4200,7 @@
       this._lpT = lp;
       const ign = MASTER.ignTrimDb, cru = MASTER.cruiseTrimDb;
       let trim = cru;
-      if (ph.phase === "ign") trim = ph.it < 8 ? ign : ign + (cru - ign) * ((ph.it - 8) / 2);
+      if (ph.phase === "ign") trim = ph.it < IGNITION - 2 ? ign : ign + (cru - ign) * ((ph.it - (IGNITION - 2)) / 2);
       this._trim = Math.pow(10, trim / 20);
     }
     process(outL, outR, N) {
@@ -4051,13 +4226,20 @@
         ef = this.engF;
         eg = (0.019 + 0.013 * Math.max(0, rv)) * (0.45 + 0.55 * thr);
         ec = 170 + vel * 1.5 + 520 * Math.max(0, rv) * thr;
+      } else if (ph.phase === "ign") {
+        const m = cineMix(ph.it);
+        this.engF += (50 * (1 + 1.1 * m.rev) - this.engF) * (1 - exp(-(N / SR) / 0.06));
+        ef = this.engF;
+        eg = (0.019 + 0.013 * m.rev) * m.eng;
+        ec = 170 + 300 * m.eng + 520 * m.rev;
       } else this.engF = ef;
+      const cm = ph.phase === "ign" ? cineMix(ph.it) : null;
       this.engLp.set(ec, 0.9);
       const whF = 700 + vel * 8, whG = ph.phase === "cruise" ? 7e-3 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;
       {
         const st = this._st, g = st.g, run = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
         const close = run && (st.over === 2 || policeClose(g));
-        const tgt = !run ? 0 : close ? 0.034 : 6e-3 + 3e-3 * Math.min(4, g.star), rate = close ? 3.1 : 0.62;
+        const tgt = cm ? cm.siren : !run ? 0 : close ? 0.034 : 6e-3 + 3e-3 * Math.min(4, g.star), rate = cm ? cm.rate : close ? 3.1 : 0.62;
         if (tgt > 0 || this.sirG > 1e-5) {
           const kA = 1 - exp(-1 / (0.25 * SR));
           for (let i = 0; i < N; i++) {
@@ -4075,7 +4257,7 @@
       }
       {
         const st = this._st, g = st.g, on = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.ha > 0.02;
-        const tgt = on ? (0.05 + 0.03 * g.sk) * g.ha : 0;
+        const tgt = cm ? 0.06 * cm.heli : on ? (0.05 + 0.03 * g.sk) * g.ha : 0;
         if (tgt > 0 || this.heliG > 1e-5) {
           const kA = 1 - exp(-1 / (0.6 * SR));
           this.heliF.set(190, 0.8);

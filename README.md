@@ -1,6 +1,6 @@
 # MIDNIGHT CRUISE — 1986
 
-A synthwave highway chase on a 1986 videotape. You press PLAY, a 10-second chrome-and-neon ignition sequence plays out, the title flies off toward the horizon, and then you run from the police on a three-lane highway that sweeps and rolls its way into the neon city, through slower traffic, until they catch you or you wreck the car. The longer you last the harder it gets, and the police plan their attacks: every one is checked against the road ahead so that it leaves you a way out, but only just.
+A synthwave highway chase on a 1986 videotape. You press PLAY and a 26-second opening film plays: the police run the PHANTOM down the beltway in six shots, the title lands, and the cruiser closes on its bumper. Then you run from the police on a three-lane highway that sweeps and rolls its way into the neon city, through slower traffic, until they catch you or you wreck the car. The longer you last the harder it gets, and the police plan their attacks: every one is checked against the road ahead so that it leaves you a way out, but only just.
 
 ## Play online
 
@@ -14,7 +14,7 @@ It opens in a current Chrome, Edge, Safari or Firefox, on desktop or phone, and 
 
 **If you hear nothing:**
 - Open the page in a normal browser window (Chrome or Safari). An app's built-in preview pane may not play sound.
-- When the browser blocks or suspends audio, the deck's LCD shows `NO AUDIO` or `TAP TO RESUME` (expand the deck with the + key on its title bar to see it). Any click or key press resumes audio. Also check that the tab isn't muted and the deck's volume slider isn't at zero.
+- When the browser blocks or suspends audio, an amber dot shows on the gear key, and the settings panel's LCD says `NO AUDIO` or `TAP TO RESUME`. Any click or key press resumes audio. Also check that the tab isn't muted and the deck's volume slider isn't at zero.
 - `?audio=compat` forces the ScriptProcessor fallback. It runs the same synth on the main thread for browsers without AudioWorklet.
 
 ## Controls
@@ -31,11 +31,27 @@ The car drives flat out by itself and has no brake. You steer and fire nitro.
 | In the pause menu | **RESUME** · **RESTART** · **HOME** | `P` / `Enter` · `R` · `H` |
 | After a crash | **REWIND 3 S** (needs a spare tape) · **HOME** | `R` · `H` |
 | On the home screen | **START DRIVE** | `Enter` / `Space` |
-| Music play / pause, mute, volume | cassette deck | `M` toggles mute |
-| Colours | cassette deck: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
-| Automatic colour change | cassette deck **AUTO** key (on by default; its bar fills towards the next change) | — |
+| Settings (the NITE·DECK: music, volume, colours) | gear key, top right; it pauses a run | `O` opens, `Esc` closes |
+| Music play / pause, mute, volume | settings panel | `M` toggles mute |
+| Colours | settings panel: A SUNSET · B BLUE HOUR · C AFTERGLOW · D LAGOON | `1`–`4` |
+| Automatic colour change | settings panel **AUTO** key (on by default; its bar fills towards the next change) | — |
 
-The cassette deck starts minimised to its chrome title bar. The key on the right of the bar expands it, and you can drag the deck by that bar. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
+The cassette deck is the settings panel: it is off the screen until you press the gear key, and nothing of it sits over the road while you drive. If your OS asks for reduced motion, the site switches to a reduced-motion presentation. You can force it with `?reduced=1` or disable it with `?reduced=0`.
+
+## The opening
+
+Every start from the home screen plays a 26-second film, cut on the bar lines of its score (**SKIP INTRO**, `S` or `Esc` cuts it to a 0.4 s fast-forward). It is letterboxed, and three lines are typed over it: where and when, then what the police radio says.
+
+| At | Shot | What happens |
+|---|---|---|
+| 0 s | ROAD | The empty beltway, the lens on the asphalt. The PHANTOM goes through the frame; two cruisers after it, their lights washing over the picture. |
+| 4 s | TRACK | Alongside at speed on a long lens: the car, the police behind it, a truck wiping the frame. He goes round a saloon and pulls away. |
+| 8 s | AIR | From above the helicopter: its searchlight hunts across the lanes and finds him. |
+| 12 s | BUMPER | From the cruiser on his tail, through the traffic: three swerves, three close passes. |
+| 16 s | FRONT | Head on, long lens: him, and everything that is after him stacked up behind. The searchlight swings into the lens. |
+| 20 s | TITLE | The title lands on the downbeat. He lifts off, the cruiser closes on his bumper, the controls come up, and the drive starts from exactly that picture: POLICE! PULL OVER, then FLOOR IT. |
+
+The score is thirteen bars in A minor at 120 BPM: a pedal bass, a ticking hat and a four-note figure that climbs a semitone at a time and falls back, with a hit on every cut and a wind-up into the title. Under it each shot has its own sound: the engines going by the standing lens, the sirens, the rotor.
 
 ## The game
 
@@ -55,7 +71,7 @@ The cassette deck starts minimised to its chrome title bar. The key on the right
 | Cruiser that cuts you off | From four stars: a single cruiser in the middle lane that waits until you are 1.8 s away (1.1 s at the highest levels), looks which lane you are in, and cuts across into it (CRUISER CUTTING YOU OFF). The lane it leaves is your way round. If you are behind it in the middle it stays and brakes. |
 | Energy cells | Mark the open lane. Each adds score (silently); 100 of them earn a spare tape (up to 3). |
 | Pickups and traffic | Cells and canisters never sit under a vehicle. Each one watches the next 0.9 s of traffic around it; when a car is about to drive over it (it catches up, wanders or changes lanes), the pickup slides across to a lane that stays clear. If no lane is clear, the cells that are in the way fade out where they are and cannot be taken. |
-| Nitro canister | A blue ring with a light pillar: the first about 15 s into a run, then one every 30 to 45 s in top gear, and up to half as far apart again as the threat level rises. Drive through it to take it aboard; you can carry three. |
+| Nitro canister | A pressure bottle (blue, NITRO on its label) that hovers and turns over a seal of gold light on the road, in a shaft of gold light with sparks rising round it: the first about 15 s into a run, then one every 30 to 45 s in top gear, and up to half as far apart again as the threat level rises. Drive through it to take it aboard; you can carry three. |
 
 **Two lives**
 
@@ -143,7 +159,7 @@ Every frame is a pure function of scene time, the seed, the viewport and the eve
 
 | Parameter | What it does |
 |---|---|
-| `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is ignition time 6.0, the slam) |
+| `?t=7.0&script=canonical` | Freeze on scene time 7.0 s of the canonical interaction script (START at 1.0 s, so this is opening time 6.0; the title lands at `?t=21.0`) |
 | `?script=canonical` | Replay the canonical sequence live: the intro, a recorded clean drive with a nitro canister picked up and fired, the four presets, a music pause, then the home screen and a second start, which opens with the intro again |
 | `?seed=7` | Pin the traffic seed (each visit otherwise gets a random one, stored in its start event) |
 | `?free=1` | Free cruise: no traffic, no police and no game over; a nitro canister is refilled 7 s after you use one |
@@ -176,7 +192,7 @@ node tools/capture.mjs renders/keyframes 1920x1080 7.0,11.5   # deterministic st
 ```
 
 ```bash
-node tools/interact.mjs          # end-to-end input test in free mode (mouse, keyboard, focus loss, deck drag, start/skip …)
+node tools/interact.mjs          # end-to-end input test in free mode (mouse, keyboard, focus loss, settings panel, start/skip …)
 ```
 
 ```bash
@@ -253,6 +269,7 @@ js/world.js           sky/sun, grid, wireframe mountains, palms, light trails (G
 js/title.js           extruded chamfered logotype + chrome material, 1986 plate
 js/neon.js            “Cruise” as an SVG path → luminous tube ribbon
 js/post.js            MSAA half-float pipeline, bloom pyramid, VHS finishing pass
+js/cinema.js          the opening film: six shots, each a pure function of time (lens, cars, lights)
 js/ui.js              inputs → timeline events, deterministic window physics, OSD
 js/audio/synth.js     the synthesizer, sequencer, FX and mastering chain (pure JS DSP)
 js/audio/samples.js   the CC0 sample manifest

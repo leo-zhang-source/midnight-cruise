@@ -140,12 +140,12 @@ async function wreck(p, touch, once) {
 // ── nitro stock (deterministic: the canonical script picks up two canisters and fires them) ──
 {
   const tl = new Timeline(); tl.load(CANONICAL);
-  const gev = tl.gameEvents(0, 80), item = gev.find((e) => e.k === 'item'), fire = gev.find((e) => e.k === 'nitro' && e.t > item.t);
+  const gev = tl.gameEvents(0, 96), item = gev.find((e) => e.k === 'item'), fire = gev.find((e) => e.k === 'nitro' && e.t > item.t);
   const p = await open({ viewport: { width: 1280, height: 720 } }, `script=canonical&capture=1&w=1280&h=720&t=${(item.t + 0.6).toFixed(2)}&tier=0`);
   let s = await gs(p); ok('a picked-up canister is stored: NITRO shows one pip and READY', fire.t - item.t > 1 && s.nstock === 1 && s.nitroN === '1' && s.nitro === 'true' && s.nitroTxt === 'READY · T', JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, picked: +item.t.toFixed(2), fired: +fire.t.toFixed(2) }));
   await p.evaluate((T) => MC.seek(T), fire.t + 1.1); await p.waitForTimeout(100);
   s = await gs(p); ok('firing it spends the canister: BOOST, stock back to 0, speed up', s.nstock === 0 && s.nitroN === '0' && s.nitroTxt === 'BOOST' && s.vel > 80, JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, v: Math.round(s.vel) }));
-  await p.evaluate(() => MC.seek(81.5)); await p.waitForTimeout(100);
+  await p.evaluate(() => MC.seek(97.5)); await p.waitForTimeout(100);
   s = await gs(p); ok('canonical script ends on the home screen', s.phase === 'home' && s.start === 'visible');
   await p.context().close();
 }
@@ -159,7 +159,7 @@ async function wreck(p, touch, once) {
   await wreck(p, true);
   s = await gs(p); ok('phone: crash → panel fits the screen, buttons are touch-sized', s.over && s.panel && await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return r.left >= 0 && r.right <= 390 && r.top >= 0 && r.bottom <= 844 && a.height >= 44 && c.height >= 44; }), `over ${s.over}, panel ${s.panel}, ` + await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return `panel ${Math.round(r.left)}…${Math.round(r.right)} × ${Math.round(r.top)}…${Math.round(r.bottom)}, buttons ${Math.round(a.height)} and ${Math.round(c.height)} high`; }));
   const hud = await p.evaluate(() => { const h = document.getElementById('ghud').getBoundingClientRect(), d = document.getElementById('deck').getBoundingClientRect(), c = document.getElementById('corner').getBoundingClientRect(); return { top: h.top, left: h.left, right: h.right, deckBottom: d.bottom, cornerBottom: c.bottom }; });
-  ok('phone: HUD sits below the deck bar, inside the screen', hud.top >= hud.deckBottom - 1 && hud.left >= 0 && hud.right <= 390, JSON.stringify(hud));
+  ok('phone: HUD sits right below the corner keys (no deck in the way), inside the screen', hud.top >= hud.cornerBottom - 1 && hud.top < 90 && hud.left >= 0 && hud.right <= 390, JSON.stringify(hud));
   await p.tap('#revive'); await p.waitForTimeout(500);
   s = await gs(p); ok('phone: tapping REWIND revives', s.over === 0 && !s.panel);
   await p.waitForTimeout(1100);

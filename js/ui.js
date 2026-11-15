@@ -5,7 +5,6 @@ import { clamp, lerp, smooth, spring, ring, sat } from './util.js';
 
 const $ = (id) => document.getElementById(id);
 const CIRC = 282.74;
-const WIN_HZ = 240, WDT = 1 / WIN_HZ;
 
 export class UI {
   constructor(app) {
@@ -13,7 +12,7 @@ export class UI {
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
       skip: $('skip'), drivebar: $('drivebar'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
-      deck: $('deck'), deckBar: $('deck-bar'), deckMin: $('deck-min'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
+      cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
@@ -27,7 +26,6 @@ export class UI {
     this.meterBars = [...this.el.lcdMeter.children];
     this.el.spdBar.innerHTML = '<i></i>'.repeat(14);
     this.spdSegs = [...this.el.spdBar.children];
-    this.win = { n: 0, ei: 0, st: null };
     this.cache = {};
     this.bind();
   }
@@ -54,16 +52,10 @@ export class UI {
     E.auto.addEventListener('click', () => { const on = !this.app.tl.autoOn(this.app.now()); this.ev('auto', { on }); this.sfx('click'); });
     E.vol.addEventListener('input', () => { const v = E.vol.value / 100; this.app.audio.setVolume(v); clearTimeout(this._vt); this._vt = setTimeout(() => this.ev('vol', { v }), 120); });
     E.presets.forEach((b) => b.addEventListener('click', () => { const p = +b.dataset.p; if (this.app.tl.envTarget(this.app.now()) !== p) { this.ev('env', { preset: p }); this.sfx('select'); } }));
-    E.deckMin.addEventListener('click', () => { const m = E.deck.dataset.min !== 'true'; this.setMin(m); this.ev('deckmin', { on: m }); this.sfx('tick'); });
-    // deck drag
-    E.deckBar.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.deck-min')) return;
-      e.preventDefault(); E.deckBar.setPointerCapture(e.pointerId); this.dragging = true;
-      this.ev('win', { act: 'down', x: e.clientX, y: e.clientY }); this.sfx('tick');
-    });
-    E.deckBar.addEventListener('pointermove', (e) => { if (this.dragging) this.pendingWin = { x: e.clientX, y: e.clientY }; });
-    const wUp = (e) => { if (!this.dragging) return; this.dragging = false; this.flushWin(); this.ev('win', { act: 'up', x: e.clientX ?? 0, y: e.clientY ?? 0 }); };
-    E.deckBar.addEventListener('pointerup', wUp); E.deckBar.addEventListener('pointercancel', wUp); E.deckBar.addEventListener('lostpointercapture', wUp);
+    // settings: the cassette deck (music, volume, colours) is a panel behind the gear key, so it takes none of the road
+    E.settings.addEventListener('click', () => this.settings(E.deck.hidden));
+    E.deckClose.addEventListener('click', () => this.settings(false));
+    E.deckShade.addEventListener('click', () => this.settings(false));
     // lane change: ← → / A D, or a tap / click on the left or right half of the scene (fires on press, no wait)
     const cv = E.canvas;
     cv.addEventListener('pointerdown', (e) => {
@@ -88,7 +80,9 @@ export class UI {
       if (k === 'ArrowLeft' || k === 'a' || k === 'A') { e.preventDefault(); this.lane(-1); }
       else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); this.lane(1); }
       else if (k === 't' || k === 'T' || k === 'ArrowUp' || k === 'w' || k === 'W') { e.preventDefault(); this.turbo(); }
-      else if (k === 'p' || k === 'P') this.pause(!this.isPaused());
+      else if (k === 'o' || k === 'O') this.settings(E.deck.hidden);
+      else if (k === 'Escape' && !E.deck.hidden) this.settings(false);
+      else if (k === 'p' || k === 'P') { if (!E.deck.hidden) this.settings(false); else this.pause(!this.isPaused()); }
       else if (k === 'Escape') { if (ph === 'ign' || ph === 'rewind') this.skip(); else this.pause(!this.isPaused()); }
       else if (k === 's' || k === 'S') this.skip();
       else if (k === 'r' || k === 'R') { if (this.overState()) this.revive(); else if (this.isPaused()) this.restart(); }
@@ -100,18 +94,20 @@ export class UI {
       }
       else if (/^[1-4]$/.test(k) && ph !== 'idle' && ph !== 'home') E.presets[+k - 1].click();
     });
-    const release = () => { this.pause(true, true); if (this.dragging) { this.dragging = false; this.ev('win', { act: 'up', x: 0, y: 0 }); } };
+    const release = () => { this.pause(true, true); };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
-    this.setMin(true);   // the deck starts minimised; its title-bar key expands it
     if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Nitro when you carry a canister'; document.body.classList.add('touch'); }
   }
 
-  setMin(m) {
+  // open or close the settings panel; opening it during a run pauses the run (it stays paused when the panel closes)
+  settings(on) {
     const E = this.el;
-    E.deck.dataset.min = String(m);
-    E.deckMin.setAttribute('aria-expanded', String(!m));
-    E.deckMin.setAttribute('aria-label', m ? 'Expand cassette deck' : 'Minimise cassette deck');
+    if (E.deck.hidden === !on) return;
+    if (on) this.pause(true);
+    E.deck.hidden = !on; E.deckShade.hidden = !on; E.settings.setAttribute('aria-expanded', String(!!on));
+    this.sfx('tick');
+    try { (on ? E.deckClose : E.settings).focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }
   }
 
   // one lane left (−1) or right (+1); only while cruising
@@ -191,64 +187,8 @@ export class UI {
     if (this.app.tl.turboReady(T) >= 1) { this.ev('turbo'); this.fireT = T; }
   }
 
-  flushWin() { if (this.pendingWin) { this.ev('win', { act: 'move', ...this.pendingWin }); this.pendingWin = null; } }
 
-  // per-frame: emit coalesced continuous inputs (deck drag) as timestamped events
-  pump() {
-    if (this.dragging) this.flushWin();
-  }
-
-  // ── deterministic window physics from 'win' events ──
-  dock(w, h, dw, dh) {
-    if (w < 720 || h > w) {
-      const c = document.getElementById('corner').getBoundingClientRect();
-      return { x: (w - dw) / 2, y: Math.max(12, (c.height ? c.bottom : 60) + 10) };
-    }
-    const g = Math.max(16, w * 0.05);
-    const stamp = this.el.osd.querySelector('.osd-stamp').getBoundingClientRect();
-    const bottom = stamp.height ? stamp.top - 18 : h - Math.max(20, h * 0.046) - 70;
-    return { x: g, y: clamp(bottom - dh, h * 0.3, h - dh - 16) };
-  }
-  clampWin(x, y, w, h, dw, dh) {
-    const m = 12;
-    x = clamp(x, m, Math.max(m, w - dw - m)); y = clamp(y, m, Math.max(m, h - dh - m));
-    // keep clear of the drive controls
-    const db = this.el.drivebar.getBoundingClientRect();
-    if (db.width && x + dw > db.left - 10 && y + dh > db.top - 10) {
-      const up = db.top - 10 - dh, left = db.left - 10 - dw;
-      if (up >= m && (y - up) < (x - left)) y = up; else if (left >= m) x = left; else y = Math.max(m, up);
-    }
-    return { x, y };
-  }
-  winState(T, w, h, dw, dh) {
-    const tl = this.app.tl, evs = tl._derive().wins;
-    const dock = this.dock(w, h, dw, dh);
-    const key = `${w}x${h}x${dw}x${dh}`;
-    if (!this.win.st || this.win.key !== key || this.win.T > T + 1e-6 || this.win.count > evs.length) {
-      this.win = { key, T: evs.length ? evs[0].t : T, ei: 0, count: evs.length, st: { x: dock.x, y: dock.y, vx: 0, vy: 0, rot: 0, rv: 0, drag: false, gx: 0, gy: 0, tx: dock.x, ty: dock.y, rest: dock } };
-    }
-    const W = this.win, st = W.st;
-    W.count = evs.length;
-    let guard = 0;
-    while (W.T < T && guard++ < WIN_HZ * 4) {
-      while (W.ei < evs.length && evs[W.ei].t <= W.T) {
-        const e = evs[W.ei++];
-        if (e.act === 'down') { st.drag = true; st.gx = e.x - st.x; st.gy = e.y - st.y; st.tx = st.x; st.ty = st.y; }
-        else if (e.act === 'move' && st.drag) { st.tx = e.x - st.gx; st.ty = e.y - st.gy; }
-        else if (e.act === 'up' && st.drag) { st.drag = false; const c = this.clampWin(st.tx, st.ty, w, h, dw, dh); st.tx = c.x; st.ty = c.y; st.rest = c; }
-      }
-      const wk = st.drag ? 30 : 15, z = st.drag ? 0.8 : 0.42;
-      const ax = wk * wk * (st.tx - st.x) - 2 * z * wk * st.vx, ay = wk * wk * (st.ty - st.y) - 2 * z * wk * st.vy;
-      st.vx += ax * WDT; st.vy += ay * WDT; st.x += st.vx * WDT; st.y += st.vy * WDT;
-      const rt = st.drag ? clamp(st.vx * 0.00011, -0.1, 0.1) : 0;
-      const ra = 22 * 22 * (rt - st.rot) - 2 * 0.35 * 22 * st.rv;
-      st.rv += ra * WDT; st.rot += st.rv * WDT;
-      W.T += WDT;
-    }
-    if (guard >= WIN_HZ * 4) W.T = T;
-    const c = st.drag ? { x: st.x, y: st.y } : this.clampWin(st.x, st.y, w, h, dw, dh);
-    return { x: c.x, y: c.y, rot: st.rot, drag: st.drag };
-  }
+  pump() {}
 
   update(s, T, w, h) {
     const E = this.el, U = s.ui, C = this.cache;
@@ -270,6 +210,10 @@ export class UI {
     set('homeS', U.home && this.last >= 0 ? this.last + '|' + this.best : '', (v) => { E.homeScore.hidden = !v; if (v) { E.hsLast.textContent = this.last.toLocaleString('en-US'); E.hsBest.textContent = this.best.toLocaleString('en-US'); } });
     set('homeF', U.home && st > 0.9 ? 1 : 0, (v) => { if (v) { try { E.start.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
     set('skip', U.skip, (v) => E.skip.classList.toggle('on', !!v));
+    // the opening: letterbox bars slide in and out, lines are typed over the picture
+    const bars = U.bars || 0;
+    set('bars', bars.toFixed(3), () => { E.cine.style.visibility = bars > 0.004 ? 'visible' : 'hidden'; E.cine.style.setProperty('--k', bars.toFixed(3)); });
+    set('cap', U.cap || '', (v) => { E.cineCap.textContent = v; });
     // drive controls: the nitro button shows how many canisters are aboard
     const ca = U.controls;
     set('ctrl', ca.toFixed(3), () => { E.drivebar.style.opacity = ca; E.drivebar.style.visibility = ca > 0.01 ? 'visible' : 'hidden'; E.drivebar.style.transform = `translateY(${(1 - ca) * 28}px)`; E.drivebar.style.pointerEvents = ca > 0.6 ? 'auto' : 'none'; });
@@ -286,22 +230,9 @@ export class UI {
     set('spdSeg', segs, (n) => this.spdSegs.forEach((g, i) => { g.className = i < n ? (i >= 10 ? 'on hot' : 'on') : ''; }));
     const ha = U.hint;
     set('hint', ha.toFixed(2), () => { E.hints.style.visibility = ha > 0.01 ? 'visible' : 'hidden'; E.hints.style.opacity = ha; E.hints.style.transform = `translateX(-50%) translateY(${(1 - ha) * 10}px)`; });
-    // deck: pop-in, drag, settle
-    const vis = U.cassette > 0;
-    const ds = (w < 720 || h > w) ? 1 : clamp(Math.min((h / 1080) * 1.12, (w / 1500) * 1.2), 0.74, 1);
-    const dw = (E.deck.offsetWidth || 320) * ds, dh = (E.deck.offsetHeight || 380) * ds;
-    const pos = this.winState(T, w, h, dw, dh);
-    let sc = 1, rot = pos.rot, op = 1;
-    if (vis && U.cassetteT < 1.2) {
-      const u = U.cassetteT;
-      sc = s.reduced ? 1 : lerp(0.55, 1, spring(u, 17, 0.42));
-      rot += s.reduced ? 0 : -0.06 * ring(u, 15, 0.35);
-      op = smooth(u / (s.reduced ? 0.4 : 0.12));
-    }
-    if (s.phase === 'rewind') op *= 1;
-    const px = pos.x + dw * (1 - sc) / 2;
-    const tr = `translate(${px.toFixed(1)}px, ${pos.y.toFixed(1)}px) rotate(${rot.toFixed(4)}rad) scale(${(sc * ds).toFixed(4)})`;
-    set('deckT', tr + vis + op.toFixed(3), () => { E.deck.style.transform = tr; E.deck.style.visibility = vis ? 'visible' : 'hidden'; E.deck.style.opacity = op; });
+    // settings panel (the cassette deck): its displays are kept up to date while it is open; an audio problem shows on the gear key
+    const vis = !E.deck.hidden;
+    { const as = this.app.audio.status; set('alert', as === 'failed' || as === 'suspended' || as === 'stalled' ? '1' : '0', (v) => { E.settings.dataset.alert = v; }); }
     if (vis) {
       const as = this.app.audio.status;
       const lcd = as === 'failed' ? 'NO AUDIO' : as === 'suspended' ? 'TAP TO RESUME' : as === 'stalled' ? 'NO AUDIO OUT' : `${String.fromCharCode(65 + U.preset)} · ${PRESETS[U.preset]}`;

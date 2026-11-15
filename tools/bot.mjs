@@ -4,7 +4,7 @@
 //   node tools/bot.mjs --nitro         also fire nitro canisters as they are picked up
 //   node tools/bot.mjs --script 68.95  print the events of a clean run (used for the canonical script)
 import { Timeline } from '../js/timeline.js';
-import { ROAD, TURBO, GAME } from '../js/cue.js';
+import { ROAD, TURBO, GAME, IGNITION } from '../js/cue.js';
 import { NI, IF } from '../js/game.js';
 import { FS_STEP, threatGrid, searcher } from '../js/foresight.js';
 
@@ -47,8 +47,8 @@ export function plan(st, opt, want) {
 
 export function play(seed, seconds, opt = {}) {
   const tl = new Timeline();
-  // opt.intro: play the full 10 s ignition (cruise at 11 s) instead of skipping it; opt.extra: other events to weave in
-  const C = opt.intro ? 11 : 1.9, end = C + seconds, ev = [];
+  // opt.intro: play the full opening (cruise at 1 + IGNITION s) instead of skipping it; opt.extra: other events to weave in
+  const C = opt.intro ? 1 + IGNITION : 1.9, end = C + seconds, ev = [];
   const add = (type, t, data = {}) => { tl.add(type, t, data); ev.push({ type, t: +t.toFixed(3), ...data }); };
   add('start', 1, seed === undefined ? {} : { seed }); if (!opt.intro) add('skip', 1.5);
   for (const e of opt.extra || []) { const { type, t, ...d } = e; add(type, t, d); }

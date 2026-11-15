@@ -138,6 +138,20 @@ function makeGlows() {
           vec2 p = q * 1.35; float ch = 0.0;
           for (int k = 0; k < 2; k++) { float x = p.x + 0.42 - float(k) * 0.62; float d = abs(x - (0.34 - abs(p.y) * 0.62)); ch += smoothstep(0.14, 0.06, d) * step(abs(p.y), 0.56); }
           a = ring + ch * step(r, 0.74) + exp(-r * r * 3.0) * 0.25;
+        } else if (t > 13.5) {                       // 14 · a sparkle: a four-point star that twinkles (seed)
+          vec2 p = abs(q); float tw = 0.55 + 0.45 * sin(uT * 9.0 + vM.z * 40.0);
+          a = (exp(-p.x * 26.0) * exp(-p.y * 3.2) + exp(-p.y * 26.0) * exp(-p.x * 3.2) + exp(-dot(q, q) * 30.0)) * tw;
+        } else if (t > 12.5) {                       // 13 · rays of light turning about the centre, behind a pickup
+          float r = length(q), an = atan(q.y, q.x);
+          float rays = pow(abs(sin(an * 4.0 + uT * 0.9)), 10.0) * 0.8 + pow(abs(sin(an * 6.0 - uT * 0.6 + 1.3)), 16.0) * 0.5;
+          a = rays * smoothstep(1.0, 0.25, r) * smoothstep(0.08, 0.3, r) + exp(-r * r * 5.0) * 0.55;
+        } else if (t > 11.5) {                       // 12 · a seal of light turning on the road: two rings, a ring of dashes, eight spokes
+          float r = length(q), an = atan(q.y, q.x);
+          float outer = smoothstep(0.05, 0.015, abs(r - 0.92)), inner = smoothstep(0.04, 0.012, abs(r - 0.56));
+          float dash = smoothstep(0.07, 0.03, abs(r - 0.76)) * step(0.5, fract(an * 3.8197 + uT * 0.7));
+          float spoke = smoothstep(0.06, 0.02, abs(sin(an * 4.0 - uT * 0.5))) * step(0.3, r) * step(r, 0.52);
+          a = outer + inner * 0.8 + dash + spoke * 0.5 + exp(-r * r * 2.6) * 0.5;
+          a *= smoothstep(1.0, 0.96, r);
         } else if (t > 10.5) {                       // 11 · a ring (shockwaves): its width is the parameter
           float r = length(q), w = max(vM.w, 0.02);
           a = exp(-pow((r - (1.0 - w)) / w, 2.0)) + exp(-r * r * 2.0) * 0.08;
@@ -150,6 +164,82 @@ function makeGlows() {
   });
   const m = new THREE.Mesh(g, mat); m.frustumCulled = false; m.renderOrder = 8;
   m.userData = { A, g };
+  return m;
+}
+
+// A nitro pickup: a pressure bottle (painted steel, a label band, chrome hoops, a brass valve with its handwheel). One mesh per
+// pickup on the road; it hovers, leans and turns, lit from below by its own gold light.
+const GOLD = [1.0, 0.74, 0.22];
+function bottleLabel() {
+  return canvasTexture(512, 128, (g) => {
+    g.fillStyle = '#f4f0e6'; g.fillRect(0, 0, 512, 128);
+    g.fillStyle = '#ffb81f'; g.fillRect(0, 0, 512, 14); g.fillRect(0, 114, 512, 14);
+    g.fillStyle = '#0b1f6b'; g.font = 'italic 700 78px "Chakra Petch", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('NITRO', 256, 66);
+    g.fillStyle = '#e8203a'; for (const x of [22, 52, 438, 468]) { g.beginPath(); g.moveTo(x, 34); g.lineTo(x + 22, 64); g.lineTo(x, 94); g.lineTo(x + 14, 94); g.lineTo(x + 36, 64); g.lineTo(x + 14, 34); g.fill(); }
+  });
+}
+function makeBottle(label) {
+  const parts = [];
+  const add = (geo, k, m) => { if (m) geo.applyMatrix4(m); const g = geo.index ? geo.toNonIndexed() : geo; parts.push([g, k]); };
+  const M = new THREE.Matrix4(), at = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
+  const prof = [[0.0, 0.0], [0.19, 0.0], [0.245, 0.025], [0.26, 0.09], [0.26, 0.84], [0.25, 0.92], [0.215, 1.0], [0.16, 1.06], [0.105, 1.1], [0.085, 1.13], [0.085, 1.19], [0.0, 1.19]];
+  add(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 32), 0);
+  for (const y of [0.17, 0.8]) add(new THREE.CylinderGeometry(0.268, 0.268, 0.035, 32, 1, true), 1, at(0, y, 0));     // hoops
+  add(new THREE.CylinderGeometry(0.06, 0.075, 0.13, 16), 2, at(0, 1.25, 0));                                         // valve body
+  add(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 12), 2, M.clone().makeRotationZ(Math.PI / 2).premultiply(at(0.1, 1.25, 0)));   // outlet
+  add(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 8), 1, at(0, 1.35, 0));                                            // stem
+  add(new THREE.TorusGeometry(0.105, 0.028, 8, 20), 3, M.clone().makeRotationX(Math.PI / 2).premultiply(at(0, 1.4, 0)));   // handwheel
+  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.2, 0.02, 0.03), 3, M.clone().makeRotationY(i * Math.PI / 3).premultiply(at(0, 1.4, 0)));
+  let n = 0; for (const [g] of parts) n += g.attributes.position.count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), kk = new Float32Array(n); let o = 0;
+  for (const [g, k] of parts) { g.computeVertexNormals && !g.attributes.normal && g.computeVertexNormals(); pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); kk.fill(k, o, o + g.attributes.position.count); o += g.attributes.position.count; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('aK', new THREE.BufferAttribute(kk, 1));
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: { ...ROAD_U, uP: { value: new THREE.Vector3() }, uYaw: { value: 0 }, uTilt: { value: 0 }, uS: { value: 1 }, uFade: { value: 1 }, map: { value: label },
+      cSky: { value: new THREE.Vector3() }, cHor: { value: new THREE.Vector3() }, cGold: { value: new THREE.Vector3(...GOLD) } },
+    vertexShader: /* glsl */`
+      attribute float aK; uniform vec3 uP; uniform float uYaw, uTilt, uS;
+      varying vec3 vN, vW, vO; varying float vK;
+      ${ROAD_GLSL}
+      void main(){
+        vec3 p = position - vec3(0.0, 0.7, 0.0), n = normal;                        // it turns about its middle
+        float ct = cos(uTilt), st = sin(uTilt);
+        p = vec3(p.x * ct - p.y * st, p.x * st + p.y * ct, p.z); n = vec3(n.x * ct - n.y * st, n.x * st + n.y * ct, n.z);
+        float cy = cos(uYaw), sy = sin(uYaw);
+        p = vec3(p.x * cy + p.z * sy, p.y, -p.x * sy + p.z * cy); n = vec3(n.x * cy + n.z * sy, n.y, -n.x * sy + n.z * cy);
+        vec3 w = bend(uP + p * uS); vW = w; vN = n; vO = position; vK = aK;
+        gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform vec3 cSky, cHor, cGold; uniform float uFade; uniform sampler2D map;
+      varying vec3 vN, vW, vO; varying float vK;
+      ${HASH}
+      void main(){
+        if (uFade < 0.995 && h21(gl_FragCoord.xy) > uFade) discard;
+        vec3 v = normalize(cameraPosition - vW), n = normalize(vN); if (dot(n, v) < 0.0) n = -n;
+        vec3 r = reflect(-v, n);
+        float fr = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+        vec3 key = normalize(vec3(-0.45, 0.65, 0.6));
+        float dif = max(dot(n, key), 0.0), spec = pow(max(dot(r, key), 0.0), 60.0), band = pow(max(1.0 - abs(r.y - 0.12) * 2.2, 0.0), 6.0);
+        // what it mirrors: the dark sky, the glow of the horizon, a strip of light, and its own gold light from the road below
+        vec3 env = mix(cHor * 1.3, cSky * 0.45, smoothstep(-0.05, 0.55, r.y)) + vec3(0.9, 0.95, 1.0) * band * 0.9 + cGold * 2.2 * smoothstep(-0.15, -0.85, r.y);
+        vec3 col;
+        if (vK < 0.5) {                                      // painted steel, with the label round its middle
+          vec3 base = vec3(0.03, 0.17, 0.8); float lab = 0.0;
+          if (vO.y > 0.33 && vO.y < 0.67) { float u = atan(vO.x, vO.z) / 6.2831853 + 0.5; vec4 t = texture2D(map, vec2(fract(u * 2.0), (vO.y - 0.33) / 0.34)); base = t.rgb; lab = 1.0; }
+          col = base * (0.24 + 0.9 * dif + lab * 0.12) + env * (0.1 + 0.55 * fr) * (1.0 - 0.6 * lab) + spec * 1.4;
+        } else if (vK < 1.5) col = env * (0.8 + 0.2 * fr) + spec * 2.0 + 0.04;                                   // chrome
+        else if (vK < 2.5) col = vec3(0.95, 0.7, 0.3) * (0.25 + 0.6 * dif) + env * vec3(1.0, 0.8, 0.45) * 0.55 + spec * 1.6;   // brass
+        else col = vec3(0.9, 0.08, 0.1) * (0.3 + 0.8 * dif) + env * 0.15 + spec;                                  // the red handwheel
+        col += cGold * (0.4 * smoothstep(0.55, -0.7, n.y) + 0.5 * fr);                                            // gold light from below, and round its edge
+        gl_FragColor = vec4(col * exp(-length(cameraPosition - vW) / 750.0), 1.0);
+      }`,
+  });
+  const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.visible = false; m.renderOrder = 4;
   return m;
 }
 
@@ -309,6 +399,7 @@ export class GameView {
     this.solids = makeSolids(); this.glows = makeGlows(); this.skyline = makeSkyline(); this.veh = new Vehicles(); this.heli = new Heli(this.veh.u);
     this.group = new THREE.Group(); this.group.add(this.skyline, this.solids, this.veh.group, this.heli.group, this.glows);
     this.nb = 0; this.ng = 0;
+    { const label = bottleLabel(); this.bottles = [0, 1, 2, 3, 4, 5].map(() => { const m = makeBottle(label); this.group.add(m); return m; }); }
     this.ads = ADS.map(adTexture);
     this.boards = BB.map(() => { const m = makePanel(21.3, 9, this.ads[0]); this.group.add(m); return m; });
     const gt = gantryTexture();
@@ -329,6 +420,54 @@ export class GameView {
     A.aM.array.set([type, inten, seed, par], i * 4);
   }
   sprite(x, y, z, r, c, inten) { this.glow(x, y, z, r, 0, 0, 0, r, 0, c, 0, inten); }
+  // one of the opening's vehicles: { kind (a study's name), x, z, yaw, roll, pitch, id, v (its speed, for the trails its lamps leave), head (its head lamps face the lens) }
+  actor(a, T) {
+    const { kind, x, z, yaw, roll, pitch, id } = a, f = a.fade ?? 1, cs = Math.cos(yaw), sn = Math.sin(yaw), B = BODY[kind];
+    if (z > 30 || z < -900) return;
+    const at = (lx, lz) => [x + cs * lx + sn * lz, z - sn * lx + cs * lz];
+    if (kind === 'warden') this.cruiser(x, z, yaw, f, T, id, roll, pitch, a.brake || 0);
+    else {
+      const long = kind === 'leviathan' || kind === 'orbit', taxi = kind === 'firefly', col = B.paint ? B.paint[id % B.paint.length] : WHITE;
+      this.veh.add(kind, x, 0, z, yaw, 1, col, f, 1, taxi ? 1 : 0, taxi ? 1 : 0, 0, long ? 0 : roll, long ? 0 : pitch);
+      for (const sx of B.tx ? [-1, 1] : [0]) { const [tx, tz] = at(sx * B.tx, B.tz); this.sprite(tx, B.ty, tz, B.tx ? 0.8 : 1, TAIL, (B.tx ? 0.26 : 0.3) * f); }
+      this.glow(x, 0.03, z, B.w, 0, 0, 0, 0, B.tz + 0.4, B.glow, 2, 0.4 * f);
+      if (taxi) this.sprite(x, 2.1, z, 0.9, [1, 0.7, 0.1], 0.5 * f);
+    }
+    if (a.v > 1 && Math.abs(yaw) < 1) { const [px, pz] = at(0, B.tz - 0.26), len = a.v * 0.3; this.glow(px, 0.045, pz + len / 2, B.w - 0.2, 0, 0, 0, 0, -len / 2, TAIL, 8, 0.55 * f); }
+    const [hx, hz] = at(0, -B.tz - 3.6);
+    this.glow(hx, 0.03, hz, 1.5, 0, 0, 0, 0, 3.4, LAMP, 2, 0.2 * f);                          // its lamps on the road ahead of it
+    if (a.head) for (const sx of [-1, 1]) { const [lx, lz] = at(sx * 0.72, -B.tz - 0.05); this.sprite(lx, 0.7, lz, 1.0, LAMP, 1.3 * f); }
+  }
+  // the helicopter as the opening places it: { x, y, z, yaw, tx, tz, scale, lamp, sx, sz (where its light falls), beam, pool, wd, glare, fade }
+  cineHeli(h, T) {
+    const f = h.fade ?? 1, c = h.lamp, k = h.scale / 2;
+    this.heli.place(h.x, h.y, h.z, h.yaw, h.tx, h.tz, h.scale, f, T, c);
+    const at = (n) => { this.heli.at(HELI[n], V1); return [V1.x, V1.y, V1.z]; };
+    const [nlx, nly, nlz] = at('navL'), [nrx, nry, nrz] = at('navR'), [stx, sty, stz] = at('strobe'), [bx, by, bz] = at('beacon'), [lx, ly, lz] = at('lamp');
+    this.sprite(nlx, nly, nlz, k, [1, 0.1, 0.15], 1.3 * f); this.sprite(nrx, nry, nrz, k, [0.2, 1, 0.3], 1.1 * f);
+    this.sprite(stx, sty, stz, 1.4 * k, [1, 1, 1], ((T * 1.1) % 1 < 0.07 || (T * 1.1 + 0.16) % 1 < 0.07 ? 2.6 : 0) * f);
+    this.sprite(bx, by, bz, k, [1, 0.1, 0.15], (Math.floor(T * 1.6) % 2 ? 1.5 : 0.15) * f);
+    if (h.beam > 0.01) {
+      this.glow((lx + h.sx) / 2, ly / 2, (lz + h.sz) / 2, h.wd, 0, 0, (h.sx - lx) / 2, -ly / 2, (h.sz - lz) / 2, c, 10, h.beam * f);
+      this.glow(h.sx, 0.05, h.sz, 3.6, 0, 0, 0, 0, 5.4, c, 0, h.pool * f);
+      this.sprite(lx, ly, lz, 3.2 * k * (h.glare ? Math.sqrt(h.glare) : 1), c, 1.7 * f * (h.glare || 1));
+    }
+  }
+  // a nitro pickup: the bottle hovers over a seal of gold light turning on the road, leaning and spinning, in a shaft of
+  // light with rays turning behind it and sparks rising round it
+  nitro(x, z, k, T, seed = 0) {
+    const i = this.nbt; if (i >= this.bottles.length || k <= 0.004) return; this.nbt++;
+    const m = this.bottles[i], u = m.material.uniforms, bob = Math.sin(T * 2.6 + seed) * 0.14, y = 2.2 + bob;
+    m.visible = true; u.uP.value.set(x, y, z); u.uYaw.value = T * 2.4 + seed; u.uTilt.value = 0.3; u.uS.value = 1.9; u.uFade.value = k;
+    this.glow(x, 0.05, z, 2.6, 0, 0, 0, 0, 2.6, GOLD, 12, 1.7 * k);                                  // the seal on the road
+    this.glow(x, 0.04, z, 3.4, 0, 0, 0, 0, 3.4, GOLD, 0, 0.5 * k);
+    this.glow(x, y, z + 0.6, 3.6, 0, 0, 0, 3.6, 0, GOLD, 13, 0.42 * k);                               // rays behind it
+    this.glow(x, 7, z + 0.7, 1.0, 0, 0, 0, 7, 0, GOLD, 8, 0.5 * k);                                    // the shaft of light
+    for (let j = 0; j < 7; j++) {                                                                     // sparks climbing round it
+      const h = (T * 0.45 + j / 7 + seed) % 1, a = T * 1.3 + j * 2.4 + seed, r = 0.75 + 0.35 * Math.sin(j * 1.7);
+      this.glow(x + Math.cos(a) * r, 0.5 + h * 3.6, z - 0.35 + Math.sin(a) * r * 0.4, 0.34, 0, 0, 0, 0.34, 0, [1.0, 0.9, 0.55], 14, 1.5 * k * Math.sin(Math.PI * h), j * 0.37 + seed);
+    }
+  }
   // a police cruiser (the WARDEN) with its light bar flashing
   cruiser(x, z, yaw, fade, T, phase = 0, roll = 0, pitch = 0, brake = 0) {
     const on = Math.floor(T * 5 + phase) % 2 === 0, cs = Math.cos(yaw), sn = Math.sin(yaw);
@@ -339,7 +478,8 @@ export class GameView {
   }
 
   update(s) {
-    this.nb = 0; this.ng = 0;
+    this.nb = 0; this.ng = 0; this.nbt = 0;
+    for (const m of this.bottles) { m.visible = false; m.material.uniforms.cSky.value.set(...s.pal.skyTop); m.material.uniforms.cHor.value.set(...s.pal.horizon); }
     const P = s.pal, T = s.T, G = s.game, L = ROAD.lane, R = ROAD.rail;
     const edge = P.gridAlt, edge2 = P.post2;
     this.veh.begin(P, T); this.heli.group.visible = false;
@@ -400,6 +540,15 @@ export class GameView {
       this.sprite(x, y + 5.4, z, 0.9, [1, 0.15, 0.2], (0.5 + 0.5 * Math.sin(T * 2.4 + i * 2)) * 1.6 * f);
     });
 
+    // ── the opening's cast (js/cinema.js) ──
+    const C = s.cine;
+    if (C) {
+      for (const a of C.actors) this.actor(a, T);
+      for (const q of C.pools) this.glow(q[0], 0.04, q[1], q[2], 0, 0, 0, 0, q[3], q[4], 2, q[5]);
+      for (const q of C.sprites) this.sprite(q[0], q[1], q[2], q[3], q[4], q[5]);
+      if (C.heli) this.cineHeli(C.heli, T);
+    }
+
     if (G && G.on && G.veh) {
       const cz = s.car.z;
       // ── traffic: everyone is driving — headings follow their paths, bodies lean, wheels turn ──
@@ -441,12 +590,7 @@ export class GameView {
       // ── energy cells and nitro canisters ──
       const bob = Math.sin(T * 5.0) * 0.08;
       for (const c of G.cells) this.glow(c.x, 0.95 + bob, cz - c.dz, 0.36, 0, 0, 0, 0.5, 0, CELL, 4, 1.9 * c.fade);
-      for (const c of G.items) {
-        const z = cz - c.dz, k = c.fade;
-        this.glow(c.x, 1.7 + bob, z, 1.5, 0, 0, 0, 1.5, 0, NITRO, 9, 2.8 * k);
-        this.glow(c.x, 7, z, 0.7, 0, 0, 0, 7, 0, NITRO, 8, 1.1 * k); this.glow(c.x, 0.05, z, 2.3, 0, 0, 0, 0, 2.3, NITRO, 2, 0.6 * k);
-        this.box(c.x, 1.7 + bob, z, 0.42, 1.0, 0.42, NITRO, 1, k, 1.6); this.box(c.x, 2.3 + bob, z, 0.2, 0.2, 0.2, [1, 1, 1], 1, k, 1.4);
-      }
+      for (const c of G.items) this.nitro(c.x, cz - c.dz, c.fade, T, c.dz * 0.37);
       // ── the police ──
       const pol = G.pol;
       if (pol) {

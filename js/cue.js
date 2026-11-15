@@ -10,39 +10,46 @@ export const BEAT = 60 / BPM;            // 0.5 s
 export const BAR = BEAT * 4;             // 2.0 s
 export const TICK = BEAT / 8;            // 32nd note = 0.0625 s = 3000 samples
 export const TPB = 32;                   // ticks per bar
-export const IGNITION = 10.0;            // exact length of the authored ignition
+export const IGNITION = 26.0;            // exact length of the authored opening: thirteen bars
 export const SKIP_FF = 0.4;              // fast-forward transition after SKIP INTRO
 export const REWIND = 0.6;               // rewind transition before a replayed ignition
 export const SEED = 1986;
 
-// Ignition timecodes (seconds from START DRIVE). Picture and sound both read these.
+// The opening is a short film: the PHANTOM is run down the beltway by the police. Six shots, cut on the bar lines
+// (seconds from START DRIVE). Picture and sound both read these.
+export const CINE = { road: 0, track: 4, air: 8, bumper: 12, front: 16, title: 20 };
+// the moments inside the shots that picture and sound share
+export const CINE_AT = { hero: 2.25, cop1: 3.2, cop2: 3.5, wipe: 5.7, lock: 10.1, swerve: [12.75, 14.25, 15.25], flare: 19.5 };
+// Opening timecodes (seconds from START DRIVE).
 export const IGN = {
   vhsNoise: [0.0, 0.62],
   osdPlay: [0.0, 1.75],
   step15: [0.0, 0.5],          // tape hesitation: picture steps at 15 fps
   crtHold: [0.0, 0.5],
   crtExpand: [0.5, 1.0],
-  firstPulse: 0.5,
-  bassIn: 1.0,
-  drumsIn: 2.0,
-  fly: [1.0, 4.0],
-  sunRise: [0.55, 4.4],
-  settle: [4.0, 6.0],
-  fovTighten: [4.5, 5.94],
-  gather: [4.0, 6.0],
-  breath: [5.5, 6.0],
-  slam: 6.0,
-  hitStop: [6.0, 6.067],
-  glint: [6.06, 6.72],
-  flare: [6.0, 6.95],
-  shake: [6.0, 6.6],
-  neonWrite: [6.125, 7.0],
-  neonFlicker: [7.0, 7.375],
-  aux: [7.5, 8.6],
-  cassette: 7.625,
-  controls: [8.0, 8.8],
-  hold: [8.8, 10.0],
+  breath: [19.5, 20.0],
+  slam: 20.0,                  // the title
+  hitStop: [20.0, 20.067],
+  glint: [20.06, 20.72],
+  flare: [20.0, 20.95],
+  shake: [20.0, 20.6],
+  neonWrite: [20.125, 21.0],
+  neonFlicker: [21.0, 21.375],
+  aux: [21.5, 22.6],
+  controls: [24.0, 24.8],
+  hold: [24.8, 26.0],
 };
+// What is heard under the music in each shot: the engine (level, revs 0..1), the sirens (level, wail rate) and the helicopter.
+export function cineMix(it) {
+  const C = CINE, A = CINE_AT, bell = (t, w) => Math.exp(-((it - t) / w) * ((it - t) / w));
+  if (it < C.track) return { eng: 0, rev: 0, siren: 0.05 * bell(A.cop1 + 0.15, 0.45) + 0.012 * Math.min(1, Math.max(0, (it - 2.6) / 0.6)), rate: 3.1, heli: 0 };
+  if (it < C.air) { const u = (it - C.track) / 4; return { eng: 1, rev: 0.35 + 0.5 * ((u * 2) % 1), siren: 0.012, rate: 0.62, heli: 0 }; }
+  if (it < C.bumper) return { eng: 0.3, rev: 0.6, siren: 0.007, rate: 0.62, heli: 1 };
+  if (it < C.front) { const u = (it - C.bumper) / 4; return { eng: 1.25, rev: 0.55 + 0.4 * ((u * 2.67) % 1), siren: 0.03, rate: 3.1, heli: 0.25 }; }
+  if (it < C.title) return { eng: 0.7, rev: 0.8, siren: 0.02, rate: 3.1, heli: 0.7 + 0.5 * Math.min(1, Math.max(0, (it - 19) / 1)) };
+  const k = Math.min(1, Math.max(0, (it - C.title) / 4.5));
+  return { eng: 0.9 - 0.45 * k, rev: 0.7 * (1 - k), siren: 0.02 + 0.014 * k, rate: 3.1, heli: 0.6 * (1 - Math.min(1, (it - C.title) / 3)) };
+}
 
 // Nitro (the TURBO button): a short wind-up to the next half-beat, a sustained boost, then recovery.
 // `cooldown` is the full length of one burst; a new one needs a full charge (see GAME).
@@ -170,9 +177,9 @@ export const PRESETS = ['SUNSET', 'BLUE HOUR', 'AFTERGLOW', 'LAGOON'];
 
 // Neon ignition flicker: authored on/off pattern, shared by the picture and the buzz SFX.
 // Returns 0..1 power for the tube relative to the ignition clock.
-const FLICK = [ // [time, level] steps
-  [7.000, 0.0], [7.035, 1.0], [7.07, 0.15], [7.11, 0.9], [7.135, 0.0], [7.19, 1.0],
-  [7.215, 0.35], [7.25, 1.0], [7.29, 0.6], [7.315, 1.0],
+const FLICK = [ // [time after the write-on, level] steps
+  [0.000, 0.0], [0.035, 1.0], [0.07, 0.15], [0.11, 0.9], [0.135, 0.0], [0.19, 1.0],
+  [0.215, 0.35], [0.25, 1.0], [0.29, 0.6], [0.315, 1.0],
 ];
 export function neonPower(it) {
   const [a, b] = IGN.neonWrite;
@@ -180,7 +187,7 @@ export function neonPower(it) {
   if (it < b) return 0.55;                       // being written: partially energised
   if (it >= IGN.neonFlicker[1]) return 1;
   let v = 0.55;
-  for (const [t, l] of FLICK) if (it >= t) v = l;
+  for (const [t, l] of FLICK) if (it >= IGN.neonFlicker[0] + t) v = l;
   return v;
 }
 
@@ -234,7 +241,7 @@ export function cruiseSection(bar) {
   return b < 8 ? 'A' : b < 16 ? 'A2' : b < 24 ? 'B' : 'L';
 }
 export function cruiseChord(bar) { return CRUISE_CHORDS[((bar % 32) + 32) % 32]; }
-const IGN_CHORDS = ['Am', 'C', 'Gs', 'F', 'G'];
+const IGN_CHORDS = ['Am', 'Am', 'Am', 'Am', 'Am', 'Am', 'Am', 'Am', 'Am', 'Am', 'F', 'G', 'Em'];
 
 // ── Note generation ───────────────────────────────────────────────────────
 // emit(t, note): t = tick offset inside the bar (0..31, may be fractional);
@@ -266,43 +273,93 @@ function phrase(emit, notes, bar, barsLong, oct = 0, v = 0.8) {
   for (const [st, n, len] of notes) if (st >= lo && st < hi) emit((st - lo) * 2, { i: 'lead', n: n + oct, d: len * TICK * 2 * 0.92, v });
 }
 
+// The opening's score, thirteen bars in A minor: a pedal bass, a ticking hat, and a four-note figure that climbs a semitone at
+// a time and falls back (E F F♯ F over the A), the way a spy picture does it. Each cut lands on a bar line with a hit; the last
+// bar of the head-on shot winds up into the title's slam, and the two bars after it hand over to the drive.
+const SPY = [64, 65, 66, 65];
+function spyBar(emit, v, oct = 0, eighths = false) {
+  for (let h = 0; h < 4; h++) {
+    const n = SPY[h] + oct;
+    emit(h * 8, { i: 'pluck', n, v }); emit(h * 8, { i: 'pluck', n: n + 12, v: v * 0.6 });
+    emit(h * 8 + 6, { i: 'pluck', n, v: v * 0.7 });
+    if (eighths) { emit(h * 8 + 3, { i: 'pluck', n: n + 12, v: v * 0.5 }); emit(h * 8 + 4, { i: 'pluck', n, v: v * 0.6 }); }
+  }
+}
+const cutHit = (emit, v = 1) => { emit(0, { i: 'sub', v }); emit(0, { i: 'impact', v: 0.8 * v }); emit(0, { i: 'kick', v: 1.05 }); };
 export function ignitionBar(bar, emit) {
   const ch = IGN_CHORDS[bar];
+  const tick16 = (v0, v1, from = 0) => { for (let s = from; s < 16; s++) emit(s * 2, { i: 'hat', v: (v0 + (v1 - v0) * s / 15) * (s % 4 === 0 ? 1 : 0.7) }); };
   switch (bar) {
-    case 0:
+    case 0:   // the empty road: tape, one low hit, a clock starts
       emit(0, { i: 'tape' }); emit(0, { i: 'vhs', d: 0.62 });
-      emit(8, { i: 'kick', v: 1.05 }); emit(8, { i: 'sub', v: 0.85 }); emit(8, { i: 'pad', notes: CHORDS.Am.pad, d: 3.4, v: 0.75, slow: 1 });
-      emit(24, { i: 'kick', v: 0.7 });
-      bassBar(emit, 'Am', BASS1, 0.85, 8, 16, (s) => 0.55 + (s - 8) * 0.05);
+      emit(8, { i: 'kick', v: 1.05 }); emit(8, { i: 'sub', v: 0.85 }); emit(8, { i: 'pad', notes: CHORDS.Am.pad, d: 3.4, v: 0.6, slow: 1 });
+      tick16(0.1, 0.24, 8);
+      bassBar(emit, 'Am', BASS1, 0.55, 8, 16, (s) => 0.4 + (s - 8) * 0.04);
+      emit(27, { i: 'flyby', v: 1.0, pan: 0.5 });                       // the PHANTOM: it passes 0.55 s later, at 2.25 s
       break;
-    case 1:
-      drumsBar(emit, P('x...x...x...x...'), SNARE, P('..........x.x.x.'), { v: 0.92 });
+    case 1:   // the PHANTOM goes by, then the police
+      tick16(0.24, 0.34);
+      bassBar(emit, ch, BASS1, 0.62, 0, 16, (s) => 0.7 + s * 0.02);
+      emit(10, { i: 'flyby', v: 0.8, pan: -0.6, f: 0.9 }); emit(15, { i: 'flyby', v: 0.8, pan: 0.4, f: 0.95 });   // the two cruisers: they pass 0.55 s later, at 3.2 s and 3.5 s
+      emit(24, { i: 'tom', n: 52, v: 0.7 }); emit(26, { i: 'tom', n: 47, v: 0.8 }); emit(28, { i: 'tom', n: 43, v: 0.9 }); emit(30, { i: 'tom', n: 38, v: 1.0 });
+      break;
+    case 2: case 3:   // alongside at speed
+      if (bar === 2) { cutHit(emit); emit(0, { i: 'crash', v: 0.7 }); emit(0, { i: 'stab', notes: [45, 52, 57, 60, 64], d: 0.9, v: 0.7 }); }
+      drumsBar(emit, P('x...x...x...x...'), SNARE, null, { v: 0.95 }); tick16(0.36, 0.4);
+      bassBar(emit, ch, BASS2, 0.95);
+      spyBar(emit, 0.5);
+      if (bar === 3) { emit(22, { i: 'gear' }); for (let s = 12; s < 16; s++) emit(s * 2, { i: 'snare', v: 0.4 + (s - 12) * 0.12, fill: 1 }); }
+      break;
+    case 4: case 5:   // from the air: half time, the rotor over it
+      if (bar === 4) { cutHit(emit, 0.9); emit(0, { i: 'pad', notes: [57, 60, 64, 69], d: 4.0, v: 0.7 }); }
+      drumsBar(emit, P('x.........x.....'), P('........x.......'), null, { v: 0.9 }); tick16(0.22, 0.26);
+      bassBar(emit, ch, BASS1, 0.85);
+      spyBar(emit, 0.42, 12);
+      if (bar === 5) { emit(2, { i: 'bell', n: 88, v: 0.5 }); emit(24, { i: 'tom', n: 47, v: 0.8 }); emit(27, { i: 'tom', n: 43, v: 0.9 }); emit(30, { i: 'tom', n: 38, v: 1.0 }); }   // the light finds him (10.1 s)
+      break;
+    case 6: case 7:   // on his bumper, through the traffic
+      if (bar === 6) { cutHit(emit); emit(0, { i: 'crash', v: 0.8 }); }
+      drumsBar(emit, P('x...x...x...x.x.'), SNARE, null, { v: 1 }); tick16(0.4, 0.44);
+      bassBar(emit, ch, BASS2, 1.0);
+      spyBar(emit, 0.55, 0, true);
+      if (bar === 6) { emit(12, { i: 'stab', notes: [45, 57, 60, 64], d: 0.35, v: 0.75 }); emit(12, { i: 'skid' }); }       // the swerves: 12.75, 14.25, 15.25
+      else { emit(4, { i: 'stab', notes: [45, 57, 61, 65], d: 0.35, v: 0.8 }); emit(4, { i: 'horn' }); emit(20, { i: 'stab', notes: [45, 57, 62, 66], d: 0.35, v: 0.85 }); emit(20, { i: 'skid' }); }
+      break;
+    case 8:   // head on: everything behind him
+      cutHit(emit); emit(0, { i: 'stab', notes: [33, 45, 52, 57, 60, 64], d: 1.6, v: 0.85 });
+      drumsBar(emit, P('x...x...x...x...'), null, null, { v: 0.95 }); tick16(0.3, 0.36);
       bassBar(emit, ch, BASS1, 0.95);
-      padChord(emit, ch, 2.0, 0.7);
+      spyBar(emit, 0.5, 12);
       break;
-    case 2:
-      emit(0, { i: 'riser', d: 2.0 }); emit(0, { i: 'revcrash', d: 2.0 });
-      bassBar(emit, ch, BASS2, 0.9, 0, 12, (s) => 1 - s * 0.045);
-      emit(0, { i: 'pad', notes: CHORDS.Gs.pad, d: 1.4, v: 0.6 });
-      for (let s = 0; s < 8; s++) emit(s * 2 + 1, { i: 'hat', v: 0.22 + s * 0.02 });
-      // the breath (5.5–6.0): only a Simmons tom fill remains
+    case 9:   // … and it winds up
+      emit(0, { i: 'riser', d: 2.0, v: 0.8 }); emit(0, { i: 'revcrash', d: 2.0 });
+      drumsBar(emit, P('x...x...x...x...'), null, null, { v: 0.95 });
+      bassBar(emit, ch, BASS2, 0.95, 0, 12, (s) => 1 - s * 0.03);
+      spyBar(emit, 0.55, 12, true);
+      for (let s = 0; s < 12; s++) emit(s * 2, { i: 'snare', v: 0.25 + s * 0.045, fill: 1 });
+      for (let s = 8; s < 12; s++) emit(s * 2 + 1, { i: 'snare', v: 0.4 + (s - 8) * 0.08, fill: 1 });
+      // the breath (19.5–20.0): only a Simmons tom fill remains
       emit(24, { i: 'tom', n: 52, v: 0.8 }); emit(26, { i: 'tom', n: 47, v: 0.85 });
       emit(28, { i: 'tom', n: 43, v: 0.9 }); emit(30, { i: 'tom', n: 38, v: 1.0 });
       break;
-    case 3: // THE SLAM at 6.000 s
+    case 10: // THE SLAM at 20.000 s: the title
       emit(0, { i: 'crash', v: 1.0 }); emit(0, { i: 'sub', v: 1.0 }); emit(0, { i: 'stab', notes: SLAM_CHORD, d: 1.7, v: 1.0 });
       emit(0, { i: 'impact', v: 1.0 });
       drumsBar(emit, KICK_A, SNARE, HAT8, { v: 1 });
       emit(0, { i: 'snare', v: 0.9 });
       bassBar(emit, ch, BASS1, 1.0);
       emit(0, { i: 'pad', notes: CHORDS.F.pad, d: 2.0, v: 0.75 });
-      emit(2, { i: 'buzz', d: 1.3 });               // neon write-on hum at 6.125
-      emit(26, { i: 'pop' });                        // cassette window enters at 7.625
+      emit(2, { i: 'buzz', d: 1.3 });               // neon write-on hum at 20.125
       break;
-    case 4:
+    case 11:
       drumsBar(emit, KICK_B, SNARE, HAT8, { v: 1 });
       bassBar(emit, ch, BASS1, 1.0);
       emit(0, { i: 'pad', notes: CHORDS.G.pad, d: 2.0, v: 0.75 });
+      break;
+    case 12: // he lifts off; the cruiser closes; the drive is next
+      drumsBar(emit, P('x.......x.......'), null, HAT8, { v: 0.9 });
+      bassBar(emit, ch, BASS1, 0.95);
+      emit(0, { i: 'pad', notes: CHORDS.Em.pad, d: 2.0, v: 0.75 });
       for (let s = 12; s < 16; s++) emit(s * 2, { i: 'snare', v: 0.45 + (s - 12) * 0.12, fill: 1 });
       emit(28, { i: 'hat', open: 1, v: 0.6 });
       break;
@@ -384,7 +441,7 @@ export function drumPulse(sec, localTime, cycleBars = 0) {
       if (n.i === 'kick' && d < kick) kick = d;
       if (n.i === 'snare' && !n.fill && d < snare) snare = d;
     };
-    if (sec === 'ign') { if (bb <= 4) ignitionBar(bb, take); }
+    if (sec === 'ign') { if (bb <= 12) ignitionBar(bb, take); }
     else cruiseBar(bb, Math.floor(bb / 32), take, ctx);
     if (kick < Infinity && snare < Infinity) break;
   }

@@ -32,8 +32,8 @@ const ns = await p.evaluate(() => MC._audio.samples);
 ok('CC0 samples loaded into the worklet', ns === 9, `${ns}/9`);
 if (deviceOk) ok('worklet producing signal', lv.level > 0.001, `rms=${lv.level?.toFixed(4)} audioT=${lv.renderT?.toFixed(3)} picT=${lv.T.toFixed(3)}`);
 await p.keyboard.press('Space'); // Space during the ignition changes nothing
-await p.waitForTimeout(9000);
-s = await st(); ok('ignition → cruise at 10 s', s.phase === 'cruise', `ct=${s.ct?.toFixed(2)}`);
+await p.waitForTimeout(25000);
+s = await st(); ok('opening → cruise at 26 s', s.phase === 'cruise', `ct=${s.ct?.toFixed(2)}`);
 const sync = await p.evaluate(() => { const a = MC._audio; const h = a.heardSceneTime(performance.now()); return { err: h === null ? null : h - MC.state().T, lat: a.lat }; });
 if (deviceOk) ok('picture/audio clock agreement', sync.err === null || Math.abs(sync.err) < 0.02, `${sync.err === null ? 'no output timestamp in this browser' : (sync.err * 1000).toFixed(1) + ' ms'}; output latency ${(sync.lat * 1000).toFixed(1)} ms`);
 // the car drives flat out by itself, and there is no brake: Space and ↓ do nothing while driving
@@ -72,10 +72,10 @@ ok('nitro shows it is not ready once the canister is spent', rdy === 'false' && 
 const boost = await p.evaluate(async () => { const v0 = MC.state().road.vel; await new Promise((r) => setTimeout(r, 900)); return { v0, v1: MC.state().road.vel }; });
 ok('nitro boosts the speed', boost.v1 > boost.v0 * 1.5, `${boost.v0.toFixed(0)} → ${boost.v1.toFixed(0)} u/s`);
 ok('free mode hides the game HUD and never ends the run', await p.evaluate(() => getComputedStyle(document.getElementById('ghud')).visibility === 'hidden' && !MC.state().ui.g.over));
-// deck starts minimised, its key expands it
-ok('deck starts minimised', (await p.getAttribute('#deck', 'data-min')) === 'true');
-await p.click('#deck-min'); await p.waitForTimeout(400);
-ok('deck expands', (await p.getAttribute('#deck', 'data-min')) === 'false' && await p.locator('.preset[data-p="1"]').isVisible());
+// the deck is the settings panel behind the gear key: closed until asked for, and opening it pauses the run
+ok('the settings panel is closed, and takes no room on screen', await p.evaluate(() => document.getElementById('deck').hidden && document.getElementById('deck').getBoundingClientRect().width === 0));
+await p.click('#settings'); await p.waitForTimeout(400);
+ok('the gear key opens the settings panel and pauses the run', (await p.locator('.preset[data-p="1"]').isVisible()) && await p.evaluate(() => !!MC.state().ui.g.paused));
 // presets
 await p.click('.preset[data-p="1"]'); await p.waitForTimeout(300);
 s = await st(); ok('preset B selected', s.preset === 1);
@@ -87,15 +87,13 @@ s = await st(); ok('music resume', s.music === true);
 // mute & volume
 await p.click('#mute'); const mu = await p.evaluate(() => MC._audio.muted); ok('mute', mu === true); await p.click('#mute');
 await p.locator('#vol').fill('40'); const vol = await p.evaluate(() => MC._audio.volume); ok('volume slider', Math.abs(vol - 0.4) < 0.01, `vol=${vol}`);
-// drag the deck far outside → settles inside viewport, clear of drive controls
-const bar = await p.locator('#deck-bar').boundingBox();
-await p.mouse.move(bar.x + 60, bar.y + 12); await p.mouse.down();
-for (let i = 1; i <= 12; i++) { await p.mouse.move(bar.x + 60 + i * 180, bar.y + 12 + i * 60); await p.waitForTimeout(16); }
-await p.mouse.up(); await p.waitForTimeout(1500);
-const dk2 = await p.locator('#deck').boundingBox(); const db = await p.locator('#drivebar').boundingBox();
-const inside = dk2.x >= 0 && dk2.y >= 0 && dk2.x + dk2.width <= W + 1 && dk2.y + dk2.height <= H + 1;
-const clear = !(dk2.x + dk2.width > db.x && dk2.y + dk2.height > db.y);
-ok('deck drag settles inside viewport, clear of drive controls', inside && clear, `deck=${dk2.x.toFixed(0)},${dk2.y.toFixed(0)} ${dk2.width.toFixed(0)}x${dk2.height.toFixed(0)}`);
+// closing the panel leaves the run paused; P resumes it
+await p.click('#deck-close'); await p.waitForTimeout(300);
+ok('closing the settings panel leaves the run paused, with the pause menu', await p.evaluate(() => document.getElementById('deck').hidden && MC.state().ui.g.paused && !document.getElementById('paused').hidden));
+await p.keyboard.press('o'); await p.waitForTimeout(200); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+ok('O opens the settings panel, Esc closes it', await p.evaluate(() => document.getElementById('deck').hidden && MC.state().ui.g.paused));
+await p.keyboard.press('p'); await p.waitForTimeout(900);
+ok('P resumes the run', await p.evaluate(() => !MC.state().ui.g.paused && MC.state().thr > 0.8));
 await p.screenshot({ path: 'renders/test_cruise.png' });
 // pause menu → home screen → START opens with the intro again → skip
 await p.waitForTimeout(6000);
@@ -117,7 +115,7 @@ s = await st(); ok('Esc pauses, H goes home', s.phase === 'home');
 await p.keyboard.press('Enter'); await p.waitForTimeout(250); await p.keyboard.press('KeyS'); await p.waitForTimeout(1300);
 s = await st(); ok('Enter on the home screen, then S: the intro is skipped and the run starts', s.phase === 'cruise' && s.ct < 1.6, `ct=${s.ct?.toFixed(2)}`);
 const ign = await p.evaluate(() => { const sg = MC.tl._derive().segs[0]; return sg.end - sg.s; });
-ok('ignition length 10.000 s', Math.abs(ign - 10) < 1e-9, ign.toFixed(6));
+ok('opening length 26.000 s', Math.abs(ign - 26) < 1e-9, ign.toFixed(6));
 // frame timing (headless GPU)
 const perf = await p.evaluate(async () => { const d = []; let l = performance.now(); await new Promise((r) => { let n = 0; const f = (t) => { d.push(t - l); l = t; if (++n < 240) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); }); d.sort((a, b) => a - b); return { median: d[120], p95: d[228], tier: MC.tier }; });
 console.log('frame ms (headless, rAF cadence):', JSON.stringify(perf));

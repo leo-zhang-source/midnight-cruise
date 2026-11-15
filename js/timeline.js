@@ -3,7 +3,7 @@
 // Everything visible or audible is a pure function of (scene time T, events).
 // The same class runs on the main thread, inside the AudioWorklet and in Node.
 // ─────────────────────────────────────────────────────────────────────────────
-import { IGNITION, SKIP_FF, REWIND, TURBO, ENV_XFADE, THROTTLE, AUTO_ENV, ROAD, LANE_FEEL, GAME, SEED } from './cue.js';
+import { CINE, IGNITION, SKIP_FF, REWIND, TURBO, ENV_XFADE, THROTTLE, AUTO_ENV, ROAD, LANE_FEEL, GAME, SEED } from './cue.js';
 import { smooth, easeInOutCubic, lerp } from './util.js';
 import { freshGame, copyGame, stepGame, gameBase, P_TAIL } from './game.js';
 
@@ -21,12 +21,14 @@ const freshState = () => ({
 const copy = (s) => { const c = { ...s }; c.g = copyGame(s.g); return c; };
 const runSeed = (seed, run) => (Math.imul((seed | 0) ^ 0x9E3779B9, 0x85EBCA6B) + Math.imul(run, 0xC2B2AE35)) | 0;
 
+// The road speed through the opening: a standing camera for the first shot, the chase at full speed, then the car lifts off
+// after the title and the drive begins at a crawl with the police on its bumper.
 export function ignitionSpeed(it) {
   if (it < 0.5) return 2;
-  if (it < 1) return lerp(2, 8, (it - 0.5) / 0.5);
-  if (it < 4) return 8 + 30 * smooth((it - 1) / 3);
-  if (it < 6) return lerp(38, 17, easeInOutCubic((it - 4) / 1.9));
-  return 24 + 22 * Math.exp(-(it - 6) / 0.55);
+  if (it < CINE.track) return 6;
+  if (it < CINE.title) return 150;
+  if (it < CINE.title + 2) { const u = (it - CINE.title) / 2; return 46 + 104 * (1 - u * u * (3 - 2 * u)); }
+  return 24 + 22 * Math.exp(-(it - CINE.title - 2) / 0.55);
 }
 
 export class Timeline {
@@ -404,7 +406,9 @@ export function phaseFrom(segs, T) {
 // a clean drive recorded from tools/bot.mjs (`node tools/bot.mjs --script 68.95 --late`, default seed) with a nitro
 // canister picked up and fired, the four presets and a music pause; then the home screen and
 // a second start, which opens with the intro again.
-export const CANONICAL = [
+const CANONICAL_10 = [
   { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.2, dir: -1 }, { type: 'lane', t: 23.05, dir: 1 }, { type: 'lane', t: 26.1, dir: -1 }, { type: 'lane', t: 28, dir: 1 }, { type: 'lane', t: 28.95, dir: 1 }, { type: 'lane', t: 30, dir: -1 }, { type: 'turbo', t: 30.15 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 35.1, dir: 1 }, { type: 'lane', t: 36.8, dir: -1 }, { type: 'lane', t: 38.5, dir: -1 }, { type: 'lane', t: 39.7, dir: 1 }, { type: 'lane', t: 40.65, dir: -1 }, { type: 'lane', t: 43.85, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 46.75, dir: -1 }, { type: 'lane', t: 48.85, dir: 1 }, { type: 'lane', t: 49.2, dir: 1 }, { type: 'lane', t: 50.15, dir: -1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 56.2, dir: -1 }, { type: 'lane', t: 59.85, dir: 1 }, { type: 'lane', t: 63.1, dir: -1 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 65.15, dir: 1 }, { type: 'lane', t: 69.2, dir: 1 }, { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.15, dir: -1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 73.6, dir: 1 }, { type: 'lane', t: 74.9, dir: -1 }, { type: 'lane', t: 75.8, dir: -1 }, { type: 'lane', t: 79.45, dir: 1 },
   { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
 ];
+// (recorded when the opening was ten seconds long: everything after the START moves with its length)
+export const CANONICAL = CANONICAL_10.map((e) => (e.t > 1 ? { ...e, t: e.t + IGNITION - 10 } : e));

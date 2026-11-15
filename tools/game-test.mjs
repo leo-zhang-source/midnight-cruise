@@ -4,7 +4,7 @@
 // the weaving cruiser, pause, free mode, audio-thread parity.
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
-import { GAME } from '../js/cue.js';
+import { GAME, IGNITION } from '../js/cue.js';
 import { NV, VF, policeClose, P_HOOK, HOOK_Z, T_CAR, T_VAN, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, STEADY, CAR_HL, H_TWIN, H_WALK, I_OFF, NASTY, HALF_W, CAR_HW, jink, freshGame, stepGame, laneV, laneRate, gameBase, baseAt, heliStrikes, revs, sway, reactAt } from '../js/game.js';
 import { threatGrid, wayThrough } from '../js/foresight.js';
 import { play } from './bot.mjs';
@@ -66,7 +66,7 @@ let crashT;
   const s3b = tl.stateAt(crashT + 12.5 + 0.4 + 1);
   ok('… and SKIP takes it into run 3', s3b.run === 3 && s3b.g.gd < 60 && s3b.g.gd > 5 && s3b.over === 0);
   tl.add('home', crashT + 15); tl.add('start', crashT + 17);
-  ok('left alone, the intro runs its full 10 s and then the run starts', tl.phaseAt(crashT + 17.3).phase === 'rewind' && tl.phaseAt(crashT + 23).phase === 'ign' && tl.phaseAt(crashT + 17.6 + 9.9).phase === 'ign' && tl.stateAt(crashT + 17.6 + 10 + 2).run === 4);
+  ok(`left alone, the intro runs its full ${IGNITION} s and then the run starts`, tl.phaseAt(crashT + 17.3).phase === 'rewind' && tl.phaseAt(crashT + 23).phase === 'ign' && tl.phaseAt(crashT + 17.6 + IGNITION - 0.1).phase === 'ign' && tl.stateAt(crashT + 17.6 + IGNITION + 2).run === 4);
   { const t9 = fresh(); t9.stateAt(C + 12); const oT = t9.stateAt(C + 40).overT; t9.add('home', oT + 1); t9.add('start', oT + 3); t9.add('skip', oT + 3.2);
     ok('SKIP pressed while the tape is still rewinding takes effect as the intro begins', t9.phaseAt(oT + 3.7).phase === 'ff' && t9.phaseAt(oT + 4.1).phase === 'cruise' && t9.stateAt(oT + 5).run === 2); }
 }

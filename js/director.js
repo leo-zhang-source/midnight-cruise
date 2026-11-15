@@ -1,10 +1,11 @@
 // The director: turns (scene time T, event timeline, viewport) into a complete frame
 // description. Pure function — no wall clock, no hidden state.
-import { IGN, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
+import { IGN, IGNITION, CINE, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
 import { NV, VF, NC, CF, NI, IF, PICK_FADE, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
+import { cinemaShot, cinemaTail, cinemaUI } from './cinema.js';
 import { setRoad, bendAt, roadX, roadY, roadDX, roadDY, roadK } from './road.js';
 
 // Catmull-Rom through keys [[t, v], ...] (clamped ends) — C1 camera paths.
@@ -21,10 +22,7 @@ function cr(keys, t) {
   return (2 * u3 - 3 * u2 + 1) * k1[1] + (u3 - 2 * u2 + u) * m1 + (-2 * u3 + 3 * u2) * k2[1] + (u3 - u2) * m2;
 }
 
-const CAM_X = [[0, -1.6], [1.0, -1.7], [2.2, 0.4], [3.3, 1.5], [4.4, 0.5], [5.5, 0.0], [6, 0]];
-const CAM_Y = [[0, 0.62], [1.0, 0.55], [2.5, 1.0], [4.0, 2.2], [5.4, 2.62], [6, 2.65]];
 export const CHASE_Y = 2.65;
-const FOVK = [[0, 1.08], [1.0, 1.1], [3.8, 1.14], [4.5, 1.08], [5.94, 0.86], [6.0, 0.86]];
 export const SUN_EL = 0.068, SUN_R = 0.183;
 
 // Framing is anchored to the frame HEIGHT: sizes are fractions of the height, so a wider screen
@@ -73,7 +71,7 @@ export function visualTime(T, ph, tb, reduced, tl) {
     const it = ph.it, s = ph.seg.s;
     if (it >= IGN.step15[0] && it < IGN.step15[1]) return s + Math.floor(it * 15) / 15;
     if (it >= IGN.hitStop[0] && it < IGN.hitStop[1]) return s + IGN.hitStop[0];
-    if (it >= IGN.hitStop[1] && it < 6.2) return s + 6.0 + (it - IGN.hitStop[1]) * (0.2 / (6.2 - IGN.hitStop[1]));
+    if (it >= IGN.hitStop[1] && it < IGN.slam + 0.2) return s + IGN.slam + (it - IGN.hitStop[1]) * (0.2 / (IGN.slam + 0.2 - IGN.hitStop[1]));
   }
   return T;   // while driving the picture tracks the simulation exactly: no tape hesitation on nitro
 }
@@ -198,7 +196,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     if (e.k === 'strike' && age < (e.d || 0.45) && Math.abs(e.lane * L - sim.x) < L * 1.6) kick(side(e.lane), 0.0035 * (1 - age / (e.d || 0.45)), age % 0.09, 70);   // gunfire nearby rattles the camera
     if (e.k === 'level' && e.n && age < 0.5) { { post.tracking = Math.max(post.tracking, 0.45 * Math.exp(-age / 0.14)); post.trackY = 0.5 + 0.4 * Math.sin(e.n); } post.rgb = Math.max(post.rgb, 1 + 3 * Math.exp(-age / 0.2)); glow([0.9, 0.1, 0.8], 0.09 * Math.exp(-age / 0.15)); }
     if (e.k === 'star' && e.up && age < 0.9) { const bl = Math.floor(age * 10) % 2; glow(bl ? [0.05, 0.15, 1] : [1, 0.04, 0.1], 0.07 * (1 - age / 0.9)); }
-    if (e.k === 'item' && age < 0.3) glow([0.2, 0.75, 1], 0.08 * Math.exp(-age / 0.08));
+    if (e.k === 'item' && age < 0.4) glow([1, 0.72, 0.2], 0.14 * Math.exp(-age / 0.1));
     if ((e.k === 'smash' || e.k === 'near' || e.k === 'dodge' || e.k === 'shove') && age < 0.4) bump = Math.max(bump, Math.exp(-age / 0.1));
     const p = POP[e.k] && POP[e.k](e);
     if (p && age < 1.6) pops.push({ id: e.k + e.t.toFixed(3), text: p[0], tone: p[1], age });
@@ -283,9 +281,10 @@ export function frameState(tl, T, w, h, opt = {}) {
     crt: 0, fgA: 1, tracking: 0, trackY: 0.5, noise: 0.045, rgb: 1, flash: 0, shake: [0, 0], vignette: 0.42, bloom: 1, scan: 1,
     glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, ffwd: 0, rewind: 0, warp: 0, tint: [0, 0, 0], danger: 0,
   };
-  const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, cassette: 1, cassetteT: 99, controls: 1, start: 0, skip: 0, replay: 0, ready: 1, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
+  const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, bars: 0, cap: '', controls: 1, start: 0, skip: 0, replay: 0, ready: 1, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
   let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0, game = null, trafficI = 1;
-  let scenery = ph.phase === 'ign' || ph.phase === 'ff' ? smooth(lin(ph.it ?? 0, 2, 5)) : ph.phase === 'rewind' ? 0.5 : ph.phase === 'home' ? 1 : 0;
+  let cine = null, fovAbs = null, shiftK = 1, roadOv = null;       // the opening's shots: what is in them, their lens, their road
+  let scenery = ph.phase === 'ign' || ph.phase === 'ff' ? 1 : ph.phase === 'rewind' ? 0.5 : ph.phase === 'home' ? 1 : 0;
 
   // idle micro-motion (also underlies cruise)
   camX += Math.sin(tv * 0.13) * 0.18; yaw += Math.sin(tv * 0.09 + 1) * 0.004;
@@ -300,7 +299,7 @@ export function frameState(tl, T, w, h, opt = {}) {
   }
 
   if (ph.phase === 'idle' || ph.phase === 'home') {
-    ui.start = 1; ui.cassette = 0; ui.controls = 0; ui.replay = 0; ui.skip = 0; ui.ready = 0;
+    ui.start = 1; ui.controls = 0; ui.replay = 0; ui.skip = 0; ui.ready = 0;
     if (ph.phase === 'home') {            // back from a run: the tape stops, static, then the title screen
       const u = ph.ht;
       ui.home = 1; ui.start = smooth(lin(u, 0.35, 0.7));
@@ -317,98 +316,73 @@ export function frameState(tl, T, w, h, opt = {}) {
   }
 
   if (ph.phase === 'ign' || ph.phase === 'ff') {
+    // ── the opening (js/cinema.js): five shots, then the title lands and the lens becomes the game's ──
     const ff = ph.phase === 'ff';
-    const it = ff ? Math.max(ph.it, 0) : ph.it;
+    const it = ff ? IGNITION - 0.001 : ph.it, SL = IGN.slam;       // (SKIP INTRO goes straight to its last frame)
     ui.start = 0; ui.replay = 0; ui.skip = ff ? 0 : 1; ui.ready = 0;
-    // camera flight
-    camX = cr(CAM_X, it) + (it > 6 ? 0 : Math.sin(it * 1.7) * 0.08);
-    camY = cr(CAM_Y, it) + Math.sin(it * 2.3) * 0.03 * (1 - smooth((it - 3.5) / 2));
-    const dx = (cr(CAM_X, it + 0.05) - cr(CAM_X, it - 0.05)) / 0.1;
-    roll = -dx * 0.022; yaw = -camX * 0.02 - dx * 0.012;
-    fovK = cr(FOVK, it);
-    if (it >= 6) {
-      const u = it - 6;
-      fovK = lerp(0.86, 1.0, spring(u, 16, 0.42)) + 0.06 * Math.exp(-u / 0.12);
-    }
-    // sun rise
-    sunEl = lerp(-0.13, SUN_EL, easeInOutCubic(lin(it, IGN.sunRise[0], IGN.sunRise[1])));
-    sunPow = lerp(0.65, 1.0, lin(it, 0.5, 4.4));
-    stars = lerp(0.5, 1, lin(it, 0, 4));
-    gridBright = lerp(0.6, 1, lin(it, 0, 2.5));
-    // CRT aperture + tape noise
+    trafficI = 0; neon.glass = 0;
+    // CRT aperture + tape noise as the tape starts
     post.crt = it < IGN.crtExpand[0] ? 1 : 1 - easeInOutCubic(lin(it, IGN.crtExpand[0], IGN.crtExpand[1]));
     if (reduced) post.crt *= 0.6;
     post.tracking = Math.max(post.tracking, it < IGN.vhsNoise[1] ? 1 - smooth(lin(it, 0.25, IGN.vhsNoise[1])) : 0);
     post.trackY = 0.85 - it * 1.3;
     post.noise = Math.max(post.noise, 0.5 * (1 - smooth(lin(it, 0.1, 0.7))));
     if (it < IGN.osdPlay[1]) ui.osd = 'PLAY';
-    // title anticipation → slam
-    const A = IGN.gather[0];
-    if (reduced) {
-      post.fgA = smooth(lin(it, 5.0, 6.2));
-      title.visible = it >= 5.0;
-      camX *= 0.3; roll = 0; yaw *= 0.3; fovK = lerp(1, fovK, 0.3);
-      if (it >= 6) { title.sweep = lerp(-160, 1040, easeInOutCubic(lin(it, 6.2, 7.2))); title.sweepI = 0.6 * Math.sin(Math.PI * lin(it, 6.2, 7.2)); }
-    } else if (it < A) title.visible = false;
-    else if (it < 6) {
-      const p = lin(it, A, 5.76);
-      let z = lerp(-9800, -4600, easeOutCubic(p));
-      if (it > 5.76) z = lerp(-4600, 260, easeInCubic(lin(it, 5.76, 6.0)));
-      title.z = z; title.rx = lerp(0.42, 0.05, smooth(lin(it, A, 6.0)));
-      title.gather = smooth(lin(it, A, 6.0));
-      title.blur = 1;
-      title.dim = lerp(0.55, 1.0, lin(it, A, 6.0));
-      title.y = lerp(-40, 0, easeOutCubic(p));
-    } else if (!reduced) {
-      const u = it - 6;
-      const uR = (ph0.phase === 'ign' ? ph0.it : it) - 6;   // post effects run on real time through the hit-stop
-      title.z = 260 * (1 - spring(u, 22, 0.38));
-      title.sx = 1 + 0.06 * ring(u, 34, 0.3) * (reduced ? 0 : 1);
-      title.sy = 1 - 0.09 * ring(u, 34, 0.3) * (reduced ? 0 : 1);
-      title.flash = (reduced ? 0.1 : 0.38) * Math.exp(-uR / 0.045);
-      title.sweep = lerp(-160, 1040, easeInOutCubic(lin(it, IGN.glint[0], IGN.glint[1])));
-      title.sweepI = it < IGN.glint[1] ? 1.6 * Math.sin(Math.PI * lin(it, IGN.glint[0], IGN.glint[1])) : 0;
-      post.glint = { tx: lerp(40, 820, easeInOutCubic(lin(it, IGN.glint[0], IGN.glint[1]))), ty: 102, i: it < IGN.glint[1] ? Math.sin(Math.PI * lin(it, IGN.glint[0], IGN.glint[1])) ** 0.7 : 0, size: 1.2 };
-      post.flare = { tx: 430, ty: 60, i: uR < 0.95 ? Math.exp(-uR / 0.22) * (1 - uR / 0.95) : 0 };
-      post.flash = (reduced ? 0.04 : 0.14) * Math.exp(-uR / 0.04);
-      post.rgb = 1 + 2.4 * Math.exp(-uR / 0.18);
-      post.tracking = Math.max(post.tracking, 0.35 * Math.exp(-uR / 0.08));
-      post.trackY = 0.42;
-      flare = 0.6 * Math.exp(-uR / 0.4);
-      sunPow *= 1 + 0.22 * Math.exp(-uR / 0.35);
-      post.bloom = 1 + 0.25 * Math.exp(-uR / 0.2);
-      if (!reduced && uR < IGN.shake[1] - 6) post.shake = [ring(uR, 55, 0.18) * 0.008, ring(uR, 47, 0.2) * 0.011];
-      pulse = Math.exp(-uR / 0.2);
-    }
-    // the car overtakes the camera from behind (on its right), then merges onto the axis in front of it
-    if (it < 1.4) car.visible = false;
-    else {
-      const e = easeOutCubic(lin(it, 1.4, 3.5)), m = easeInOutCubic(lin(it, 1.9, 3.7));
-      car.z = lerp(9, carZ0, e);
-      car.x = lerp(camX + 2.5, 0, m);
-      car.yaw = -0.09 * Math.sin(Math.PI * m);
-      car.flame = 0.95 * (1 - e); car.flameHot = 0.5 * (1 - e); car.exhaust = 0.4 + 0.6 * (1 - e);
-      car.tail = 0.9 + 0.8 * (1 - e); car.streak = 3.0 * (1 - e);
-    }
-    if (it >= 6) { const uS = it - 6; car.bob = -0.05 * ring(uS, 30, 0.3); car.pitch = 0.012 * ring(uS, 26, 0.3); car.glow = 1 + 0.8 * Math.exp(-uS / 0.3); }
-    // neon write-on
-    neon.glass = 0;
-    neon.prog = it < IGN.neonWrite[0] ? 0 : sat((lin(it, IGN.neonWrite[0], IGN.neonWrite[1]) * 1.0));
-    neon.prog = neon.prog - Math.sin(neon.prog * Math.PI * 2) * 0.03;
-    neon.pow = reduced ? smooth(lin(it, 6.2, 7.4)) : neonPower(it);
-    // secondary elements
-    aux.a = smooth(lin(it, IGN.aux[0], IGN.aux[1]));
-    aux.wipe = easeOutCubic(lin(it, IGN.aux[0], IGN.aux[1] - 0.2));
-    ui.cassette = it >= IGN.cassette ? 1 : 0; ui.cassetteT = it - IGN.cassette;
+    const cu = cinemaUI(it); ui.bars = cu.bars; ui.cap = cu.cap;
     ui.controls = smooth(lin(it, IGN.controls[0], IGN.controls[1]));
+    if (it < CINE.title) {
+      const sh = cinemaShot(it, T, L.aspect, reduced);
+      cine = sh; camX = sh.cam.x; camY = sh.cam.y; pitch = sh.cam.pitch; yaw = sh.cam.yaw; roll = sh.cam.roll; fovAbs = sh.cam.fov; shiftK = 0; roadOv = sh.road;
+      Object.assign(car, sh.car);
+      if (sh.sunEl !== null) sunEl = sh.sunEl;
+      sunPow = sh.sunPow; stars = sh.stars;
+      title.visible = false; neon.pow = 0; neon.prog = 0; aux.a = 0;
+      const f = sh.fx;
+      post.flash = f.flash; post.shake = f.shake; post.rgb = f.rgb; post.speed = f.speed; post.vignette = f.vignette; post.bloom = f.bloom;
+      for (let k = 0; k < 3; k++) post.tint[k] += f.tint[k];
+    } else {
+      // the title lands on the bar line; the car lifts off and the cruiser closes on its bumper
+      const u = it - SL, uR = (ph0.phase === 'ign' ? ph0.it : it) - SL;   // post effects run on real time through the hit-stop
+      camX = 0.1 * Math.sin(u * 0.9) * Math.exp(-u / 3); camY = CHASE_Y; roll = 0; yaw = -camX * 0.02;
+      fovK = lerp(0.86, 1.0, spring(u, 16, 0.42)) + (reduced ? 0 : 0.06 * Math.exp(-u / 0.12));
+      if (reduced) { post.fgA = smooth(lin(u, 0, 1.2)); title.sweep = lerp(-160, 1040, easeInOutCubic(lin(u, 0.2, 1.2))); title.sweepI = 0.6 * Math.sin(Math.PI * lin(u, 0.2, 1.2)); }
+      else {
+        title.z = 260 * (1 - spring(u, 22, 0.38));
+        title.sx = 1 + 0.06 * ring(u, 34, 0.3);
+        title.sy = 1 - 0.09 * ring(u, 34, 0.3);
+        title.flash = 0.38 * Math.exp(-uR / 0.045);
+        title.sweep = lerp(-160, 1040, easeInOutCubic(lin(it, IGN.glint[0], IGN.glint[1])));
+        title.sweepI = it < IGN.glint[1] ? 1.6 * Math.sin(Math.PI * lin(it, IGN.glint[0], IGN.glint[1])) : 0;
+        post.glint = { tx: lerp(40, 820, easeInOutCubic(lin(it, IGN.glint[0], IGN.glint[1]))), ty: 102, i: it < IGN.glint[1] ? Math.sin(Math.PI * lin(it, IGN.glint[0], IGN.glint[1])) ** 0.7 : 0, size: 1.2 };
+        post.flare = { tx: 430, ty: 60, i: uR < 0.95 ? Math.exp(-uR / 0.22) * (1 - uR / 0.95) : 0 };
+        post.flash = 0.3 * Math.exp(-uR / 0.05);
+        post.rgb = 1 + 2.4 * Math.exp(-uR / 0.18);
+        post.tracking = Math.max(post.tracking, 0.35 * Math.exp(-uR / 0.08));
+        post.trackY = 0.42;
+        flare = 0.6 * Math.exp(-uR / 0.4);
+        sunPow *= 1 + 0.22 * Math.exp(-uR / 0.35);
+        post.bloom = 1 + 0.25 * Math.exp(-uR / 0.2);
+        if (uR < IGN.shake[1] - SL) post.shake = [ring(uR, 55, 0.18) * 0.008, ring(uR, 47, 0.2) * 0.011];
+        pulse = Math.exp(-uR / 0.2);
+        car.bob = -0.05 * ring(u, 30, 0.3); car.pitch = 0.012 * ring(u, 26, 0.3);
+      }
+      const lift = Math.exp(-u / 1.2);                             // the car comes off the throttle
+      car.z = carZ0; car.x = 0; car.yaw = 0;
+      car.flame = 0.9 * lift; car.flameHot = 0.5 * lift; car.exhaust = 0.3 + 0.7 * lift; car.tail = 0.85 + 0.9 * (1 - lift) * (1 - smooth(lin(it, 24.5, 26))); car.streak = 3.5 * lift; car.glow = 1 + 0.8 * Math.exp(-u / 0.3);
+      post.speed = 0.14 * lift;
+      cine = cinemaTail(it, T, car.z);
+      // neon write-on, then the plate
+      neon.prog = it < IGN.neonWrite[0] ? 0 : sat(lin(it, IGN.neonWrite[0], IGN.neonWrite[1]));
+      neon.prog = neon.prog - Math.sin(neon.prog * Math.PI * 2) * 0.03;
+      neon.pow = reduced ? smooth(lin(it, SL + 0.2, SL + 1.4)) : neonPower(it);
+      aux.a = smooth(lin(it, IGN.aux[0], IGN.aux[1]));
+      aux.wipe = easeOutCubic(lin(it, IGN.aux[0], IGN.aux[1] - 0.2));
+    }
     if (ff) {
       const u = ph.u;
-      car.visible = true; car.z = carZ0; car.x = 0; car.yaw = 0; car.flame = 0.6; car.streak = 2.5;
       post.ffwd = 1 - smooth(lin(u, 0.25, 0.4));
-      title.visible = true; title.z = 0; title.rx = 0; title.dim = 1; title.gather = 0; title.flash = 0; title.sx = 1; title.sy = 1; post.fgA = 1;
-      neon.prog = 1; neon.pow = 1; aux.a = 1; aux.wipe = 1; ui.cassette = 1; ui.cassetteT = u; ui.controls = 1;
-      camX = lerp(camX, 0, smooth(u / 0.4)); camY = lerp(camY, CHASE_Y, smooth(u / 0.4)); fovK = lerp(fovK, 1.0, smooth(u / 0.4)); roll *= 1 - smooth(u / 0.4); yaw *= 1 - smooth(u / 0.4);
-      sunEl = lerp(sunEl, SUN_EL, smooth(u / 0.4)); post.crt = 0; post.tracking = Math.max(post.tracking, 0.5 * (1 - u / 0.4));
+      post.crt = 0; post.tracking = Math.max(post.tracking, 0.5 * (1 - u / 0.4)); post.flash = 0; post.shake = [0, 0];
+      car.flame = 0.6; car.streak = 2.5; ui.bars = 0; ui.cap = '';
       ui.osd = 'FF';
     }
   }
@@ -418,7 +392,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     post.rewind = 1 - smooth(lin(u, 0.45, 0.6));
     // the title already left when cruising started, so the rewind runs on an empty sky
     title.visible = false; neon.pow = 0; aux.a = 0;
-    ui.osd = 'REW'; ui.replay = 0; ui.cassette = 1; ui.controls = 1 - smooth(k * 2); ui.skip = 1;
+    ui.osd = 'REW'; ui.replay = 0; ui.controls = 1 - smooth(k * 2); ui.skip = 1;
     car.z = lerp(carZ0, 9, easeInCubic(k)); car.tail = 0.5; car.flame = 0;
     sunEl = lerp(SUN_EL, -0.13, easeInCubic(k));
     post.tracking = 0.6; post.trackY = 1 - k * 2;
@@ -543,7 +517,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     if (game.fx) { fovK *= 1 + game.fx.fov; post.shake = [post.shake[0] + game.fx.kx, post.shake[1] + game.fx.ky]; }
     game.speedK = sat((Math.abs(sv.vel) - 120) / 110);              // (for the speed streaks)
     if (tbV && tbV.a >= tbV.antic) game.shock = tbV.u;                           // a nitro burst: the shockwave
-    scenery = 1; trafficI = 1 - smooth(ct / 1.0);
+    scenery = 1; trafficI = 0;
   }
 
   // drum-locked pulse (grid brightness) while music plays
@@ -574,12 +548,13 @@ export function frameState(tl, T, w, h, opt = {}) {
     car.bx = bx; car.by = by; car.yaw -= Math.atan(roadDX(sc)); car.slope = Math.atan(roadDY(sc));
     car.roll += clamp(latG * 0.0022, -0.05, 0.05);                   // the body leans out of it
   }
-  const vfov = L.vfov * fovK;
-  s.cam = { x: camX, y: camY, pitch, yaw, roll, fov: clamp(vfov, 20, 100), shift: L.shift + post.shake[1], shiftX: post.shake[0] };
+  const vfov = fovAbs ?? L.vfov * fovK;
+  s.cam = { x: camX, y: camY, pitch, yaw, roll, fov: clamp(vfov, 8, 100), shift: L.shift * shiftK + post.shake[1], shiftX: post.shake[0] };
+  s.cine = cine;
   s.sun = { el: sunEl, r: L.sunR, pow: sunPow, band, flare, squash: 0 };
   s.trafficI = trafficI; s.game = game || { on: 0 }; s.envW = envW; s.scenery = scenery; s.stars = stars; s.gridBright = gridBright; s.mountBright = mountBright; s.trailI = trailI; s.pulse = pulse;
-  const vel = sv.vel * (rew ? -2.4 : 1) * (reduced ? 0.6 : 1);
-  const pos = sv.pos * (reduced ? 0.6 : 1);
+  const vel = roadOv ? roadOv.vel : sv.vel * (rew ? -2.4 : 1) * (reduced ? 0.6 : 1);
+  const pos = roadOv ? roadOv.pos : sv.pos * (reduced ? 0.6 : 1);
   s.road = {
     vel, pos, gridPhase: ((pos % ROAD.lane) + ROAD.lane) % ROAD.lane, palmPhase: ((pos % 6720) + 6720) % 6720, trailPhase: ((pos % 896) + 896) % 896,
     trailLen: 0.25 + Math.abs(vel) * 0.05,

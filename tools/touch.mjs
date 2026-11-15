@@ -6,7 +6,7 @@ const p = await ctx.newPage();
 const ok = (n, c, i = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 await p.goto('http://localhost:8086/?free=1'); await p.waitForFunction(() => window.__ready === true);   // free mode: controls only
 ok('touch hint copy', (await p.textContent('#start-note')).includes('change lane'));
-ok('deck starts minimised on phone', (await p.getAttribute('#deck', 'data-min')) === 'true');
+ok('the settings panel is closed on phone', await p.evaluate(() => document.getElementById('deck').hidden));
 await p.tap('#start'); await p.waitForTimeout(300);
 ok('tap START → ignition', (await p.evaluate(() => MC.state().phase)) === 'ign');
 await p.evaluate(() => { const T = MC.state().T; MC.tl.add('skip', MC.tl.frontier()); });
@@ -20,5 +20,5 @@ ok('no BRAKE control on screen: NITRO is the only drive button', !(await p.$('#b
 await ev('pointerdown', 320, 9); await ev('pointercancel', 320, 9); await p.waitForTimeout(450);
 s = await p.evaluate(() => MC.state()); ok('a lane change is made on the press: a touch the system then cancels has moved one lane, no more, and the car drives on', Math.abs(s.steer) < 0.05 && s.thr > 0.9, `x=${s.steer.toFixed(2)} lanes, drive=${s.thr.toFixed(2)}`);
 const tgt = await p.evaluate(() => [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null || getComputedStyle(b).visibility !== 'hidden').map((b) => { const r = b.getBoundingClientRect(); return [b.id || b.className, Math.round(r.width), Math.round(r.height)]; }).filter(([, w, h]) => w > 0 && (w < 44 || h < 24)));
-ok('visible touch targets ≥ 44px (minimise bar key exempt)', tgt.every(([n]) => String(n).includes('deck-min')), JSON.stringify(tgt));
+ok('visible touch targets ≥ 44px', tgt.length === 0, JSON.stringify(tgt));
 await b.close();

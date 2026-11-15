@@ -19,6 +19,40 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 39: an opening film, the nitro bottle, the deck in settings
+
+**1. The opening is a 26-second film** (`js/cinema.js`, score and timecodes in `js/cue.js`). It replaces the ten-second title flight and plays on every start from the home screen; SKIP INTRO cuts it short as before.
+
+- **The story:** the police run the PHANTOM down the beltway at midnight. It ends with the car lifting off and a cruiser on its bumper, which is exactly how every drive already began (POLICE! PULL OVER, then FLOOR IT), so the film hands over to the game without a cut.
+- **Six shots, cut on the bar lines:**
+
+| At | Shot | Lens | What happens |
+|---|---|---|---|
+| 0 s | ROAD | wide, 0.4 units off the asphalt, standing still | The empty road, a typed line (place and time). The PHANTOM goes through the frame at 2.25 s; two cruisers at 3.2 and 3.5 s, their lights washing over the picture. |
+| 4 s | TRACK | long, travelling in the next lane | The car from behind its shoulder, the police closing behind it, a truck wiping the frame, palms going by. It goes round a saloon and pulls away. |
+| 8 s | AIR | long, from above the helicopter | The searchlight hunts across the lanes and finds him at 10.1 s. The radio line is typed over it. |
+| 12 s | BUMPER | wide, from the cruiser on his tail | Three swerves through traffic on the beats; a van, a truck and an estate go by close. |
+| 16 s | FRONT | very long, head on | Him, two cruisers and the helicopter stacked up behind; traffic slides back through the frame and the police go round it. In the last half second the searchlight swings into the lens. |
+| 20 s | TITLE | the game's own | The title lands on the downbeat with the old slam (hit-stop, flash, neon write-on). The car lifts off, the cruiser settles on its bumper, the helicopter goes over and away, the controls come up at 24 s. |
+
+- **Picture:** letterbox bars for the film (they slide away after the title), three typed lines, a frame of colour split on each cut, hand-held movement in the travelling shots (none with reduced motion).
+- **Sound:** thirteen bars in A minor at 120 BPM: a pedal bass, a ticking hat, and a four-note figure that climbs a semitone at a time and falls back; a low hit on every cut; half time under the aerial shot; a snare wind-up and reverse cymbal into the title. Under it: the three engines going by the standing lens (a new sound made of the engine's own tone, falling in pitch as it passes; no air noise), sirens, the rotor, tyres and a horn in the traffic shot.
+- **Measured:** the whole opening is −13.9 LUFS with a −1.5 dB true peak (the drive is at the same level).
+- **How the head-on shot is done:** the world is only built ahead of the lens. That shot is staged the other way round (everything faces the lens, the road runs backwards under it, the sun is out of the sky).
+- The opening is still a pure function of time: it seeks, replays and exports exactly.
+
+**2. The nitro pickup is a bottle.** A blue pressure bottle with NITRO on its label, chrome hoops and a brass valve with a red handwheel. It hovers about two units up, leaning and turning, over a seal of gold light that turns on the road, in a shaft of gold light with rays behind it and sparks climbing round it. Taking it flashes the picture gold. The rules are unchanged.
+
+**3. The NITE·DECK is in settings.** A gear key sits at the top right next to pause (`O` on the keyboard). It opens the deck as a panel in the middle of the screen: music, mute, volume, automatic colours, the four colour presets. Opening it during a drive pauses the drive; closing it leaves the pause menu. Nothing of the deck is on screen otherwise, and on phones the score and stars moved up into the space its bar used to take. If sound is blocked, an amber dot shows on the gear key.
+
+**Other changes that follow from these**
+- The speed through the opening ends on the same curve as before, so the recorded demo drive still plays out clean (same pickups, same score to within 6 points).
+- Tests that assumed a ten-second intro or a draggable deck now follow the opening's length and the settings panel.
+
+**Limits**
+- I have not heard it; levels were measured. The score reuses the game's existing instruments.
+- The PHANTOM has no modelled head lamps: in the head-on shot its lamps are two glows.
+
 ## Revision 38: no wind noise
 
 Every wind-like sound is gone (`js/audio/synth.js`, `js/cue.js`, `js/ui.js`):

@@ -9,7 +9,7 @@ for (const [w, h, dpr, tier] of cases) {
   await p.waitForTimeout(500);
   const r = await p.evaluate(async () => {
     const out = {};
-    for (const [name, T] of [['title flight, 8 sub-frames', 5.4], ['slam', 7.0], ['run opening, police close', 11.2], ['traffic', 20], ['nitro', 32.6], ['two stars, ramming run', 73.8]]) {
+    for (const [name, T] of [['opening: head-on shot', 19.0], ['slam', 21.0], ['run opening, police close', 27.2], ['traffic', 36], ['nitro', 48.6], ['two stars, ramming run', 73.8]]) {
       MC.seek(T); MC.play(); MC.stats.work.length = 0;
       await new Promise((res) => setTimeout(res, 2500));
       const d = MC.stats.work.slice(10).sort((a, b) => a - b);

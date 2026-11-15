@@ -4,7 +4,7 @@
 // (offline reference renders + loudness measurement). Output is a pure function
 // of the sample index and the event timeline.
 // ─────────────────────────────────────────────────────────────────────────────
-import { SR, TICK, TPB, IGN, TURBO, BAR, BEAT, GAME, ignitionBar, cruiseBar, turboNotes, cruiseChord, neonPower } from '../cue.js';
+import { SR, TICK, TPB, IGN, IGNITION, TURBO, BAR, BEAT, GAME, cineMix, ignitionBar, cruiseBar, turboNotes, cruiseChord, neonPower } from '../cue.js';
 import { Timeline } from '../timeline.js';
 import { policeClose, revs } from '../game.js';
 import { REVCRASH_PEAK } from './samples.js';
@@ -175,6 +175,17 @@ class Riser extends Voice {
     const yl = (this.bl.bp(this.rl.next()) * 0.35 + s * 1.6) * a, yr = (this.br.bp(this.rr.next()) * 0.35 + s * 1.6) * a;
     B.fxL[i] += yl; B.fxR[i] += yr; B.rev[i] += (yl + yr) * 0.1;
     return t < this.d + 0.08;
+  }
+}
+class Flyby extends Voice { // a car goes by a standing camera: its engine note, falling as it passes (no air noise)
+  constructor(s, o, v, pan, f = 1) { super(s, o); this.v = v; this.pan = pan; this.f = f; this.a = new Saw(0); this.b = new Saw(0.37); this.c = new Saw(0.71); this.lp = new SVF(); }
+  tick(B, i, t) {
+    const u = t - 0.55, f = 118 * this.f * (1 - 0.2 * Math.tanh(u * 5.5));     // nearest at 0.55 s
+    if ((this.n & 15) === 0) this.lp.set(420 + 2400 * exp(-u * u * 9), 1.0);
+    const y = this.lp.lp(this.a.run(f) + this.b.run(f * 1.007) + this.c.run(f * 0.5) * 0.8) * exp(-u * u * (u < 0 ? 7 : 3.2)) * 0.3 * this.v;
+    const p = this.pan * exp(-u * u * 4);
+    B.fxL[i] += y * panL(p); B.fxR[i] += y * panR(p);
+    return t < 2.3;
   }
 }
 class Bass extends Voice {
@@ -644,6 +655,7 @@ export class Synth {
       case 'sub': v = new Sub(s, o, n.v); break;
       case 'impact': v = new Impact(s, o, n.v); break;
       case 'riser': v = new Riser(s, o, n.d, n.v ?? 1); break;
+      case 'flyby': v = new Flyby(s, o, n.v ?? 1, n.pan || 0, n.f || 1); break;
       case 'whoosh': return;                                                     // (no whooshes: no wind noise of any kind)
       case 'bass': v = new Bass(s, o, n.n, n.v, n.d); break;
       case 'pad': v = new Pad(s, o, n.notes, n.d, n.v, n.slow); break;
@@ -714,7 +726,7 @@ export class Synth {
     for (let si = Math.max(0, segs.length - 2); si < segs.length; si++) {
       const sg = segs[si];
       const ignTicks = Math.round((sg.end - sg.s) / TICK);
-      runClock(sg.s, 0, Math.min(160, ignTicks), (bar, emit) => ignitionBar(bar, emit));
+      runClock(sg.s, 0, ignTicks, (bar, emit) => ignitionBar(bar, emit));
       if (sg.C < sg.until) {
         const maxK = sg.until === Infinity ? 1e12 : Math.round((sg.until - sg.C) / TICK);
         runClock(sg.C, 0, maxK, (bar, emit) => cruiseBar(bar, Math.floor(bar / 32), emit, { thr: st.thr, w, heat: ph.phase === 'cruise' && st.run > 0 && st.g && !st.g.free && !st.over ? st.g.star : 0, edge: ph.phase === 'cruise' && st.g && !st.g.free && st.g.lives < 2 && !st.over ? 1 : 0 }));
@@ -754,9 +766,11 @@ export class Synth {
     let bc = 760 * (1 + 2.6 * st.thr);
     if (ph.phase === 'ign') {
       const it = ph.it;
-      if (it < 4) bc = 260 + 900 * Math.min(1, Math.max(0, (it - 1) / 3));
-      else if (it < 6) bc = 1160 - 820 * Math.min(1, (it - 4) / 1.5);
-      else bc = 760 + 1100 * exp(-(it - 6) / 0.6);
+      const SL = IGN.slam;
+      if (it < 4) bc = 260 + 500 * Math.min(1, Math.max(0, (it - 1) / 3));
+      else if (it < SL - 2) bc = 1000 + 300 * Math.min(1, (it - 4) / 8);
+      else if (it < SL) bc = 1300 - 900 * Math.min(1, (it - (SL - 2)) / 1.5);
+      else bc = 760 + 1100 * exp(-(it - SL) / 0.6);
     }
     p.bassCut = bc * (1 - 0.25 * w[1]) * (1 + 0.2 * w[3]);
     p.bassDrive = 1.3 + 2.4 * w[2] + 0.6 * st.thr;
@@ -777,7 +791,7 @@ export class Synth {
     // trims
     const ign = MASTER.ignTrimDb, cru = MASTER.cruiseTrimDb;
     let trim = cru;
-    if (ph.phase === 'ign') trim = ph.it < 8 ? ign : ign + (cru - ign) * ((ph.it - 8) / 2);
+    if (ph.phase === 'ign') trim = ph.it < IGNITION - 2 ? ign : ign + (cru - ign) * ((ph.it - (IGNITION - 2)) / 2);
     this._trim = Math.pow(10, trim / 20);
   }
 
@@ -807,7 +821,12 @@ export class Synth {
       const rv = Math.max(-0.25, Math.min(1.15, revs(this._st.g, vel)));
       this.engF += (50 * (1 + 1.1 * rv) - this.engF) * (1 - exp(-(N / SR) / 0.06));
       ef = this.engF; eg = (0.019 + 0.013 * Math.max(0, rv)) * (0.45 + 0.55 * thr); ec = 170 + vel * 1.5 + 520 * Math.max(0, rv) * thr;
+    } else if (ph.phase === 'ign') {                         // the opening: the engine as each shot hears it
+      const m = cineMix(ph.it);
+      this.engF += (50 * (1 + 1.1 * m.rev) - this.engF) * (1 - exp(-(N / SR) / 0.06));
+      ef = this.engF; eg = (0.019 + 0.013 * m.rev) * m.eng; ec = 170 + 300 * m.eng + 520 * m.rev;
     } else this.engF = ef;
+    const cm = ph.phase === 'ign' ? cineMix(ph.it) : null;   // … and its sirens and helicopter
     this.engLp.set(ec, 0.9);
     // (no road wind: the player asked for no wind noise, Revision 38)
     const whF = 700 + vel * 8, whG = ph.phase === 'cruise' ? 0.007 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;   // and at speed a turbo whine
@@ -815,7 +834,7 @@ export class Synth {
     {
       const st = this._st, g = st.g, run = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
       const close = run && (st.over === 2 || policeClose(g));
-      const tgt = !run ? 0 : close ? 0.034 : 0.006 + 0.003 * Math.min(4, g.star), rate = close ? 3.1 : 0.62;
+      const tgt = cm ? cm.siren : !run ? 0 : close ? 0.034 : 0.006 + 0.003 * Math.min(4, g.star), rate = cm ? cm.rate : close ? 3.1 : 0.62;
       if (tgt > 0 || this.sirG > 1e-5) {
         const kA = 1 - exp(-1 / (0.25 * SR));
         for (let i = 0; i < N; i++) {
@@ -831,7 +850,7 @@ export class Synth {
     // the helicopter at three stars: rotor chop (noise through a low filter, pulsed at the blade rate)
     {
       const st = this._st, g = st.g, on = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && !st.over && g.ha > 0.02;
-      const tgt = on ? (0.05 + 0.03 * g.sk) * g.ha : 0;       // louder as it comes in, gone when it has flown off
+      const tgt = cm ? 0.06 * cm.heli : on ? (0.05 + 0.03 * g.sk) * g.ha : 0;       // louder as it comes in, gone when it has flown off
       if (tgt > 0 || this.heliG > 1e-5) {
         const kA = 1 - exp(-1 / (0.6 * SR)); this.heliF.set(190, 0.8);
         for (let i = 0; i < N; i++) {

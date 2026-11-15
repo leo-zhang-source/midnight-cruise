@@ -3,7 +3,7 @@
 // Writes 48 kHz / 24-bit stereo WAVs and measures them with ffmpeg's EBU R128 meter
 // (integrated loudness + 4x-oversampled true peak).
 import { Synth } from '../js/audio/synth.js';
-import { SR } from '../js/cue.js';
+import { SR, IGNITION } from '../js/cue.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -77,21 +77,21 @@ if (segIdx > 0) {
   process.exit(0);
 }
 const scenarios = {
-  // 1) The authored ignition: exactly 10.000 s from START DRIVE.
-  ignition: { events: [{ type: 'start', t: START, free: 1 }], from: START, to: START + 10 },
+  // 1) The authored opening: exactly IGNITION seconds from START DRIVE.
+  ignition: { events: [{ type: 'start', t: START, free: 1 }], from: START, to: START + IGNITION },
   // 2) Reference cruise mix: one full 64 s form cycle, SUNSET preset, no input (free cruise: no traffic, no police).
-  cruise_ref: { events: [{ type: 'start', t: START, free: 1 }], from: START + 10, to: START + 10 + 64 },
+  cruise_ref: { events: [{ type: 'start', t: START, free: 1 }], from: START + IGNITION, to: START + IGNITION + 64 },
   // 3) Loudest interactive combination: nitro bursts + AFTERGLOW (heaviest preset) + UI SFX bursts.
   loudest: {
     events: [
-      { type: 'start', t: START, free: 1 }, { type: 'env', t: START + 10.5, preset: 2 },
-      { type: 'turbo', t: START + 14.2 }, { type: 'turbo', t: START + 21.4 },
-      ...Array.from({ length: 24 }, (_, k) => ({ type: 'sfx', t: START + 14 + k * 0.5, name: ['click', 'clunk', 'select', 'chime'][k % 4] })),
+      { type: 'start', t: START, free: 1 }, { type: 'env', t: START + IGNITION + 0.5, preset: 2 },
+      { type: 'turbo', t: START + IGNITION + 4.2 }, { type: 'turbo', t: START + IGNITION + 11.4 },
+      ...Array.from({ length: 24 }, (_, k) => ({ type: 'sfx', t: START + IGNITION + 4 + k * 0.5, name: ['click', 'clunk', 'select', 'chime'][k % 4] })),
     ],
-    from: START + 12, to: START + 28,
+    from: START + IGNITION + 2, to: START + IGNITION + 18,
   },
   // 4) A real run: the canonical script (police siren, two nitro bursts, presets, a music pause).
-  chase: { events: CANONICAL, from: START + 10, to: 80 },
+  chase: { events: CANONICAL, from: START + IGNITION, to: 70 + IGNITION },
 };
 
 const report = {};

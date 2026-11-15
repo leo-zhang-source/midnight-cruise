@@ -17,6 +17,8 @@
   <!-- First paint: a CSS rendition of the world, replaced by WebGL on its first frame -->
   <div id="poster" aria-hidden="true"><div class="p-sky"></div><div class="p-sun"></div><div class="p-floor"></div></div>
   <canvas id="gl" aria-hidden="true"></canvas>
+  <!-- the opening: letterbox bars and the lines typed over the picture -->
+  <div id="cine" aria-hidden="true"><i class="cb-t"></i><i class="cb-b"></i><p id="cine-cap"></p></div>
 
   <h1 class="sr-only">Midnight Cruise — 1986</h1>
   <p class="sr-only" id="about">A synthwave highway chase. Start the drive, then weave through slower traffic on a three-lane highway into the city while the police follow: press the left and right arrow keys (or tap the left or right side of the screen) to change lane. The car drives flat out by itself and has no brake. Pick up nitro canisters and press T or Nitro to smash through traffic. Driving into the back of a vehicle ends the run; clipping one puts the police on your tail, and a second mistake while they are there gets you busted. A cassette deck controls the music and the colours.</p>
@@ -40,6 +42,7 @@
   <nav id="corner" aria-label="Sequence">
     <button id="skip" class="ghost" type="button">SKIP INTRO <svg viewBox="0 0 16 10" aria-hidden="true"><path d="M1 1 L7 5 L1 9 Z M8 1 L14 5 L8 9 Z"/></svg></button>
     <button id="pause" class="ghost" type="button" aria-label="Pause"><svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.6" height="8"/><rect x="5.9" y="1" width="2.6" height="8"/></svg></button>
+    <button id="settings" class="ghost on" type="button" aria-label="Settings" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 1.5h3.4l.5 2.7a8 8 0 0 1 2 1.15l2.6-.9 1.7 2.95-2.1 1.8a8 8 0 0 1 0 2.3l2.1 1.8-1.7 2.95-2.6-.9a8 8 0 0 1-2 1.15l-.5 2.7h-3.4l-.5-2.7a8 8 0 0 1-2-1.15l-2.6.9-1.7-2.95 2.1-1.8a8 8 0 0 1 0-2.3l-2.1-1.8 1.7-2.95 2.6.9a8 8 0 0 1 2-1.15ZM12 8.2a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Z" fill-rule="evenodd"/></svg></button>
   </nav>
 
   <div id="hints" aria-hidden="true">
@@ -86,7 +89,7 @@
       <button id="restart" class="ghost on" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 A4.5 4.5 0 1 0 10.5 6 H8.9 A2.9 2.9 0 1 1 6 3.1 V5 L9.6 2.4 6 0 Z"/></svg> RESTART</button>
       <button id="home2" class="ghost on" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11.5 6 H10 V11 H7.2 V7.6 H4.8 V11 H2 V6 H0.5 Z"/></svg> HOME</button>
     </div>
-    <p class="ov-keys"><kbd>P</kbd> RESUME <kbd>R</kbd> RESTART <kbd>H</kbd> HOME</p>
+    <p class="ov-keys"><kbd>P</kbd> RESUME <kbd>R</kbd> RESTART <kbd>H</kbd> HOME <kbd>O</kbd> SETTINGS</p>
   </section>
   <p class="sr-only" id="g-live" aria-live="polite"></p>
 
@@ -98,11 +101,12 @@
     </button>
   </div>
 
-  <section id="deck" aria-label="Cassette deck" data-min="true">
+  <div id="deck-shade" hidden></div>
+  <section id="deck" role="dialog" aria-modal="true" aria-label="Settings" hidden>
     <header class="deck-bar" id="deck-bar">
       <svg class="deck-ico" viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="2"/><circle cx="6.5" cy="7" r="2.2"/><circle cx="13.5" cy="7" r="2.2"/></svg>
-      <span class="deck-title">NITE·DECK <b>86</b></span>
-      <button class="deck-min" id="deck-min" type="button" aria-label="Expand cassette deck" aria-expanded="false"><span></span></button>
+      <span class="deck-title">SETTINGS <b>NITE·DECK 86</b></span>
+      <button class="deck-min" id="deck-close" type="button" aria-label="Close settings"><span></span></button>
     </header>
     <div class="deck-body">
       <div class="tape" aria-hidden="true">
@@ -132,12 +136,14 @@
         <span class="lcd-meter" id="lcd-meter" aria-hidden="true"></span>
         <span class="lcd-count" id="lcd-count">000</span>
       </div>
+      <p class="deck-cap">MUSIC</p>
       <div class="transport">
         <button id="play" class="key" type="button" aria-pressed="true" aria-label="Pause music"><svg class="i-pause" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.6" height="8"/><rect x="5.9" y="1" width="2.6" height="8"/></svg><svg class="i-play" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1 L9 5 L2 9 Z"/></svg></button>
         <button id="mute" class="key" type="button" aria-pressed="false" aria-label="Mute"><svg viewBox="0 0 16 12" aria-hidden="true"><path d="M1 4 H4 L8 1 V11 L4 8 H1 Z"/><path class="w1" d="M10.5 3.5 Q12.5 6 10.5 8.5" fill="none" stroke-width="1.4"/><path class="w2" d="M12.5 1.8 Q15.6 6 12.5 10.2" fill="none" stroke-width="1.4"/><path class="x" d="M10 3.5 L15 8.5 M15 3.5 L10 8.5" fill="none" stroke-width="1.5"/></svg></button>
         <button id="auto" class="key" type="button" aria-pressed="true" aria-label="Automatic colour change"><i class="auto-led" aria-hidden="true"></i>AUTO<i class="auto-bar" aria-hidden="true"><b id="auto-fill"></b></i></button>
         <label class="vol"><span class="sr-only">Volume</span><input id="vol" type="range" min="0" max="100" value="80" step="1"></label>
       </div>
+      <p class="deck-cap">COLOUR</p>
       <div class="presets" role="radiogroup" aria-label="Environment">
         <button class="key preset" type="button" role="radio" aria-checked="true" data-p="0"><i>A</i>SUNSET</button>
         <button class="key preset" type="button" role="radio" aria-checked="false" data-p="1"><i>B</i>BLUE HOUR</button>
