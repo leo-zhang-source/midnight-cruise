@@ -19,6 +19,24 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 41: no hard cuts in the opening; a smaller, slower bottle
+
+**1. The shots are joined by moves of the lens, not cuts** (`js/cinema.js`: `join`; the smear is a new whip-pan blur in `js/post.js`). Each shot is left on a swing of the lens that gathers speed, and the next is entered on the rest of the same swing as it settles; the picture is smeared along the swing while it is fast, so the two shots meet in the same blur. The bar lines of the music fall in the middle of each swing.
+
+| Between | The move |
+|---|---|
+| ROAD → TRACK (4 s) | the lens whips right, after the cars that went by, onto the car |
+| TRACK → AIR (8 s) | it tilts up into the sky and comes down onto the lanes from above |
+| AIR → BUMPER (12 s) | it tilts down and drops out of the air onto his tail |
+| BUMPER → FRONT (16 s) | it whips left, round him, to the front |
+| FRONT → TITLE (20 s) | it tilts up into the searchlight; the title shot comes down out of the same white, from the sky to the road, as the title glides in |
+
+Each swing takes about 0.4 s out and 0.5 s in. With reduced motion there is no swing or smear.
+
+**2. The nitro bottle** is about 30 % smaller (and sits lower), and turns at about a third of the speed (one turn in about 7 s instead of 2.6 s). Its seal of light, rays and sparks are smaller and slower to match.
+
+Tests: all suites pass.
+
 ## Revision 40: the title glides in
 
 The title's entrance was a hard cut: it appeared at full size on the downbeat with a hit-stop, a flash, a shake and a spring. Now:

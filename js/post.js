@@ -68,6 +68,7 @@ const UP = /* glsl */`
 const VHS = /* glsl */`
   precision highp float; varying vec2 vUv;
   uniform sampler2D tComp, tBloom, tFg; uniform vec2 uRes, uTex; uniform float uT, uScale, uAspect;
+  uniform vec2 uWhip;
   uniform float uRgb, uTrack, uTrackY, uNoise, uScan, uVig, uFlash, uCrt, uBloom, uSpeed, uFfwd, uRew, uWarp, uHz;
   uniform vec4 uGlint; uniform vec3 uFlare; uniform vec3 cA, cB, uTint; uniform float uDanger;
   float h11(float p){ p = fract(p * .1031); p *= p + 33.33; p *= p + p; return fract(p); }
@@ -121,6 +122,12 @@ const VHS = /* glsl */`
       col = acc / wsum;
     } else {
       col = vec3(texture2D(tComp, uv + o).r, texture2D(tComp, uv).g, texture2D(tComp, uv - o).b);
+    }
+    // ── whip pan: the picture smeared along the way the lens is swinging (the opening joins its shots with these) ──
+    if (dot(uWhip, uWhip) > 1e-7) {
+      vec3 acc = vec3(0.0); float jit = h11(uv.x * 913.0 + uv.y * 7919.0 + frame);
+      for (int k = 0; k < 20; k++) { float f = (float(k) + jit) / 20.0 - 0.5; acc += texture2D(tComp, clamp(uv + uWhip * f, 0.001, 0.999)).rgb; }
+      col = acc / 20.0;
     }
     // ── luma sharpening: restores edge contrast lost to resampling (luma only, so no colour halos) ──
     vec3 nb = texture2D(tComp, uv + vec2(uTex.x, 0.0)).rgb + texture2D(tComp, uv - vec2(uTex.x, 0.0)).rgb
@@ -205,7 +212,7 @@ export class Post {
     this.vhs = new Pass(VHS, {
       tComp: { value: null }, tBloom: { value: null }, tFg: { value: null }, uRes: { value: new THREE.Vector2() }, uTex: { value: new THREE.Vector2() }, uT: { value: 0 }, uScale: { value: 1 }, uAspect: { value: 1 },
       uRgb: { value: 1.5 }, uTrack: { value: 0 }, uTrackY: { value: 0.5 }, uNoise: { value: 0 }, uScan: { value: 1 }, uVig: { value: 0.4 }, uFlash: { value: 0 },
-      uCrt: { value: 0 }, uBloom: { value: 1 }, uSpeed: { value: 0 }, uFfwd: { value: 0 }, uRew: { value: 0 }, uWarp: { value: 0 }, uHz: { value: 0.44 }, uTint: { value: new THREE.Vector3() }, uDanger: { value: 0 },
+      uCrt: { value: 0 }, uBloom: { value: 1 }, uSpeed: { value: 0 }, uWhip: { value: new THREE.Vector2() }, uFfwd: { value: 0 }, uRew: { value: 0 }, uWarp: { value: 0 }, uHz: { value: 0.44 }, uTint: { value: new THREE.Vector3() }, uDanger: { value: 0 },
       uGlint: { value: new THREE.Vector4() }, uFlare: { value: new THREE.Vector3() }, cA: { value: new THREE.Vector3() }, cB: { value: new THREE.Vector3() },
     });
     this.samples = 4;
@@ -258,7 +265,7 @@ export class Post {
     v.tComp.value = this.rtComp.texture; v.tBloom.value = this.ups[0].texture; v.tFg.value = fgTex;
     v.uRes.value.set(this.outW, this.outH); v.uTex.value.set(1 / this.W, 1 / this.H); v.uT.value = s.T; v.uScale.value = this.outH / 1080; v.uAspect.value = this.outW / this.outH;
     v.uRgb.value = 0.6 + 1.5 * (P.rgb - 1); v.uTrack.value = P.tracking; v.uTrackY.value = P.trackY; v.uNoise.value = P.noise; v.uScan.value = P.scan;
-    v.uVig.value = P.vignette; v.uFlash.value = P.flash; v.uCrt.value = P.crt; v.uBloom.value = P.bloom; v.uSpeed.value = s.reduced ? 0 : P.speed;
+    v.uVig.value = P.vignette; v.uFlash.value = P.flash; v.uCrt.value = P.crt; v.uBloom.value = P.bloom; v.uSpeed.value = s.reduced ? 0 : P.speed; v.uWhip.value.set(s.reduced ? 0 : P.whip[0], s.reduced ? 0 : P.whip[1]);
     v.uTint.value.set(...(P.tint || [0, 0, 0])); v.uDanger.value = P.danger || 0;
     v.uFfwd.value = P.ffwd; v.uRew.value = P.rewind; v.uWarp.value = P.warp; v.uHz.value = 0.5 - s.layout.shift * 0.5;
     v.uGlint.value.set(glint[0], glint[1], P.glint.i, P.glint.size * this.outH / 1080 * 1.0);

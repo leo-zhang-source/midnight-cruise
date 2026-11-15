@@ -279,7 +279,7 @@ export function frameState(tl, T, w, h, opt = {}) {
   const aux = { a: 1, wipe: 1 };
   const post = {
     crt: 0, fgA: 1, tracking: 0, trackY: 0.5, noise: 0.045, rgb: 1, flash: 0, shake: [0, 0], vignette: 0.42, bloom: 1, scan: 1,
-    glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, ffwd: 0, rewind: 0, warp: 0, tint: [0, 0, 0], danger: 0,
+    glint: { tx: 0, ty: 0, i: 0, size: 1 }, flare: { tx: 0, ty: 0, i: 0 }, speed: 0, whip: [0, 0], ffwd: 0, rewind: 0, warp: 0, tint: [0, 0, 0], danger: 0,
   };
   const ui = { hint: 0, autoOn: tl.autoOn(T), autoP: 0, osd: null, bars: 0, cap: '', controls: 1, start: 0, skip: 0, replay: 0, ready: 1, thr: ph.phase === 'cruise' && sim.run && !sim.over && !sim.paused ? 1 - sv.thr : 0, home: 0, preset: tl.envTarget(T), music: mus.on };
   let gridBright = 1, mountBright = 1, trailI = 1, pulse = 0, game = null, trafficI = 1;
@@ -338,14 +338,15 @@ export function frameState(tl, T, w, h, opt = {}) {
       sunPow = sh.sunPow; stars = sh.stars;
       title.visible = false; neon.pow = 0; neon.prog = 0; aux.a = 0;
       const f = sh.fx;
-      post.flash = f.flash; post.shake = f.shake; post.rgb = f.rgb; post.speed = f.speed; post.vignette = f.vignette; post.bloom = f.bloom;
+      post.flash = f.flash; post.shake = f.shake; post.rgb = f.rgb; post.speed = f.speed; post.vignette = f.vignette; post.bloom = f.bloom; post.whip = f.whip;
       for (let k = 0; k < 3; k++) post.tint[k] += f.tint[k];
     } else {
       // The title glides in: the white of the searchlight dissolves into the wide shot, and the title comes out of the distance
       // on one long ease, tilting upright and brightening as it settles, with no jolt. The lens eases out and cranes up to the
       // game's own position while it does. The car lifts off and the cruiser closes on its bumper.
       const u = it - SL, G = IGN.glide, e = 1 - (1 - sat(u / G)) ** 4, eS = smoother(sat(u / (G + 0.6)));
-      camX = 0.1 * Math.sin(u * 0.9) * Math.exp(-u / 3); camY = CHASE_Y - 0.55 * (1 - eS); roll = 0; yaw = -camX * 0.02; pitch = 0.03 * (1 - eS);
+      const tilt = reduced ? 0 : 1 - smoother(sat(u / 1.5));          // the lens comes down from the light in the sky (the last shot ended looking up into the searchlight) to the road
+      camX = 0.1 * Math.sin(u * 0.9) * Math.exp(-u / 3); camY = CHASE_Y - 0.55 * (1 - eS); roll = 0; yaw = -camX * 0.02; pitch = 0.03 * (1 - eS) + 0.2 * tilt;
       fovK = lerp(0.9, 1.0, eS);
       post.fgA = smooth(u / 0.55);
       if (reduced) { title.sweep = lerp(-160, 1040, easeInOutCubic(lin(u, 0.2, 1.2))); title.sweepI = 0.6 * Math.sin(Math.PI * lin(u, 0.2, 1.2)); }
@@ -357,7 +358,7 @@ export function frameState(tl, T, w, h, opt = {}) {
         title.sweep = lerp(-160, 1040, easeInOutCubic(gk)); title.sweepI = gOn ? 1.4 * Math.sin(Math.PI * gk) : 0;
         post.glint = { tx: lerp(40, 820, easeInOutCubic(gk)), ty: 102, i: gOn ? Math.sin(Math.PI * gk) ** 0.7 : 0, size: 1.2 };
         post.flare = { tx: 430, ty: 60, i: gOn ? 0.5 * Math.sin(Math.PI * gk) : 0 };
-        post.flash = 0.85 * Math.exp(-u / 0.3);                       // out of the white
+        post.flash = 0.85 * Math.exp(-u / 0.42);                      // out of the white
         post.rgb = 1 + 1.6 * Math.exp(-u / 0.45);
         flare = 0.45 * Math.exp(-u / 0.6);
         sunPow *= 1 + 0.25 * Math.exp(-u / 0.5);
@@ -379,7 +380,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     if (ff) {
       const u = ph.u;
       post.ffwd = 1 - smooth(lin(u, 0.25, 0.4));
-      post.crt = 0; post.tracking = Math.max(post.tracking, 0.5 * (1 - u / 0.4)); post.flash = 0; post.shake = [0, 0];
+      post.crt = 0; post.tracking = Math.max(post.tracking, 0.5 * (1 - u / 0.4)); post.flash = 0; post.shake = [0, 0]; post.whip = [0, 0];
       car.flame = 0.6; car.streak = 2.5; ui.bars = 0; ui.cap = '';
       ui.osd = 'FF';
     }

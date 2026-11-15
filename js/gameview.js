@@ -143,13 +143,13 @@ function makeGlows() {
           a = (exp(-p.x * 26.0) * exp(-p.y * 3.2) + exp(-p.y * 26.0) * exp(-p.x * 3.2) + exp(-dot(q, q) * 30.0)) * tw;
         } else if (t > 12.5) {                       // 13 · rays of light turning about the centre, behind a pickup
           float r = length(q), an = atan(q.y, q.x);
-          float rays = pow(abs(sin(an * 4.0 + uT * 0.9)), 10.0) * 0.8 + pow(abs(sin(an * 6.0 - uT * 0.6 + 1.3)), 16.0) * 0.5;
+          float rays = pow(abs(sin(an * 4.0 + uT * 0.45)), 10.0) * 0.8 + pow(abs(sin(an * 6.0 - uT * 0.3 + 1.3)), 16.0) * 0.5;
           a = rays * smoothstep(1.0, 0.25, r) * smoothstep(0.08, 0.3, r) + exp(-r * r * 5.0) * 0.55;
         } else if (t > 11.5) {                       // 12 · a seal of light turning on the road: two rings, a ring of dashes, eight spokes
           float r = length(q), an = atan(q.y, q.x);
           float outer = smoothstep(0.05, 0.015, abs(r - 0.92)), inner = smoothstep(0.04, 0.012, abs(r - 0.56));
-          float dash = smoothstep(0.07, 0.03, abs(r - 0.76)) * step(0.5, fract(an * 3.8197 + uT * 0.7));
-          float spoke = smoothstep(0.06, 0.02, abs(sin(an * 4.0 - uT * 0.5))) * step(0.3, r) * step(r, 0.52);
+          float dash = smoothstep(0.07, 0.03, abs(r - 0.76)) * step(0.5, fract(an * 3.8197 + uT * 0.35));
+          float spoke = smoothstep(0.06, 0.02, abs(sin(an * 4.0 - uT * 0.25))) * step(0.3, r) * step(r, 0.52);
           a = outer + inner * 0.8 + dash + spoke * 0.5 + exp(-r * r * 2.6) * 0.5;
           a *= smoothstep(1.0, 0.96, r);
         } else if (t > 10.5) {                       // 11 · a ring (shockwaves): its width is the parameter
@@ -457,15 +457,15 @@ export class GameView {
   // light with rays turning behind it and sparks rising round it
   nitro(x, z, k, T, seed = 0) {
     const i = this.nbt; if (i >= this.bottles.length || k <= 0.004) return; this.nbt++;
-    const m = this.bottles[i], u = m.material.uniforms, bob = Math.sin(T * 2.6 + seed) * 0.14, y = 2.2 + bob;
-    m.visible = true; u.uP.value.set(x, y, z); u.uYaw.value = T * 2.4 + seed; u.uTilt.value = 0.3; u.uS.value = 1.9; u.uFade.value = k;
-    this.glow(x, 0.05, z, 2.6, 0, 0, 0, 0, 2.6, GOLD, 12, 1.7 * k);                                  // the seal on the road
-    this.glow(x, 0.04, z, 3.4, 0, 0, 0, 0, 3.4, GOLD, 0, 0.5 * k);
-    this.glow(x, y, z + 0.6, 3.6, 0, 0, 0, 3.6, 0, GOLD, 13, 0.42 * k);                               // rays behind it
-    this.glow(x, 7, z + 0.7, 1.0, 0, 0, 0, 7, 0, GOLD, 8, 0.5 * k);                                    // the shaft of light
+    const m = this.bottles[i], u = m.material.uniforms, bob = Math.sin(T * 2.2 + seed) * 0.1, y = 1.75 + bob;
+    m.visible = true; u.uP.value.set(x, y, z); u.uYaw.value = T * 0.85 + seed; u.uTilt.value = 0.26; u.uS.value = 1.35; u.uFade.value = k;
+    this.glow(x, 0.05, z, 2.0, 0, 0, 0, 0, 2.0, GOLD, 12, 1.7 * k);                                  // the seal on the road
+    this.glow(x, 0.04, z, 2.7, 0, 0, 0, 0, 2.7, GOLD, 0, 0.5 * k);
+    this.glow(x, y, z + 0.6, 2.7, 0, 0, 0, 2.7, 0, GOLD, 13, 0.42 * k);                               // rays behind it
+    this.glow(x, 6, z + 0.7, 0.8, 0, 0, 0, 6, 0, GOLD, 8, 0.5 * k);                                    // the shaft of light
     for (let j = 0; j < 7; j++) {                                                                     // sparks climbing round it
-      const h = (T * 0.45 + j / 7 + seed) % 1, a = T * 1.3 + j * 2.4 + seed, r = 0.75 + 0.35 * Math.sin(j * 1.7);
-      this.glow(x + Math.cos(a) * r, 0.5 + h * 3.6, z - 0.35 + Math.sin(a) * r * 0.4, 0.34, 0, 0, 0, 0.34, 0, [1.0, 0.9, 0.55], 14, 1.5 * k * Math.sin(Math.PI * h), j * 0.37 + seed);
+      const h = (T * 0.35 + j / 7 + seed) % 1, a = T * 0.9 + j * 2.4 + seed, r = 0.6 + 0.25 * Math.sin(j * 1.7);
+      this.glow(x + Math.cos(a) * r, 0.4 + h * 2.8, z - 0.3 + Math.sin(a) * r * 0.4, 0.28, 0, 0, 0, 0.28, 0, [1.0, 0.9, 0.55], 14, 1.5 * k * Math.sin(Math.PI * h), j * 0.37 + seed);
     }
   }
   // a police cruiser (the WARDEN) with its light bar flashing

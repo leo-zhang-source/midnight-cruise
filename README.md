@@ -40,7 +40,7 @@ The cassette deck is the settings panel: it is off the screen until you press th
 
 ## The opening
 
-Every start from the home screen plays a 26-second film, cut on the bar lines of its score (**SKIP INTRO**, `S` or `Esc` cuts it to a 0.4 s fast-forward). It is letterboxed, and three lines are typed over it: where and when, then what the police radio says.
+Every start from the home screen plays a 26-second film in six shots, joined on the bar lines of its score by swings of the lens rather than cuts (a whip pan from each shot into the next; the last comes down out of the searchlight's white) (**SKIP INTRO**, `S` or `Esc` cuts it to a 0.4 s fast-forward). It is letterboxed, and three lines are typed over it: where and when, then what the police radio says.
 
 | At | Shot | What happens |
 |---|---|---|
