@@ -19,3 +19,7 @@ renders/test_cruise.png
 renders/test_busted.png
 renders/scenes/
 tools/renders/
+
+# press kit: full-size PNG originals (re-render with tools/promo.mjs) and the itch.io upload zip (a copy of dist/midnight-cruise.html)
+press/raw/
+press/*.zip
