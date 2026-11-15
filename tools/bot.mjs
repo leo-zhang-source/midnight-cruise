@@ -2,6 +2,7 @@
 // passable at each gear's base speed, measures how a run unfolds, and can print the event list of a clean run.
 //   node tools/bot.mjs                 fairness soak: several seeds, 4 minutes each (add --secs 300 --seeds 16)
 //   node tools/bot.mjs --nitro         also fire nitro canisters as they are picked up
+//   node tools/bot.mjs --lv 8          start every run at threat level 8 (the starting level in the settings)
 //   node tools/bot.mjs --script 68.95  print the events of a clean run (used for the canonical script)
 import { Timeline } from '../js/timeline.js';
 import { ROAD, TURBO, GAME, IGNITION } from '../js/cue.js';
@@ -50,7 +51,7 @@ export function play(seed, seconds, opt = {}) {
   // opt.intro: play the full opening (cruise at 1 + IGNITION s) instead of skipping it; opt.extra: other events to weave in
   const C = opt.intro ? 1 + IGNITION : 1.9, end = C + seconds, ev = [];
   const add = (type, t, data = {}) => { tl.add(type, t, data); ev.push({ type, t: +t.toFixed(3), ...data }); };
-  add('start', 1, seed === undefined ? {} : { seed }); if (!opt.intro) add('skip', 1.5);
+  add('start', 1, { ...(seed === undefined ? {} : { seed }), ...(opt.lv ? { lv: opt.lv } : {}) }); if (!opt.intro) add('skip', 1.5);
   for (const e of opt.extra || []) { const { type, t, ...d } = e; add(type, t, d); }
   let last = 0, nextNitro = 0, gotT = -1;
   const stats = { swipes: 0, stumbles: 0, over: 0, overT: 0, noRoute: 0 };
@@ -88,7 +89,7 @@ if (process.argv[1].endsWith("bot.mjs") && flag("script")) {
   let fails = 0;
   for (let k = 0; k < n; k++) {
     const seed = 1000 + k * 7919;
-    const r = play(seed, secs, { nitro: flag('nitro'), seek: flag('nitro') });
+    const r = play(seed, secs, { nitro: flag('nitro'), seek: flag('nitro'), lv: val('lv', 0) });
     const g = r.g;
     if (r.stats.over || r.stats.stumbles) fails++;
     const ev = r.tl.gameEvents(0, 1e9), cnt = (k) => ev.filter((e) => e.k === k).length;

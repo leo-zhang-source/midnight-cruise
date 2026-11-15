@@ -12,7 +12,7 @@ export class UI {
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
       skip: $('skip'), drivebar: $('drivebar'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
-      gain: $('gain'), buff: $('buff'), buffBar: $('buff-bar'), buffX: $('buff-x'), speedo: $('speedo'), cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
+      gain: $('gain'), buff: $('buff'), buffBar: $('buff-bar'), buffX: $('buff-x'), speedo: $('speedo'), cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), diff: $('diff'), diffLv: $('diff-lv'), diffName: $('diff-name'), diffStars: $('diff-stars'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
@@ -22,6 +22,10 @@ export class UI {
     };
     this.best = 0; this.last = -1;      // best score (kept in this browser) and the last run's score, for the home screen
     try { this.best = +localStorage.getItem('mc86.best') || 0; } catch (_) { /* storage unavailable: best score lasts for this visit */ }
+    // the level a run starts at (settings · DIFFICULTY), remembered in this browser; the start event carries it
+    let lv0 = 0; try { lv0 = +localStorage.getItem('mc86.lv') || 0; } catch (_) { /* not stored */ }
+    app.startLv = Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
+    this.el.diff.max = String(GAME.lvCap); this.el.diff.value = String(app.startLv); this.diffRead(app.startLv);
     this.el.lcdMeter.innerHTML = '<i></i>'.repeat(8);
     this.meterBars = [...this.el.lcdMeter.children];
     this.el.spdBar.innerHTML = '<i></i>'.repeat(14);
@@ -52,6 +56,13 @@ export class UI {
     E.auto.addEventListener('click', () => { const on = !this.app.tl.autoOn(this.app.now()); this.ev('auto', { on }); this.sfx('click'); });
     E.vol.addEventListener('input', () => { const v = E.vol.value / 100; this.app.audio.setVolume(v); clearTimeout(this._vt); this._vt = setTimeout(() => this.ev('vol', { v }), 120); });
     E.presets.forEach((b) => b.addEventListener('click', () => { const p = +b.dataset.p; if (this.app.tl.envTarget(this.app.now()) !== p) { this.ev('env', { preset: p }); this.sfx('select'); } }));
+    E.diff.addEventListener('input', () => {
+      const lv = Math.max(0, Math.min(GAME.lvCap, E.diff.value | 0));
+      if (lv === this.app.startLv) return;
+      this.app.startLv = lv; this.diffRead(lv); this.sfx('tick');
+      try { localStorage.setItem('mc86.lv', String(lv)); } catch (_) { /* not stored */ }
+      clearTimeout(this._dt); this._dt = setTimeout(() => this.ev('diff', { lv: this.app.startLv }), 150);   // the next run starts there
+    });
     // settings: the cassette deck (music, volume, colours) is a panel behind the gear key, so it takes none of the road
     E.settings.addEventListener('click', () => this.settings(E.deck.hidden));
     E.deckClose.addEventListener('click', () => this.settings(false));
@@ -98,6 +109,17 @@ export class UI {
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
     if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Nitro when you carry a canister'; document.body.classList.add('touch'); }
+  }
+
+  // the difficulty readout: the level, what it is called, and the wanted stars a run at that level never drops below
+  diffRead(lv) {
+    const E = this.el, F = GAME.starFloorLv;
+    const floor = lv >= F[3] ? 4 : lv >= F[2] ? 3 : lv >= F[1] ? 2 : 1;
+    E.diffLv.textContent = 'LV ' + lv;
+    E.diffName.textContent = ['ROOKIE', 'STREET', 'WANTED', 'MOST WANTED'][floor - 1];
+    E.diffStars.textContent = '★'.repeat(floor) + '☆'.repeat(5 - floor);
+    E.diff.setAttribute('aria-valuetext', `Level ${lv}, ${E.diffName.textContent.toLowerCase()}`);
+    E.diff.closest('.diff').dataset.tier = String(floor);
   }
 
   // open or close the settings panel; opening it during a run pauses the run (it stays paused when the panel closes)
@@ -221,7 +243,7 @@ export class UI {
     const stock = active && Gq && Gq.on ? Gq.nstock : 0, ready = active && U.ready >= 1;
     const boosting = active && Gq && Gq.on && this.app.tl.turboAt(T) ? 1 : 0;
     set('trb', stock, (n) => { E.turboRing.style.strokeDashoffset = CIRC * (1 - Math.min(1, n / GAME.nitroMax)); E.turbo.dataset.n = n; });
-    set('trbR', `${ready}|${boosting}|${stock}|${active}`, () => { E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = boosting ? 'BOOST' : ready ? 'READY · T' : stock ? 'WAIT' : active ? 'EMPTY' : 'STANDBY'; });
+    set('trbR', `${ready}|${boosting}|${stock}|${active}`, () => { E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = boosting ? 'BOOST' : ready ? 'READY · ↑' : stock ? 'WAIT' : active ? 'EMPTY' : 'STANDBY'; });
     set('trbF', this.fireT !== undefined && T - this.fireT < 0.18 ? 'true' : 'false', (v) => { E.turbo.dataset.fire = v; });
     // speedometer (MPH from the simulated road speed) and the control hints
     const mph = Math.round(Math.abs(s.road.vel) * GAME.mph);

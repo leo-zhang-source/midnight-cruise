@@ -19,6 +19,25 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 45: ↑ is boost; choose the level a run starts at
+
+You asked for forward to be the boost key and for a setting that picks where the difficulty starts.
+
+- **↑ is boost.** The up arrow already fired nitro, but everything on screen said `T`. Now the controls hint shows ↑, the NITRO button reads **READY · ↑**, and the home screen says "↑ nitro". `W` and `T` still work. On a touch screen it is still the NITRO button: a tap on the scene changes lane the moment your finger lands, so a swipe up could not be told apart from a lane change without slowing every lane change down.
+- **DIFFICULTY in the settings panel.** A slider from LV 0 to LV 20 sets the threat level a run starts at. Over it an LCD reads, for example, **START AT LV 9 · WANTED ★★★☆☆**. The stars are the wanted level a run at that level never drops below, and the readout's colour moves from green to red. The four bands on the slider are where that floor steps up: levels 4, 8 and 14.
+  - Starting higher means everything that comes with the level comes at once: police attacks come sooner and leave less time to react, rows of traffic sit closer, there are more lane changes and swerves, and canisters are further apart. The level still climbs one every 20 s from there.
+  - Your speed is not part of it: the car still starts in first gear and works up through the gears.
+  - The level applies from the next run (a restart, or START from the home screen). The run you are in keeps its level. The setting is remembered in this browser.
+  - The run starts at that level quietly: no THREAT LEVEL alarm on the first frame.
+- **How it works.** The start event carries the setting, and a change makes a `diff` event, so replays and rewinds stay exact. Starting at LV 0 is exactly the game as it was: the same seed gives the same run, checked state for state.
+
+| Check | Result |
+|---|---|
+| Simulation tests (`game-test.mjs`) | 86/86 (3 new: a run at LV 9 starts there with three stars and reaches LV 10 after 20 s; a change mid-run waits for the next run; LV 0 is unchanged) |
+| Bot soak, 300 s per run, from LV 0 / 4 / 8 / 12 / 14 / 16 / 20 | 16 / 40 / 56 / 40 / 16 / 40 / 16 runs. 1 hit in all of them: one run that started at LV 8 hit a truck at LV 16 after 167 s. With 5 s of foresight instead of 4, the bot gets through that run clean, so the road had a way through and the bot missed it. |
+| Bot soak firing nitro, from LV 14, 16 seeds × 300 s | all clean |
+| Environment test | 7/7 |
+
 ## Revision 44: nitro doubles your speed, for longer
 
 You asked for nitro at twice the speed and for longer.

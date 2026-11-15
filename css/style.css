@@ -170,6 +170,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .preset i { font-style: normal; font-family: "VT323", monospace; font-size: 17px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 3px; background: #0b1406; color: #4a6a20; }
 .preset[aria-checked="true"] { color: #fff; background: linear-gradient(180deg, #5a3a9e 0%, #3a2470 48%, #2e1a5e 52%, #44308a 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 3px 0 #07040e, 0 0 12px rgba(138,92,255,.6); }
 .preset[aria-checked="true"] i { color: var(--acid); text-shadow: 0 0 6px var(--acid); }
+/* DIFFICULTY: the threat level a run starts at — an LCD readout over a slider that runs from calm green to red */
+.diff { display: grid; gap: 2px; --tc: var(--acid); }
+.diff[data-tier="2"] { --tc: #ffe14a; } .diff[data-tier="3"] { --tc: #ff9a3c; } .diff[data-tier="4"] { --tc: #ff3f6c; }
+.diff-read { display: flex; align-items: baseline; gap: 8px; height: 30px; padding: 0 10px; border-radius: 5px; background: #0b1406; box-shadow: inset 0 2px 6px rgba(0,0,0,.8), 0 0 0 1px #2d3a1a;
+  font-family: "VT323", monospace; font-size: 20px; line-height: 30px; color: var(--tc); text-shadow: 0 0 6px currentColor; white-space: nowrap; overflow: hidden; }
+.diff-lbl { font-size: 15px; letter-spacing: .1em; opacity: .6; }
+.diff-read b { font-weight: 400; letter-spacing: .06em; min-width: 4.2ch; }
+.diff-name { flex: 1; font-size: 17px; letter-spacing: .1em; overflow: hidden; text-overflow: ellipsis; }
+.diff-stars { font-family: "Chakra Petch", sans-serif; font-size: 12px; letter-spacing: .08em; }
+.diff-range { display: flex; align-items: center; min-height: 40px; }
+.diff-range input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; background: transparent; margin: 0; cursor: pointer; }
+/* track: four bands where the star floor steps up (levels 4, 8 and 14 of 20) */
+.diff-range input::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; box-shadow: inset 0 1px 2px rgba(0,0,0,.6);
+  background: linear-gradient(90deg, var(--acid) 0 19%, #0e0a1c 19% 21%, #ffe14a 21% 39%, #0e0a1c 39% 41%, #ff9a3c 41% 69%, #0e0a1c 69% 71%, #ff3f6c 71%); }
+.diff-range input::-moz-range-track { height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--acid) 0 19%, #0e0a1c 19% 21%, #ffe14a 21% 39%, #0e0a1c 39% 41%, #ff9a3c 41% 69%, #0e0a1c 69% 71%, #ff3f6c 71%); }
+.diff-range input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 4px; background: var(--chrome); border: 1px solid #2a1a4a; box-shadow: 0 2px 4px rgba(0,0,0,.6), 0 0 8px var(--tc); }
+.diff-range input::-moz-range-thumb { width: 22px; height: 22px; border-radius: 4px; background: #dcd8ec; border: 1px solid #2a1a4a; }
+.diff-note { margin: 0; font-size: 11px; line-height: 1.35; color: #9f93c6; }
 
 #hud { position: fixed; left: 8px; top: 8px; font: 11px/1.35 ui-monospace, Menlo, monospace; color: #b8ff2e; background: rgba(0,0,0,.6); padding: 6px 8px; border-radius: 4px; pointer-events: none; white-space: pre; z-index: 9; }
 .noscript { position: fixed; inset: auto 0 40% 0; text-align: center; }

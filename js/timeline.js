@@ -77,7 +77,7 @@ export class Timeline {
   // ── derived structure (segments, turbos, env changes) ─────────────────────
   _derive() {
     if (this._derived) return this._derived;
-    const segs = [], envs = [], music = [], wins = [], autos = [], opts = { seed: SEED, free: 0 };
+    const segs = [], envs = [], music = [], wins = [], autos = [], diffs = [], opts = { seed: SEED, free: 0 };
     // every start after the first opens the same way: the tape rewinds, then the intro plays into the run
     const again = (t) => segs.push({ rew: t, s: t + REWIND, end: t + REWIND + IGNITION, C: t + REWIND + IGNITION, skip: null, until: Infinity });
     for (const e of this.events) {
@@ -88,6 +88,7 @@ export class Timeline {
             segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
             if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
             opts.free = e.free ? 1 : 0;
+            if (Number.isFinite(e.lv)) diffs.push({ t: e.t, lv: e.lv });
           } else if (cur.home !== undefined && e.t >= cur.home) again(e.t);   // from the home screen
           break;
         case 'home':                     // back to the home screen (title and START)
@@ -111,9 +112,10 @@ export class Timeline {
         case 'music': music.push(e); break;
         case 'win': wins.push(e); break;
         case 'auto': autos.push(e); break;
+        case 'diff': diffs.push(e); break;   // the starting threat level (settings): the next run starts there
       }
     }
-    this._derived = { segs, envs, music, wins, autos, opts };
+    this._derived = { segs, envs, music, wins, autos, diffs, opts };
     return this._derived;
   }
 
@@ -204,10 +206,11 @@ export class Timeline {
     }
   }
   _newRun(st, T, seg) {
-    const o = this._derive().opts;
+    const { opts: o, diffs } = this._derive();
     st.run++; st.segC = seg.C; st.runT = T;
     st.over = 0; st.overT = 0; st.rev = 0; st.hold = 0; st.paused = 0; st.nOn = 0; st.lane = 0;
-    st.g = freshGame(runSeed(o.seed, st.run), o.free);
+    let lv0 = 0; for (const d of diffs) if (d.t <= T) lv0 = d.lv;
+    st.g = freshGame(runSeed(o.seed, st.run), o.free, lv0);
     this._endNitro(T);
     this._gev.push({ t: T, k: 'run', n: st.run });
   }
@@ -237,7 +240,7 @@ export class Timeline {
       st.pos = o.pos; st.vel = o.vel; st.thr = o.thr; st.thrA = o.thrA;
     } else {
       const o = this._derive().opts, keep = st.g;
-      st.g = freshGame(runSeed(o.seed, st.run), o.free);
+      st.g = freshGame(runSeed(o.seed, st.run), o.free, keep.lv0);
       st.g.cells = keep.cells; st.lane = 0;
     }
     st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;

@@ -836,15 +836,15 @@
   }
   var clamp2 = (x, a, b) => x < a ? a : x > b ? b : x;
   var ramp = (r, lv, up) => up ? Math.min(r[1], r[0] + r[2] * lv) : Math.max(r[1], r[0] - r[2] * lv);
-  var lvOf = (g) => g.gt / GAME.lvEvery;
+  var lvOf = (g) => (g.lv0 || 0) + g.gt / GAME.lvEvery;
   var reactAt = (lv) => ramp(GAME.react, lv);
   var blinkAt = (lv) => ramp(GAME.sigBlink, lv);
   var moveAt = (lv) => ramp(GAME.sigMove, lv);
   var taxiAtFor = (lv) => blinkAt(lv) + moveAt(lv) + 0.5;
-  function sway(type, id, gt, lv, k = 0) {
+  function sway(type, id, gt, lv, k = 0, lv0 = 0) {
     if (type > T_TAXI) return 0;
     const tr = type === T_TRUCK ? 0.33 : 1, A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * tr, w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
-    return A * (k ? w * Math.cos(p) : Math.sin(p)) + jink(id, gt, k) * tr;
+    return A * (k ? w * Math.cos(p) : Math.sin(p)) + jink(id, gt, k, lv0) * tr;
   }
   var h01 = (a, b) => {
     let t = Math.imul(a ^ 2654435769, 2246822507) ^ Math.imul(b + 1663821227, 3266489909);
@@ -853,20 +853,22 @@
     t ^= t >>> 12;
     return (t >>> 0) / 4294967296;
   };
-  function jink(id, gt, k = 0) {
+  function jink(id, gt, k = 0, lv0 = 0) {
     const J = GAME.jink, off = id % 13 * 0.37, n = Math.floor((gt + off) / J.win);
     if (n < 2) return 0;
-    const lw = Math.min(GAME.lvCap, (n * J.win - off) / GAME.lvEvery);
+    const lw = Math.min(GAME.lvCap, lv0 + (n * J.win - off) / GAME.lvEvery);
     if (h01(id, n) >= Math.min(J.p[2], J.p[0] + J.p[1] * lw)) return 0;
     const D = Math.max(J.dur[1], J.dur[0] - J.dur[2] * lw), u0 = h01(id + 7919, n) * (J.win - D), m = (gt + off - n * J.win - u0) / D;
     if (m <= 0 || m >= 1) return 0;
     const A = Math.min(J.amp[2], J.amp[0] + J.amp[1] * lw) * (h01(id + 104729, n) < 0.5 ? -1 : 1), sn = Math.sin(Math.PI * m);
     return k ? A * Math.PI * Math.sin(2 * Math.PI * m) / D : A * sn * sn;
   }
-  function freshGame(seed = 1986, free = 0) {
+  function freshGame(seed = 1986, free = 0, lv0 = 0) {
+    lv0 = Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
     return {
       seed,
       free: free ? 1 : 0,
+      lv0,
       rs: seed | 0,
       gt: 0,
       gd: 0,
@@ -895,7 +897,7 @@
       gear: 0,
       nstock: free ? 1 : 0,
       nfree: 0,
-      lvN: 0,
+      lvN: lv0,
       aiNext: 0,
       atkGap: 0,
       bias: 0,
@@ -1132,7 +1134,7 @@
         } else {
           let x = type === T_BLOCK && !a ? veh[o + 1] : fromLane(fl);
           if (a !== 0 && type !== T_TRUCK) x += b > 0 ? a * sCurve((gt + t - b - veh[o + 9]) / veh[o + 10]) : 0;
-          x += sway(type, id, gt + t, lv);
+          x += sway(type, id, gt + t, lv, 0, g.lv0);
           lo = hi = x;
         }
         if (lane > hi + w || lane < lo - w) continue;
@@ -1165,7 +1167,7 @@
     let u = g.genU;
     const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];
     const kf = clamp2((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);
-    const tg = (G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf) * (1 - Math.min(G.dens[1], G.dens[0] * Math.min(G.lvCap, g.gt / G.lvEvery)));
+    const tg = (G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf) * (1 - Math.min(G.dens[1], G.dens[0] * Math.min(G.lvCap, lvOf(g))));
     const side = () => rnd(g) < 0.5 ? -1 : 1;
     if (g.gapWant > 0 && i >= 3) {
       const D = g.gapWant, n = Math.max(2, Math.round(D * w / 34));
@@ -1182,7 +1184,7 @@
     }
     const adj = (l) => l === 0 ? side() : 0;
     const third = (a, b) => -(a + b);
-    const lv = Math.min(14, g.gt / G.lvEvery);
+    const lv = Math.min(14, lvOf(g));
     const block = i >= 3 && rnd(g) < Math.min(0.42, G.blockP[g.star] + (g.star >= 2 ? G.blockLv * lv : 0));
     const eta = (u + g.tr - g.gd) / Math.max(1, gameBase(g) - g.vt + G.blockSlow), calm = eta > busyFor(g) + G.weaveFree + 0.3;
     const weaver = block && rnd(g) < G.weaveP[g.star] && calm;
@@ -1416,7 +1418,7 @@
     const up = gd - g.tr;
     for (let n = 0; g.genU < up + aheadFor(g) && n < 6; n++) genRow(g);
     let mult = gameMult(g);
-    const lv = gt / G.lvEvery, react = reactAt(lv), warn = react + G.warn, cad = 1 / (1 + G.cadence * Math.min(lv, G.lvCap));
+    const lv = lvOf(g), react = reactAt(lv), warn = react + G.warn, cad = 1 / (1 + G.cadence * Math.min(lv, G.lvCap));
     const endLane = g.mid ? null : g.path;
     let grid0 = null;
     const fair = (cells) => {
@@ -1458,17 +1460,17 @@
             veh[o + 9] = blinkAt(lv);
             veh[o + 10] = moveAt(lv);
           }
-          veh[o + 1] = from + sway(type, veh[o + 8], gt, lv);
+          veh[o + 1] = from + sway(type, veh[o + 8], gt, lv, 0, g.lv0);
         } else {
           const m = (gt - veh[o + 7] - veh[o + 9]) / veh[o + 10];
           if (m >= 1) {
-            veh[o + 1] = from + veh[o + 6] + sway(type, veh[o + 8], gt, lv);
+            veh[o + 1] = from + veh[o + 6] + sway(type, veh[o + 8], gt, lv, 0, g.lv0);
             veh[o + 5] = veh[o + 5] & ~(3 << 9 | NASTY) | from + veh[o + 6] + 1 << 9;
             veh[o + 6] = 0;
             veh[o + 7] = -gt;
-          } else veh[o + 1] = from + (m > 0 ? veh[o + 6] * sCurve(m) : 0) + sway(type, veh[o + 8], gt, lv);
+          } else veh[o + 1] = from + (m > 0 ? veh[o + 6] * sCurve(m) : 0) + sway(type, veh[o + 8], gt, lv, 0, g.lv0);
         }
-      } else if (type <= T_TAXI) veh[o + 1] = fromLane(veh[o + 5]) + sway(type, veh[o + 8], gt, lv);
+      } else if (type <= T_TAXI) veh[o + 1] = fromLane(veh[o + 5]) + sway(type, veh[o + 8], gt, lv, 0, g.lv0);
       let fl = veh[o + 5];
       if (type !== T_BLOCK) veh[o + 3] = g.vt + laneV(veh[o + 1]) * lr + (type < T_TAXI ? breathe(veh[o + 8], gt, 1) : 0);
       if (type === T_WEAVE) {
@@ -2154,7 +2156,7 @@
     // ── derived structure (segments, turbos, env changes) ─────────────────────
     _derive() {
       if (this._derived) return this._derived;
-      const segs = [], envs = [], music = [], wins = [], autos = [], opts = { seed: SEED, free: 0 };
+      const segs = [], envs = [], music = [], wins = [], autos = [], diffs = [], opts = { seed: SEED, free: 0 };
       const again = (t) => segs.push({ rew: t, s: t + REWIND, end: t + REWIND + IGNITION, C: t + REWIND + IGNITION, skip: null, until: Infinity });
       for (const e of this.events) {
         const cur = segs[segs.length - 1];
@@ -2164,6 +2166,7 @@
               segs.push({ rew: null, s: e.t, end: e.t + IGNITION, C: e.t + IGNITION, skip: null, until: Infinity });
               if (Number.isFinite(e.seed)) opts.seed = e.seed | 0;
               opts.free = e.free ? 1 : 0;
+              if (Number.isFinite(e.lv)) diffs.push({ t: e.t, lv: e.lv });
             } else if (cur.home !== void 0 && e.t >= cur.home) again(e.t);
             break;
           case "home":
@@ -2208,9 +2211,12 @@
           case "auto":
             autos.push(e);
             break;
+          case "diff":
+            diffs.push(e);
+            break;
         }
       }
-      this._derived = { segs, envs, music, wins, autos, opts };
+      this._derived = { segs, envs, music, wins, autos, diffs, opts };
       return this._derived;
     }
     phaseAt(T) {
@@ -2328,7 +2334,7 @@
       }
     }
     _newRun(st, T, seg) {
-      const o = this._derive().opts;
+      const { opts: o, diffs } = this._derive();
       st.run++;
       st.segC = seg.C;
       st.runT = T;
@@ -2339,7 +2345,9 @@
       st.paused = 0;
       st.nOn = 0;
       st.lane = 0;
-      st.g = freshGame(runSeed(o.seed, st.run), o.free);
+      let lv0 = 0;
+      for (const d of diffs) if (d.t <= T) lv0 = d.lv;
+      st.g = freshGame(runSeed(o.seed, st.run), o.free, lv0);
       this._endNitro(T);
       this._gev.push({ t: T, k: "run", n: st.run });
     }
@@ -2375,7 +2383,7 @@
         st.thrA = o.thrA;
       } else {
         const o = this._derive().opts, keep = st.g;
-        st.g = freshGame(runSeed(o.seed, st.run), o.free);
+        st.g = freshGame(runSeed(o.seed, st.run), o.free, keep.lv0);
         st.g.cells = keep.cells;
         st.lane = 0;
       }

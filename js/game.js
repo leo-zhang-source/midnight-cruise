@@ -49,21 +49,21 @@ export function weave(t, k = 0) {
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 // The threat level, and what follows from it: [value at level 0, the limit, change per level] → the value at level lv
 const ramp = (r, lv, up) => (up ? Math.min(r[1], r[0] + r[2] * lv) : Math.max(r[1], r[0] - r[2] * lv));
-export const lvOf = (g) => g.gt / GAME.lvEvery;
+export const lvOf = (g) => (g.lv0 || 0) + g.gt / GAME.lvEvery;     // a run can start part-way up (the starting level in the settings)
 export const reactAt = (lv) => ramp(GAME.react, lv);                                   // the time a driver is given to see something coming
 export const blinkAt = (lv) => ramp(GAME.sigBlink, lv), moveAt = (lv) => ramp(GAME.sigMove, lv);   // a lane change: signalled for, steered in
 export const taxiAtFor = (lv) => blinkAt(lv) + moveAt(lv) + 0.5;                        // a planned lane change starts this long before we arrive
 // Every car, van and taxi wanders across its lane, more as the level rises (lanes; k = 1: its rate of change per second)
-export function sway(type, id, gt, lv, k = 0) {
+export function sway(type, id, gt, lv, k = 0, lv0 = 0) {
   if (type > T_TAXI) return 0;
   const tr = type === T_TRUCK ? 0.33 : 1, A = Math.min(GAME.sway[2], GAME.sway[0] + GAME.sway[1] * lv) * tr, w = (1.1 + 0.17 * (id % 5)) * (1 + GAME.swayRate * Math.min(lv, GAME.lvCap)), p = w * gt + id * 1.7;
-  return A * (k ? w * Math.cos(p) : Math.sin(p)) + jink(id, gt, k) * tr;
+  return A * (k ? w * Math.cos(p) : Math.sin(p)) + jink(id, gt, k, lv0) * tr;
 }
 // … and now and then a sudden swerve, decided per vehicle and per window of time (so it is the same however the timeline is stepped)
 const h01 = (a, b) => { let t = Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b + 0x632BE5AB, 0xC2B2AE35); t ^= t >>> 15; t = Math.imul(t, 0x2C1B3C6D); t ^= t >>> 12; return (t >>> 0) / 4294967296; };
-export function jink(id, gt, k = 0) {
+export function jink(id, gt, k = 0, lv0 = 0) {
   const J = GAME.jink, off = (id % 13) * 0.37, n = Math.floor((gt + off) / J.win); if (n < 2) return 0;
-  const lw = Math.min(GAME.lvCap, (n * J.win - off) / GAME.lvEvery);                     // the level when this window began
+  const lw = Math.min(GAME.lvCap, lv0 + (n * J.win - off) / GAME.lvEvery);                     // the level when this window began
   if (h01(id, n) >= Math.min(J.p[2], J.p[0] + J.p[1] * lw)) return 0;
   const D = Math.max(J.dur[1], J.dur[0] - J.dur[2] * lw), u0 = h01(id + 7919, n) * (J.win - D), m = (gt + off - n * J.win - u0) / D;
   if (m <= 0 || m >= 1) return 0;
@@ -71,15 +71,16 @@ export function jink(id, gt, k = 0) {
   return k ? A * Math.PI * Math.sin(2 * Math.PI * m) / D : A * sn * sn;                    // a smooth bump: out and straight back
 }
 
-export function freshGame(seed = 1986, free = 0) {
+export function freshGame(seed = 1986, free = 0, lv0 = 0) {
+  lv0 = Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
   return {
-    seed, free: free ? 1 : 0, rs: seed | 0, gt: 0, gd: 0,
+    seed, free: free ? 1 : 0, lv0, rs: seed | 0, gt: 0, gd: 0,
     veh: new Float64Array(NV * VF), cel: new Float64Array(NC * CF), itm: new Float64Array(NI * IF), nid: 1,
     genU: GAME.firstRow, genI: 0, path: 0, lastPat: 0, mid: 0, itmNext: GAME.nitroFirst,
     vt: GAME.trafficK * GAME.gears[0], tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: 0,
     nstock: free ? 1 : 0, nfree: 0,
-    lvN: 0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0, gapWant: 0, flowNext: 6, cutNext: 12, flowN: 0, cuts: 0,   // … the traffic's next lane change, how many so far, how many aimed at us                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
+    lvN: lv0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0, gapWant: 0, flowNext: 6, cutNext: 12, flowN: 0, cuts: 0,   // … the traffic's next lane change, how many so far, how many aimed at us                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
     heat: 1, heatGt: -1e9, star: 1, nUse: 0, wd0: 0,                                 // nitro bursts since the heat was last cleared, and the road position where it was
     lives: 2, nz: 0,                                                                 // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
     pcl: 0, stG: 0, slow: 0,                                                         // tail-close until, stumble grace until, slowed until
@@ -219,7 +220,7 @@ function laneTaken(g, lane, zA, zB, r, lv, H = PICK_H) {
       else {
         let x = type === T_BLOCK && !a ? veh[o + 1] : fromLane(fl);
         if (a !== 0 && type !== T_TRUCK) x += b > 0 ? a * sCurve((gt + t - b - veh[o + 9]) / veh[o + 10]) : 0;
-        x += sway(type, id, gt + t, lv); lo = hi = x;
+        x += sway(type, id, gt + t, lv, 0, g.lv0); lo = hi = x;
       }
       if (lane > hi + w || lane < lo - w) continue;
       return true;
@@ -250,7 +251,7 @@ function genRow(g) {
   const G = GAME, gear = g.gear, p = g.path, i = g.genI++; let u = g.genU;
   const w = gameBase(g) * (1 - G.trafficK), room = 2 * G.stagger[1];   // closing speed at cruise; room for the stagger of this row and the next
   const kf = clamp((gameBase(g) - G.gears[0]) / (G.gears[5] - G.gears[0]), 0, 1);   // how far through the gears we are, 0..1
-  const tg = (G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf) * (1 - Math.min(G.dens[1], G.dens[0] * Math.min(G.lvCap, g.gt / G.lvEvery)));   // (closer as the level rises)
+  const tg = (G.rowGap[0] + (G.rowGap[1] - G.rowGap[0]) * kf) * (1 - Math.min(G.dens[1], G.dens[0] * Math.min(G.lvCap, lvOf(g))));   // (closer as the level rises)
   const side = () => (rnd(g) < 0.5 ? -1 : 1);
   if (g.gapWant > 0 && i >= 3) {         // the police have asked for room: the traffic is held back for a set piece. Cells are strung across the gap.
     const D = g.gapWant, n = Math.max(2, Math.round(D * w / 34)); g.gapWant = 0;
@@ -260,7 +261,7 @@ function genRow(g) {
   }
   const adj = (l) => (l === 0 ? side() : 0);                 // a lane next to l
   const third = (a, b) => -(a + b);                           // the lane that is neither a nor b (lanes sum to 0)
-  const lv = Math.min(14, g.gt / G.lvEvery);                  // the threat level: with it more police ahead, more pairs and convoys, more lane-changers
+  const lv = Math.min(14, lvOf(g));                  // the threat level: with it more police ahead, more pairs and convoys, more lane-changers
   const block = i >= 3 && rnd(g) < Math.min(0.42, G.blockP[g.star] + (g.star >= 2 ? G.blockLv * lv : 0));   // police ahead instead of traffic
   // (a cruiser whose lane is not settled until we are close is not sent into an attack that will still be going on when we reach it)
   const eta = (u + g.tr - g.gd) / Math.max(1, gameBase(g) - g.vt + G.blockSlow), calm = eta > busyFor(g) + G.weaveFree + 0.3;
@@ -436,7 +437,7 @@ export function stepGame(g, inp, out) {
   let mult = gameMult(g);
 
   // ── the police think. The threat level sets how hard: how soon they attack again, and how little time they leave a driver ──
-  const lv = gt / G.lvEvery, react = reactAt(lv), warn = react + G.warn, cad = 1 / (1 + G.cadence * Math.min(lv, G.lvCap));
+  const lv = lvOf(g), react = reactAt(lv), warn = react + G.warn, cad = 1 / (1 + G.cadence * Math.min(lv, G.lvCap));
   const endLane = g.mid ? null : g.path;        // where a driver must be once past everything now on the road: the lane the next row will count on
   // Their picture of the road for the next seconds (js/foresight.js). An attack is laid over it as [lane, from, to] cells, and it only goes
   // ahead if a driver in our lane, given `react` seconds to see it, still has a way through: fair(cells) → 0 if not, else 1 + the lane changes needed.
@@ -466,13 +467,13 @@ export function stepGame(g, inp, out) {
       if (veh[o + 7] === 0) {                         // (a planned one: it starts as we close in, later and quicker as the level rises)
         const gap0 = veh[o + 2] - gd - (veh[o + 4] + CAR_HL);
         if (gap0 < (vFull - g.vt) * tAt) { veh[o + 7] = gt; veh[o + 9] = blinkAt(lv); veh[o + 10] = moveAt(lv); }
-        veh[o + 1] = from + sway(type, veh[o + 8], gt, lv);
+        veh[o + 1] = from + sway(type, veh[o + 8], gt, lv, 0, g.lv0);
       } else {
         const m = (gt - veh[o + 7] - veh[o + 9]) / veh[o + 10];
-        if (m >= 1) { veh[o + 1] = from + veh[o + 6] + sway(type, veh[o + 8], gt, lv); veh[o + 5] = (veh[o + 5] & ~((3 << 9) | NASTY)) | ((from + veh[o + 6] + 1) << 9); veh[o + 6] = 0; veh[o + 7] = -gt; }     // b < 0: when it finished (the picture lets it settle); it lives in its new lane now
-        else veh[o + 1] = from + (m > 0 ? veh[o + 6] * sCurve(m) : 0) + sway(type, veh[o + 8], gt, lv);
+        if (m >= 1) { veh[o + 1] = from + veh[o + 6] + sway(type, veh[o + 8], gt, lv, 0, g.lv0); veh[o + 5] = (veh[o + 5] & ~((3 << 9) | NASTY)) | ((from + veh[o + 6] + 1) << 9); veh[o + 6] = 0; veh[o + 7] = -gt; }     // b < 0: when it finished (the picture lets it settle); it lives in its new lane now
+        else veh[o + 1] = from + (m > 0 ? veh[o + 6] * sCurve(m) : 0) + sway(type, veh[o + 8], gt, lv, 0, g.lv0);
       }
-    } else if (type <= T_TAXI) veh[o + 1] = fromLane(veh[o + 5]) + sway(type, veh[o + 8], gt, lv);      // nobody holds a lane dead straight
+    } else if (type <= T_TAXI) veh[o + 1] = fromLane(veh[o + 5]) + sway(type, veh[o + 8], gt, lv, 0, g.lv0);      // nobody holds a lane dead straight
     let fl = veh[o + 5];
     if (type !== T_BLOCK) veh[o + 3] = g.vt + laneV(veh[o + 1]) * lr + (type < T_TAXI ? breathe(veh[o + 8], gt, 1) : 0);   // each lane has its speed; a taxi or a weaving cruiser picks it up as it crosses
     if (type === T_WEAVE) {              // a: the side it weaves to · b: where in its cycle it started; once it has picked a lane, its sideways speed

@@ -128,6 +128,15 @@ let crashT;
     ok('the threat level rises by one every lvEvery seconds', lv.join() === Array.from({ length: GAME.starFloorLv[1] }, (_, i) => i + 1).join() && g.lvN === GAME.starFloorLv[1], `levels ${lv.join(' ')} in ${g.gt.toFixed(0)} s`);
     g.heat = 1; g.wd0 = g.gd; step(24);
     ok('… and from level ' + GAME.starFloorLv[1] + ' the wanted level never drops below two stars', g.star === 2, `${g.star}★ straight after the heat is wiped`); }
+  // the starting level (settings): a run can start part-way up; it climbs from there, and the first run's level carries through restarts until changed
+  { const g = freshGame(5, 0, 9); g.genU = 1e12; const out = []; for (let i = 0; i < 240 * 21; i++) stepGame(g, { dt: 1 / 240, x: 0, lane: 0, vel: 90, brk: 0, nitro: 0 }, out);
+    const lv = out.filter((e) => e.k === 'level').map((e) => e.n);
+    ok('a run set to start at level 9 is at level 9 straight away (no level-up alarm), three stars at least, and level 10 twenty seconds on', lv.join() === '10' && g.lvN === 10 && g.star >= 3, `levels ${lv.join(' ')}, ${g.star}★`); }
+  { const tl = fresh(7, { lv: 6 }); const a = tl.stateAt(C + 1).g.lvN; tl.add('diff', C + 5, { lv: 2 }); const b = tl.stateAt(C + 6).g.lvN;
+    tl.add('pause', C + 7, { on: true }); tl.add('restart', C + 7.5); tl.add('skip', C + 8.3); const T2 = C + 7.5 + 0.6 + 2; const c = tl.stateAt(T2).g.lvN, r = tl.stateAt(T2).run;
+    ok('the starting level comes with the start; a change during a run waits for the next one', a === 6 && b === 6 && c === 2 && r === 2, `run 1 at ${a}, still ${b} after the change, run ${r} at ${c}`); }
+  { const r0 = play(4242, 60, {}), t1 = new Timeline(); t1.load(r0.ev.map((e) => (e.type === 'start' ? { ...e, lv: 0 } : e)));
+    ok('starting at level 0 is the game as it was', sig(r0.tl.stateAt(C + 60)) === sig(t1.stateAt(C + 60))); }
   // a second stumble while the police are on the tail → busted
   const t3 = new Timeline(); t3.load(base);
   t3.stateAt(hit.T - 0.004); t3._st.g.lives = 1;                  // one life is already gone (edit the live state)

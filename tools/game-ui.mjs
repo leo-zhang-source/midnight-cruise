@@ -142,7 +142,7 @@ async function wreck(p, touch, once) {
   const tl = new Timeline(); tl.load(CANONICAL);
   const gev = tl.gameEvents(0, 96), item = gev.find((e) => e.k === 'item'), fire = gev.find((e) => e.k === 'nitro' && e.t > item.t);
   const p = await open({ viewport: { width: 1280, height: 720 } }, `script=canonical&capture=1&w=1280&h=720&t=${(item.t + 0.6).toFixed(2)}&tier=0`);
-  let s = await gs(p); ok('a picked-up canister is stored: NITRO shows one pip and READY', fire.t - item.t > 1 && s.nstock === 1 && s.nitroN === '1' && s.nitro === 'true' && s.nitroTxt === 'READY · T', JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, picked: +item.t.toFixed(2), fired: +fire.t.toFixed(2) }));
+  let s = await gs(p); ok('a picked-up canister is stored: NITRO shows one pip and READY', fire.t - item.t > 1 && s.nstock === 1 && s.nitroN === '1' && s.nitro === 'true' && s.nitroTxt === 'READY · ↑', JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, picked: +item.t.toFixed(2), fired: +fire.t.toFixed(2) }));
   await p.evaluate((T) => MC.seek(T), fire.t + 1.1); await p.waitForTimeout(100);
   s = await gs(p); ok('firing it spends the canister: BOOST, stock back to 0, speed up', s.nstock === 0 && s.nitroN === '0' && s.nitroTxt === 'BOOST' && s.vel > 80, JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, v: Math.round(s.vel) }));
   await p.evaluate(() => MC.seek(97.5)); await p.waitForTimeout(100);

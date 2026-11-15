@@ -21,7 +21,7 @@
   <div id="cine" aria-hidden="true"><i class="cb-t"></i><i class="cb-b"></i><p id="cine-cap"></p></div>
 
   <h1 class="sr-only">Midnight Cruise — 1986</h1>
-  <p class="sr-only" id="about">A synthwave highway chase. Start the drive, then weave through slower traffic on a three-lane highway into the city while the police follow: press the left and right arrow keys (or tap the left or right side of the screen) to change lane. The car drives flat out by itself and has no brake. Pick up nitro canisters and press T or Nitro to smash through traffic. Driving into the back of a vehicle ends the run; clipping one puts the police on your tail, and a second mistake while they are there gets you busted. A cassette deck controls the music and the colours.</p>
+  <p class="sr-only" id="about">A synthwave highway chase. Start the drive, then weave through slower traffic on a three-lane highway into the city while the police follow: press the left and right arrow keys (or tap the left or right side of the screen) to change lane. The car drives flat out by itself and has no brake. Pick up nitro canisters and press the up arrow (or the Nitro button) to smash through traffic. Driving into the back of a vehicle ends the run; clipping one puts the police on your tail, and a second mistake while they are there gets you busted. The settings panel holds the music, the colours and the level a run starts at.</p>
 
   <!-- VCR on-screen display (crisp, above the tape image) -->
   <div id="osd" aria-hidden="true">
@@ -36,7 +36,7 @@
       <span class="start-icon" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg></span>
       <span class="start-label">START DRIVE</span>
     </button>
-    <p class="start-note" id="start-note">Sound on · ← → change lane · T nitro</p>
+    <p class="start-note" id="start-note">Sound on · ← → change lane · ↑ nitro</p>
   </div>
 
   <nav id="corner" aria-label="Sequence">
@@ -47,7 +47,7 @@
 
   <div id="hints" aria-hidden="true">
     <span class="h-key"><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M7 1 L2 5 L7 9 Z"/></svg></kbd><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M3 1 L8 5 L3 9 Z"/></svg></kbd><span class="k-only">CHANGE LANE</span><span class="t-only">TAP LEFT / RIGHT TO CHANGE LANE</span></span>
-    <span class="h-key"><kbd class="k-only">T</kbd><kbd class="t-only">NITRO</kbd> <span>BOOST · NEEDS A CANISTER</span></span>
+    <span class="h-key"><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M1 7 L5 2 L9 7 Z"/></svg></kbd><kbd class="t-only">NITRO</kbd> <span>BOOST · NEEDS A CANISTER</span></span>
   </div>
 
   <!-- game HUD: score and multiplier, wanted stars and threat level, lives, cells, spare tapes, and the police-on-your-tail notice -->
@@ -152,6 +152,12 @@
         <button class="key preset" type="button" role="radio" aria-checked="false" data-p="1"><i>B</i>BLUE HOUR</button>
         <button class="key preset" type="button" role="radio" aria-checked="false" data-p="2"><i>C</i>AFTERGLOW</button>
         <button class="key preset" type="button" role="radio" aria-checked="false" data-p="3"><i>D</i>LAGOON</button>
+      </div>
+      <p class="deck-cap">DIFFICULTY</p>
+      <div class="diff">
+        <div class="diff-read"><span class="diff-lbl">START AT</span><b id="diff-lv">LV 0</b><span class="diff-name" id="diff-name">ROOKIE</span><span class="diff-stars" id="diff-stars" aria-hidden="true">★☆☆☆☆</span></div>
+        <label class="diff-range"><span class="sr-only">Starting threat level</span><input id="diff" type="range" min="0" max="20" value="0" step="1" aria-describedby="diff-note"></label>
+        <p class="diff-note" id="diff-note">The threat level a run starts at. It still climbs one level every 20 s from there.</p>
       </div>
     </div>
   </section>

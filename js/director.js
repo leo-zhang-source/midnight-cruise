@@ -122,7 +122,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
       else { const ph = gt + b; vx = a * L * weave(ph, 1); ax = a * L * weave(ph, 2); sweep = a; }
     }
     let x = lane * L - back * vx;
-    if (!police) vx += L * sway(type, id, gt, lvOf(g), 1);       // nobody holds a lane dead straight: the wander is in the simulation (`lane` has it); here, the heading that goes with it
+    if (!police) vx += L * sway(type, id, gt, lvOf(g), 1, g.lv0);       // nobody holds a lane dead straight: the wander is in the simulation (`lane` has it); here, the heading that goes with it
     if (wander > 0) {
       if (police) { const p3 = gt * 2.3 + id * 1.9; x += wander * 0.75 * Math.sin(p3); vx += wander * 0.75 * 2.3 * Math.cos(p3); }   // a cruiser holding a lane snakes across it to cover it
     }

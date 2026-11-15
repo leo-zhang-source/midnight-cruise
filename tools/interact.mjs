@@ -87,6 +87,12 @@ s = await st(); ok('music resume', s.music === true);
 // mute & volume
 await p.click('#mute'); const mu = await p.evaluate(() => MC._audio.muted); ok('mute', mu === true); await p.click('#mute');
 await p.locator('#vol').fill('40'); const vol = await p.evaluate(() => MC._audio.volume); ok('volume slider', Math.abs(vol - 0.4) < 0.01, `vol=${vol}`);
+// difficulty: the starting level, remembered in this browser, recorded for the next run (this run keeps its own)
+{ const lv0 = await p.evaluate(() => MC.tl.stateAt(MC.state().T).g.lvN);
+  await p.locator('#diff').fill('9'); await p.waitForTimeout(400);
+  const d = await p.evaluate(() => ({ read: document.getElementById('diff-lv').textContent, name: document.getElementById('diff-name').textContent, stored: localStorage.getItem('mc86.lv'), ev: MC.events().filter((e) => e.type === 'diff').map((e) => e.lv), lv: MC.tl.stateAt(MC.state().T).g.lvN }));
+  ok('the DIFFICULTY slider sets the level the next run starts at: LV 9 · WANTED, kept in this browser, this run unchanged', d.read === 'LV 9' && d.name === 'WANTED' && d.stored === '9' && d.ev.join() === '9' && d.lv === lv0, JSON.stringify(d));
+  await p.locator('#diff').fill('0'); await p.waitForTimeout(400); }
 // closing the panel leaves the run paused; P resumes it
 await p.click('#deck-close'); await p.waitForTimeout(300);
 ok('closing the settings panel leaves the run paused, with the pause menu', await p.evaluate(() => document.getElementById('deck').hidden && MC.state().ui.g.paused && !document.getElementById('paused').hidden));
