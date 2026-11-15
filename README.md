@@ -8,6 +8,8 @@ A synthwave highway chase on a 1986 videotape. You press PLAY and a 26-second op
 
 It opens in a current Chrome, Edge, Safari or Firefox, on desktop or phone, and nothing needs installing.
 
+**Also on itch.io:** https://leo8654.itch.io/midnight-cruise. It's free and plays in the page, with screenshots and a store description; the cover, screenshots and copy are in [`press/`](press/). The itch.io copy is a snapshot: it updates only when a new zip is uploaded there, so the GitHub Pages link above is always the newest build.
+
 - **One file.** The live site is a single self-contained page, `docs/index.html`, with all code, fonts and samples inlined. A browser can't end up with a mix of old and new files.
 - **Always the latest version.** GitHub Pages republishes it on every push to `main`, usually within a minute or two. Each time the page opens, it compares its build id with `version.json`, which is fetched uncached. If a newer build is live, the page reloads itself once.
 - **If it can't start**, for example because a download was cut off or WebGL is unavailable, the page shows the reason and a RELOAD button in place of an unresponsive START.
