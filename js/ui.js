@@ -12,7 +12,7 @@ export class UI {
     this.el = {
       osd: $('osd'), osdText: $('osd-text'), osdClock: $('osd-clock'), startWrap: $('start-wrap'), start: $('start'),
       skip: $('skip'), drivebar: $('drivebar'), turbo: $('turbo'), turboRing: $('turbo-ring'), turboState: $('turbo-state'),
-      cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
+      gain: $('gain'), buff: $('buff'), buffBar: $('buff-bar'), buffX: $('buff-x'), speedo: $('speedo'), cine: $('cine'), cineCap: $('cine-cap'), deck: $('deck'), deckShade: $('deck-shade'), deckClose: $('deck-close'), settings: $('settings'), play: $('play'), mute: $('mute'), vol: $('vol'), auto: $('auto'), autoFill: $('auto-fill'),
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
@@ -274,6 +274,23 @@ export class UI {
     const on = Gm && Gm.on && !Gm.free ? 1 : 0;
     set('gOn', on, (v) => { E.ghud.style.visibility = v ? 'visible' : 'hidden'; });
     set('gear', Gm && Gm.on ? Gm.gear : 0, (g) => { E.gear.textContent = g ? 'G' + g : ''; });
+    // nitro: "+1 NITRO" rises from the button when a canister is taken aboard, and the button flashes gold; while a burst lasts
+    // a gold panel over the controls says what it gives and how much of it is left, and the speedometer turns gold
+    const gn = Gm && Gm.on ? Gm.gain : null;
+    set('gain', gn ? gn.age.toFixed(2) + '|' + gn.n : '', () => {
+      if (!gn) { E.gain.style.visibility = 'hidden'; return; }
+      const a = gn.age, pop = 1 + 0.55 * Math.exp(-a / 0.12), y = -(6 + 44 * (1 - Math.exp(-a / 0.45))), op = a < 1.1 ? 1 : Math.max(0, 1 - (a - 1.1) / 0.5);
+      E.gain.textContent = `+1 NITRO  ${gn.n}/${GAME.nitroMax}`;
+      E.gain.style.visibility = 'visible'; E.gain.style.opacity = op.toFixed(3); E.gain.style.transform = `translateY(${y.toFixed(1)}px) scale(${pop.toFixed(3)})`;
+    });
+    set('gainF', gn && gn.age < 0.7 ? '1' : '0', (v) => { E.turbo.dataset.gain = v; });
+    const bk = Gm && Gm.on ? Gm.boost || 0 : 0;
+    set('buff', bk > 0 ? bk.toFixed(3) : '', (v) => {
+      E.buff.style.visibility = v ? 'visible' : 'hidden';
+      if (v) { E.buffBar.style.transform = `scaleX(${v})`; E.buff.style.opacity = Math.min(1, bk / 0.12).toFixed(3); E.buff.style.transform = `translateY(${((1 - Math.min(1, (1 - bk) / 0.04)) * 10).toFixed(1)}px)`; }
+    });
+    set('buffX', (1 + GAME.nitroBoost).toFixed(2), (v) => { E.buffX.textContent = `×${v} SPEED`; });
+    set('spdB', bk > 0 ? '1' : '0', (v) => { E.speedo.dataset.boost = v; });
     if (on) {
       set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
       set('gBump', (Gm.bump || 0).toFixed(2), (v) => { E.gScore.style.transform = +v ? `scale(${(1 + 0.22 * v).toFixed(3)})` : ''; E.gScore.style.color = +v > 0.3 ? '#fff6c8' : ''; });   // points in a lump: the score jumps

@@ -72,6 +72,7 @@ The score is thirteen bars in A minor at 120 BPM: a pedal bass, a ticking hat an
 | Energy cells | Mark the open lane. Each adds score (silently); 100 of them earn a spare tape (up to 3). |
 | Pickups and traffic | Cells and canisters never sit under a vehicle. Each one watches the next 0.9 s of traffic around it; when a car is about to drive over it (it catches up, wanders or changes lanes), the pickup slides across to a lane that stays clear. If no lane is clear, the cells that are in the way fade out where they are and cannot be taken. |
 | Nitro canister | A pressure bottle (blue, NITRO on its label) that hovers and turns over a seal of gold light on the road, in a shaft of gold light with sparks rising round it: the first about 15 s into a run, then one every 30 to 45 s in top gear, and up to half as far apart again as the threat level rises. Drive through it to take it aboard; you can carry three. |
+| Nitro, on screen | Taking a canister pops a gold **+1 NITRO n/3** tag out of the NITRO button. During a burst a gold panel over the controls shows **NITRO BOOST ×1.85 SPEED · SMASH THROUGH** and a bar that drains as the burst runs out; the speedometer turns gold. |
 
 **Two lives**
 

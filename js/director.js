@@ -170,7 +170,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   // ── how each event hits: debris and sparks in the world; a kick of the camera towards where it happened, a punch of the lens, a
   //    flash tinted by what it was (white-hot for a crash, amber for a smash, red for the police). out.fx collects the lens and
   //    camera moves for frameState.
-  const pops = [], fx = out.fx = { fov: 0, kx: 0, ky: 0 }, tint = post.tint; let bump = 0;   // bump: the score jumps when points come in a lump
+  const pops = [], fx = out.fx = { fov: 0, kx: 0, ky: 0 }, tint = post.tint; let bump = 0, gain = null;   // bump: the score jumps when points come in a lump
   const kick = (dir, amt, age, f = 38) => { const r = Math.exp(-age / 0.1); fx.kx += dir * amt * r * Math.cos(age * f); fx.ky += amt * 0.7 * r * Math.sin(age * f * 1.3); };
   const glow = (c, k) => { tint[0] += c[0] * k; tint[1] += c[1] * k; tint[2] += c[2] * k; };
   const side = (lane) => Math.sign(lane * L - sim.x) || 0;
@@ -197,6 +197,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     if (e.k === 'level' && e.n && age < 0.5) { { post.tracking = Math.max(post.tracking, 0.45 * Math.exp(-age / 0.14)); post.trackY = 0.5 + 0.4 * Math.sin(e.n); } post.rgb = Math.max(post.rgb, 1 + 3 * Math.exp(-age / 0.2)); glow([0.9, 0.1, 0.8], 0.09 * Math.exp(-age / 0.15)); }
     if (e.k === 'star' && e.up && age < 0.9) { const bl = Math.floor(age * 10) % 2; glow(bl ? [0.05, 0.15, 1] : [1, 0.04, 0.1], 0.07 * (1 - age / 0.9)); }
     if (e.k === 'item' && age < 0.4) glow([1, 0.72, 0.2], 0.14 * Math.exp(-age / 0.1));
+    if (e.k === 'item' && age < 1.6) gain = { age, n: e.n };                 // a canister taken aboard: +1 NITRO rises from the button
     if ((e.k === 'smash' || e.k === 'near' || e.k === 'dodge' || e.k === 'shove') && age < 0.4) bump = Math.max(bump, Math.exp(-age / 0.1));
     const p = POP[e.k] && POP[e.k](e);
     if (p && age < 1.6) pops.push({ id: e.k + e.t.toFixed(3), text: p[0], tone: p[1], age });
@@ -241,7 +242,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     star: lg.star, level: lg.lvN, ic: stepping && lg.icM !== I_OFF && lg.icM !== I_LEAVE ? lg.icA : 0, lives: lg.lives, close: stepping && lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0,
     hint: stepping && lg.lives < 2 ? 1 - smooth((lg.gt - (lg.stG - G.stumbleGrace) - 4) / 0.8) : 0,     // "nitro shakes them off": for four seconds after the hit, then it goes
  pol: stepping && policeClose(lg) ? 1 : 0, nstock: lg.nstock, tapes: sim.tapes,
-    over: sim.over, overU: sim.over ? T - sim.overT : 0, paused: sim.paused, rew, draft: lg.draft, pops, bump,
+    over: sim.over, overU: sim.over ? T - sim.overT : 0, paused: sim.paused, rew, draft: lg.draft, pops, bump, gain,
     stats: { dist: lg.gd, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax, level: lg.lvN, dodges: lg.dodges },
   };
   return out;
@@ -401,7 +402,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     const ct = ph.ct;
     ui.skip = 0; ui.replay = 0; ui.start = 0;
     ui.ready = tl.turboReady(T);
-    ui.hint = sim.run > 1 || sim.over ? 0 : smooth(lin(ct, 2.6, 3.1)) * (1 - smooth(lin(ct, 6.6, 7.2)));   // first run only, after the opening
+    ui.hint = sim.over ? 0 : smooth(lin(ct, 1.5, 2.0)) * (1 - smooth(lin(ct, 7.0, 7.6)));   // every run: the controls come up as soon as the title has gone (it is off the screen 1.35 s in) and stay five seconds
     if (ph.seg.skip !== null && ct < 0.8) ui.osd = 'FF';
     // lanes: the car tracks the lane spring; the drift is body yaw around a pivot near the front axle (the tail
     // swings out, then a small counter-steer), plus roll with the lateral speed. The camera follows on its own spring.
@@ -513,6 +514,8 @@ export function frameState(tl, T, w, h, opt = {}) {
       }
     }
     game = gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced);
+    // a nitro burst under way: how much of it is left (1 → 0), for the boost display
+    { const len = TURBO.sustain + TURBO.recover; ui.g.boost = tbV && tbV.a >= tbV.antic && tbV.u < len && !sim.over ? 1 - tbV.u / len : 0; }
     if (game.fx) { fovK *= 1 + game.fx.fov; post.shake = [post.shake[0] + game.fx.kx, post.shake[1] + game.fx.ky]; }
     game.speedK = sat((Math.abs(sv.vel) - 120) / 110);              // (for the speed streaks)
     if (tbV && tbV.a >= tbV.antic) game.shock = tbV.u;                           // a nitro burst: the shockwave

@@ -19,6 +19,18 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 43: the controls hint after the title; nitro shows what it gives
+
+**1. The controls hint** (← → CHANGE LANE · T BOOST) was easy to miss: it came up on the first run only, 2.6 s in, as plain text on the road, and on small windows it ran under the speedometer.
+- It now comes up on **every run, as soon as the title has left the screen** (1.5 s into the drive; the title is gone at 1.35 s) and stays five and a half seconds.
+- It sits on a dark plate, so the road does not swallow it, and on small screens it is placed clear of the drive bar.
+
+**2. Nitro shows what it has given you**, in gold, by the NITRO button:
+- **Taking a canister:** a gold tag **+1 NITRO 1/3** pops out of the button and rises for a second and a half, and the button's rim flashes gold.
+- **During a burst:** a gold panel over the controls reads **NITRO BOOST ×1.85 SPEED · SMASH THROUGH**, with a bar that drains over the 3.6 s the burst lasts; the speedometer turns gold for as long.
+
+Tests: all suites pass.
+
 ## Revision 42: the blur joins are gone; the bottle turns once every two seconds
 
 - **The whip-pan joins of Revision 41 are removed**, blur and all. The first five shots are cut on the bar lines again, as in Revision 40. **The move into the title stays**: the head-on shot tilts up into the searchlight, and the title shot comes down out of the same white, from the sky to the road, while the title glides in.
