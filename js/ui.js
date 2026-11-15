@@ -180,7 +180,6 @@ export class UI {
       else if (k === 'clear') this.sfx('chime');
       else if (k === 'strike') this.sfx('burst', { d: r2(e.d || 0.45), pan: r2(pan(e.lane)) });
       else if (k === 'shove') this.sfx('smash', { pan: 0, v: 1.05 });
-      else if (k === 'go') this.sfx('whoosh');
       else if (k === 'item') this.sfx('pickup');
       else if (k === 'tape' || k === 'full') this.sfx('chime');
       else if (k === 'revive') this.sfx('rewindlong');

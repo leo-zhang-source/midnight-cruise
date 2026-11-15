@@ -364,7 +364,6 @@ export function turboNotes(chordName, emitAt) {
   emitAt(0, { i: 'crash', v: 1.0 });
   emitAt(0, { i: 'sub', v: 1.0 });
   emitAt(0, { i: 'impact', v: 0.9 });
-  emitAt(0, { i: 'whoosh', v: 1.0 });
   emitAt(0, { i: 'stab', notes: CHORDS[chordName].pad.map((n) => n - 12).concat([CHORDS[chordName].root + 12]), d: 1.2, v: 0.85 });
   emitAt(0, { i: 'snare', v: 1.0 });
 }

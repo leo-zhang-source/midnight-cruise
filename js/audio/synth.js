@@ -177,16 +177,6 @@ class Riser extends Voice {
     return t < this.d + 0.08;
   }
 }
-class Whoosh extends Voice {
-  constructor(s, o, v) { super(s, o); this.v = v; this.rl = new RNG(s.seed()); this.rr = new RNG(s.seed()); this.bl = new SVF(); this.br = new SVF(); }
-  tick(B, i, t) {
-    if ((this.n & 15) === 0) { const c = 300 + 4200 * exp(-t / 0.3); this.bl.set(c, 1.4); this.br.set(c * 0.9, 1.4); }
-    const a = Math.min(1, t / 0.02) * exp(-t / 0.4) * 0.5 * this.v;
-    const p = Math.min(1, t / 0.8) * 2 - 1;
-    B.fxL[i] += this.bl.bp(this.rl.next()) * a * panL(p); B.fxR[i] += this.br.bp(this.rr.next()) * a * panR(p);
-    return t < 1.6;
-  }
-}
 class Bass extends Voice {
   constructor(s, o, n, v, d) {
     super(s, o); this.f = mtof(n); this.v = v; this.d = d;
@@ -616,7 +606,7 @@ export class Synth {
     // ambience
     this.sirG = 0; this.sirP = 0; this.sirW = 0;   // police siren: level, oscillator phase, wail phase
     this.heliG = 0; this.heliP = 0; this.heliF = new SVF(); this.heliR = new RNG(91);   // helicopter rotor: level, blade phase, noise
-    this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)]; this.engF = 60; this.engLp = new SVF(); this.windL = new SVF(); this.windR = new SVF(); this.wr = [new RNG(77), new RNG(78)];
+    this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)]; this.engF = 60; this.engLp = new SVF(); 
     this.levels = { music: 0, peak: 0 };
     this.smp = {};
   }
@@ -654,7 +644,7 @@ export class Synth {
       case 'sub': v = new Sub(s, o, n.v); break;
       case 'impact': v = new Impact(s, o, n.v); break;
       case 'riser': v = new Riser(s, o, n.d, n.v ?? 1); break;
-      case 'whoosh': v = new Whoosh(s, o, n.v ?? 1); break;
+      case 'whoosh': return;                                                     // (no whooshes: no wind noise of any kind)
       case 'bass': v = new Bass(s, o, n.n, n.v, n.d); break;
       case 'pad': v = new Pad(s, o, n.notes, n.d, n.v, n.slow); break;
       case 'stab': v = new Stab(s, o, n.notes, n.d, n.v); break;
@@ -684,7 +674,7 @@ export class Synth {
       case 'horn': v = new Horn(s, o); break;
       case 'yelp': v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5); for (let k = 1; k < 8; k++) this.voices.push(new Blip(s, o, k % 2 ? 900 : 1250, k % 2 ? 1250 : 900, 0.09, 0.05, k % 2 ? -0.5 : 0.5, k * 0.13)); break;   // the interceptor's siren: a fast yelp
       case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4), new Sub(s, o, 0.4)); if (S.crash_f) play('crash_f', { gain: 0.26, rev: 0.08 }); this.duck(o, 0.2, 0.15); break;   // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
-      case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;
+      case 'near': v = new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2); this.voices.push(new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;   // a close call: two rising blips (no whoosh)
       case 'smash': v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0); this.duck(o, 0.32, 0.12); break;                    // a vehicle rammed in a nitro burst
       case 'swipe': v = new Scrape(s, o, 0.36, 1, n.pan || 0); this.voices.push(new Click(s, o, 0.9, 1)); this.duck(o, 0.25, 0.1); break;
       case 'crashfx': v = new Crunch(s, o, 1.25, 0, 1); this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false)); this.duck(o, 0.6, 0.35); break;   // the run ends against a vehicle
@@ -807,7 +797,7 @@ export class Synth {
     // music transport
     const mus = tl.musicAt(T);
     const active = ph.phase !== 'idle' && ph.phase !== 'home';
-    // ambience (engine + wind), follows speed
+    // ambience (the engine), follows speed
     const vel = Math.abs(this._st.vel), thr = this._st.thr;
     const ambG = active ? 1 : 0;
     // On a run the engine works through its gears: its note climbs with the revs and falls back at each change (a short glide, so
@@ -819,8 +809,8 @@ export class Synth {
       ef = this.engF; eg = (0.019 + 0.013 * Math.max(0, rv)) * (0.45 + 0.55 * thr); ec = 170 + vel * 1.5 + 520 * Math.max(0, rv) * thr;
     } else this.engF = ef;
     this.engLp.set(ec, 0.9);
-    this.windL.set(250 + vel * 22, 0.7); this.windR.set(280 + vel * 24, 0.7);
-    const wg = 0.0009 * Math.pow(vel, 1.1) * ambG, whF = 700 + vel * 8, whG = ph.phase === 'cruise' ? 0.007 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;   // and at speed a turbo whine
+    // (no road wind: the player asked for no wind noise, Revision 38)
+    const whF = 700 + vel * 8, whG = ph.phase === 'cruise' ? 0.007 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;   // and at speed a turbo whine
     // the police siren, behind us for the whole run: distant while they hang back, loud and fast when they are on the tail
     {
       const st = this._st, g = st.g, run = ph.phase === 'cruise' && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
@@ -916,10 +906,9 @@ export class Synth {
       // ambience
       this.whP = (this.whP || 0) + whF / SR; if (this.whP >= 1) this.whP -= 1;
       const eo = Math.sin(this.whP * TAU) * whG + this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
-      const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
       // the music ducks under a big hit
       { const tg = gf < this.duckUntil ? this.duckDepth : 0; this.duckE += (tg - this.duckE) * (tg > this.duckE ? 0.0026 : 0.00006); if (gf >= this.duckUntil && this.duckE < 1e-4) this.duckDepth = 0; const dg = 1 - this.duckE; mL *= dg; mR *= dg; }
-      let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
+      let xL = this.hpL.hp(mL + B.fxL[i] + eo), xR = this.hpR.hp(mR + B.fxR[i] + eo);
       // glue compressor (stereo linked, gentle)
       const pk = Math.max(Math.abs(xL), Math.abs(xR));
       const lv = 20 * Math.log10(pk + 1e-9), over = lv + 9;

@@ -520,7 +520,6 @@
     emitAt(0, { i: "crash", v: 1 });
     emitAt(0, { i: "sub", v: 1 });
     emitAt(0, { i: "impact", v: 0.9 });
-    emitAt(0, { i: "whoosh", v: 1 });
     emitAt(0, { i: "stab", notes: CHORDS[chordName].pad.map((n) => n - 12).concat([CHORDS[chordName].root + 12]), d: 1.2, v: 0.85 });
     emitAt(0, { i: "snare", v: 1 });
   }
@@ -2859,28 +2858,6 @@
       return t < this.d + 0.08;
     }
   };
-  var Whoosh = class extends Voice {
-    constructor(s, o, v) {
-      super(s, o);
-      this.v = v;
-      this.rl = new RNG(s.seed());
-      this.rr = new RNG(s.seed());
-      this.bl = new SVF();
-      this.br = new SVF();
-    }
-    tick(B, i, t) {
-      if ((this.n & 15) === 0) {
-        const c = 300 + 4200 * exp(-t / 0.3);
-        this.bl.set(c, 1.4);
-        this.br.set(c * 0.9, 1.4);
-      }
-      const a = Math.min(1, t / 0.02) * exp(-t / 0.4) * 0.5 * this.v;
-      const p = Math.min(1, t / 0.8) * 2 - 1;
-      B.fxL[i] += this.bl.bp(this.rl.next()) * a * panL(p);
-      B.fxR[i] += this.br.bp(this.rr.next()) * a * panR(p);
-      return t < 1.6;
-    }
-  };
   var Bass = class extends Voice {
     constructor(s, o, n, v, d) {
       super(s, o);
@@ -3686,9 +3663,6 @@
       this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)];
       this.engF = 60;
       this.engLp = new SVF();
-      this.windL = new SVF();
-      this.windR = new SVF();
-      this.wr = [new RNG(77), new RNG(78)];
       this.levels = { music: 0, peak: 0 };
       this.smp = {};
     }
@@ -3798,8 +3772,8 @@
           v = new Riser(s, o, n.d, n.v ?? 1);
           break;
         case "whoosh":
-          v = new Whoosh(s, o, n.v ?? 1);
-          break;
+          return;
+        // (no whooshes: no wind noise of any kind)
         case "bass":
           v = new Bass(s, o, n.n, n.v, n.d);
           break;
@@ -3896,9 +3870,10 @@
           break;
         // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
         case "near":
-          v = new Whoosh(s, o, 0.45);
-          this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
+          v = new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2);
+          this.voices.push(new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
           break;
+        // a close call: two rising blips (no whoosh)
         case "smash":
           v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0);
           this.duck(o, 0.32, 0.12);
@@ -4078,9 +4053,7 @@
         ec = 170 + vel * 1.5 + 520 * Math.max(0, rv) * thr;
       } else this.engF = ef;
       this.engLp.set(ec, 0.9);
-      this.windL.set(250 + vel * 22, 0.7);
-      this.windR.set(280 + vel * 24, 0.7);
-      const wg = 9e-4 * Math.pow(vel, 1.1) * ambG, whF = 700 + vel * 8, whG = ph.phase === "cruise" ? 7e-3 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;
+      const whF = 700 + vel * 8, whG = ph.phase === "cruise" ? 7e-3 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;
       {
         const st = this._st, g = st.g, run = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
         const close = run && (st.over === 2 || policeClose(g));
@@ -4195,7 +4168,6 @@
         this.whP = (this.whP || 0) + whF / SR;
         if (this.whP >= 1) this.whP -= 1;
         const eo = Math.sin(this.whP * TAU2) * whG + this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
-        const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
         {
           const tg = gf < this.duckUntil ? this.duckDepth : 0;
           this.duckE += (tg - this.duckE) * (tg > this.duckE ? 26e-4 : 6e-5);
@@ -4204,7 +4176,7 @@
           mL *= dg;
           mR *= dg;
         }
-        let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
+        let xL = this.hpL.hp(mL + B.fxL[i] + eo), xR = this.hpR.hp(mR + B.fxR[i] + eo);
         const pk = Math.max(Math.abs(xL), Math.abs(xR));
         const lv = 20 * Math.log10(pk + 1e-9), over = lv + 9;
         let gr = over <= -3 ? 0 : over >= 3 ? over * 0.55 : 0.55 * (over + 3) * (over + 3) / 12;

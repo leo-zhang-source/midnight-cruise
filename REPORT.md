@@ -19,6 +19,17 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 38: no wind noise
+
+Every wind-like sound is gone (`js/audio/synth.js`, `js/cue.js`, `js/ui.js`):
+
+- **The road wind under the engine**, band-passed noise that grew louder and brighter with speed for the whole run. The engine and the turbo whine stay.
+- **The whoosh at the start of a run** (when the ignition hands over to the drive).
+- **The whoosh in the nitro stinger**. The crash, sub, impact, chord and snare of the stinger stay, and so does the nitro roar while the boost lasts.
+- **The whoosh under a close call**. The two rising blips stay.
+
+Measured on the canonical demo drive, old against new, the part removed is 36–48 dB under the mix (the mix is about −16 dB RMS). Nothing else in the sound changed. Still there: the tape hiss and the noise riser of the intro, and the gear-change blow-off.
+
 ## Revision 37: pickups never sit under a vehicle, the view as it was
 
 - **The view is back to how it was before Revision 34.** Revision 34 widened the lens with speed (up to 8 % at top speed), which made the picture feel different, closer to the road. That is removed: the camera framing is now the same at every speed, as in Revision 33 and before. The short lens punches on hits stay (they are part of the impact).
