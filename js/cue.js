@@ -52,7 +52,7 @@ export function cineMix(it) {
 
 // Nitro (the TURBO button): a short wind-up to the next half-beat, a sustained boost, then recovery.
 // `cooldown` is the full length of one burst; a new one needs a full charge (see GAME).
-export const TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
+export const TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 4.0, recover: 1.6, cooldown: 6.2 };
 export const ENV_XFADE = 1.6;
 // Automatic environment change while cruising: whichever comes first (scene seconds / road units).
 export const AUTO_ENV = { time: 40, dist: 5200 };
@@ -73,8 +73,8 @@ export const GAME = {
   creep: [300, 117],                             // in top gear it keeps gaining: +1 u/s per 300 units, up to +117 (550 MPH, a third more than before)
   accel: 34, launch: 80, brake: 64, nitroAccel: 170,   // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and, when a hit slows it, sheds at most `brake` u/s²
   coast: 0.55,                                   // off the throttle (paused, or pulling away after a rewind) the car is at 55 % of its speed
-  // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
-  nitroBoost: 0.85, nitroTail: 0.55, nitroGrace: 1.0, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
+  // nitro: canisters picked up on the road, up to three in stock; one burst is ×2 speed for 5.6 s and smashes traffic
+  nitroBoost: 1.0,  nitroTail: 0.55, nitroGrace: 1.0, nitroMax: 3, nitroFirst: 480, nitroEvery: [1800, 2700], nitroFree: 7,   // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
   aheadT: 6.6, fairAhead: 6.8,                   // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police and the traffic plan on all of it
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
   rowGap: [1.1, 0.85],                            // seconds between rows at the closing speed (first gear → top gear). A little more room than before: the traffic now moves about in it

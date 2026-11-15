@@ -19,6 +19,23 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 44: nitro doubles your speed, for longer
+
+You asked for nitro at twice the speed and for longer.
+
+- **×2 speed.** A burst now doubles your speed (it was ×1.85). At top gear that is about 1,100 MPH at the peak; the speedometer still stops at 999.
+- **5.6 s instead of 3.6 s.** Full boost lasts 4.0 s (was 2.2 s), then it eases off over 1.6 s (was 1.4 s). You smash through traffic for about 4.9 s of that (was 3.0 s), and nothing can touch you for a second after it ends, as before.
+- **On screen.** The gold panel now reads **NITRO BOOST ×2 SPEED · SMASH THROUGH**, and its bar drains over the full 5.6 s.
+
+Unchanged: canisters still come at the same distances, you still hold up to three, and a new burst still waits for the last one to finish.
+
+| Check | Result |
+|---|---|
+| Simulation tests (`game-test.mjs`) | 83/83 |
+| Bot soak without nitro, 16 seeds × 300 s | all clean |
+| Bot soak firing nitro, 40 seeds × 300 s | all clean (it now covers 46,900–51,900 units in 5 min against 43,900 without nitro) |
+| Browser suites | `game-ui` 43, `touch` 8, environment test all pass; smoke passes on all 3 pages. `interact` reached only 38 checks here: this Mac's audio output was stalled during the run, so the opening never handed over to the drive. The previous release fails the same way on this machine right now, so this comes from the machine, not the change. The nitro check in it (impact on the half-beat) passes. |
+
 ## Revision 43: the controls hint after the title; nitro shows what it gives
 
 **1. The controls hint** (← → CHANGE LANE · T BOOST) was easy to miss: it came up on the first run only, 2.6 s in, as plain text on the road, and on small windows it ran under the speedometer.

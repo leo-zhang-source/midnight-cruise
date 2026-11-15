@@ -50,7 +50,7 @@
     const k = Math.min(1, Math.max(0, (it - C.title) / 4.5));
     return { eng: 0.9 - 0.45 * k, rev: 0.7 * (1 - k), siren: 0.02 + 0.014 * k, rate: 3.1, heli: 0.6 * (1 - Math.min(1, (it - C.title) / 3)) };
   }
-  var TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 2.2, recover: 1.4, cooldown: 4.2 };
+  var TURBO = { minAntic: 0.2, grid: BEAT / 2, sustain: 4, recover: 1.6, cooldown: 6.2 };
   var ENV_XFADE = 1.6;
   var AUTO_ENV = { time: 40, dist: 5200 };
   var GAME = {
@@ -79,8 +79,8 @@
     // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and, when a hit slows it, sheds at most `brake` u/s²
     coast: 0.55,
     // off the throttle (paused, or pulling away after a rewind) the car is at 55 % of its speed
-    // nitro: canisters picked up on the road, up to three in stock; one burst is ×1.85 speed and smashes traffic
-    nitroBoost: 0.85,
+    // nitro: canisters picked up on the road, up to three in stock; one burst is ×2 speed for 5.6 s and smashes traffic
+    nitroBoost: 1,
     nitroTail: 0.55,
     nitroGrace: 1,
     nitroMax: 3,

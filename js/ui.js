@@ -289,7 +289,7 @@ export class UI {
       E.buff.style.visibility = v ? 'visible' : 'hidden';
       if (v) { E.buffBar.style.transform = `scaleX(${v})`; E.buff.style.opacity = Math.min(1, bk / 0.12).toFixed(3); E.buff.style.transform = `translateY(${((1 - Math.min(1, (1 - bk) / 0.04)) * 10).toFixed(1)}px)`; }
     });
-    set('buffX', (1 + GAME.nitroBoost).toFixed(2), (v) => { E.buffX.textContent = `×${v} SPEED`; });
+    set('buffX', String(+(1 + GAME.nitroBoost).toFixed(2)), (v) => { E.buffX.textContent = `×${v} SPEED`; });
     set('spdB', bk > 0 ? '1' : '0', (v) => { E.speedo.dataset.boost = v; });
     if (on) {
       set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
