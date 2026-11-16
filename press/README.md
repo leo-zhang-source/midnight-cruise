@@ -40,7 +40,8 @@ The cover and banner are AI-generated promotional illustrations based on the gam
 |---|---|
 | [cover-630x500.png](cover-630x500.png) | itch.io illustrated cover |
 | [cover-1260x1000.png](cover-1260x1000.png) | Higher-resolution cover |
-| [banner-960.png](banner-960.png) | Illustrated page header |
+| [banner-960.png](banner-960.png) | Panoramic page header |
+| [banner-master.png](banner-master.png) | Full-resolution panoramic illustration |
 | [screenshot-01-title.jpg](screenshot-01-title.jpg) | Title and world |
 | [screenshot-02-box-him-in.jpg](screenshot-02-box-him-in.jpg) | Cinematic pursuit |
 | [screenshot-03-interceptor.jpg](screenshot-03-interceptor.jpg) | Interceptor |
