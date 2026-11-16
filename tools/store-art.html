@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Midnight Cruise — storefront artwork</title>
+<style>
+@font-face { font-family: 'Chakra Petch'; src: url('../fonts/ChakraPetch-SemiBold.ttf'); font-weight: 600; }
+html, body { margin: 0; background: #10091c; color: #eee4ff; font: 14px system-ui; }
+main { display: grid; justify-items: center; gap: 16px; padding: 20px; }
+canvas { display: block; max-width: calc(100vw - 40px); max-height: calc(100vh - 100px); object-fit: contain; }
+a { color: #ff98dc; } p { margin: 0; }
+</style>
+<main><canvas id="art"></canvas><p id="status">Rendering the game scene…</p><a id="download" hidden>Download PNG</a></main>
+<script type="module" src="store-art.js"></script>
+</html>

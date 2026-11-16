@@ -16,15 +16,15 @@
 
 ## One line
 
-A synthwave police chase. Three lanes, no brakes, and a VHS rewind when it all goes wrong.
+A midnight police chase through Neon City, set to an original synthwave soundtrack.
 
 ## Short description
 
-Midnight Cruise — 1986 is a free browser arcade chase set on a neon highway. Weave through traffic, smash roadblocks with nitro, and survive an escalating five-star police pursuit. When a run ends, spend a spare tape to rewind three seconds and try the escape again, all to an original, reactive synthwave score.
+Midnight Cruise — 1986 is a free browser arcade driving game set on the neon highways of 1986. Read the traffic and time your lane changes as a lone patrol grows into a five-star pursuit. Nitro can get you through a roadblock; a spare VHS tape lets you retry the last three seconds after a wreck. An original synthwave score follows the chase as it intensifies.
 
 ## 中文简介
 
-《MIDNIGHT CRUISE — 1986》是一款免费浏览器街机追逐游戏。驾驶 PHANTOM 穿梭霓虹公路，用氮气撞开封锁，在不断升级的五星追捕中刷新纪录。失手后，消耗备用磁带倒回三秒，再试一次刚刚错过的逃生路线。实时合成配乐与 VHS 画面质感，让整场追逐像一盘仍在播放的八十年代录像带。
+《MIDNIGHT CRUISE — 1986》是一款免费浏览器街机驾驶游戏。午夜的霓虹城里，你驾驶 PHANTOM 穿行车流，在逐步升级的警察追捕中刷新纪录。观察预警、及时换道，必要时用氮气冲开封锁；失手后，还能消耗备用磁带，回到三秒之前。原创合成器配乐随追逐加紧节奏，公路夜色则带着八十年代录像的质感。
 
 ## Publish-ready copy
 
@@ -34,13 +34,13 @@ Midnight Cruise — 1986 is a free browser arcade chase set on a neon highway. W
 
 ## Artwork
 
-All artwork below is captured or composed from the game. Screenshots show the actual game presentation, including its HUD.
+The cover and banner are composed from a replayed game frame, using the original renderer, vehicles, scenery, effects and title artwork. Their framing and title layout are adjusted for the storefront. The eight screenshots retain the in-game HUD. [Artwork provenance and reproduction](ARTWORK.md).
 
 | File | Use |
 |---|---|
-| [cover-630x500.png](cover-630x500.png) | itch.io cover |
+| [cover-630x500.png](cover-630x500.png) | itch.io cover from an actual game scene |
 | [cover-1260x1000.png](cover-1260x1000.png) | Higher-resolution cover |
-| [banner-960.png](banner-960.png) | Page header |
+| [banner-960.png](banner-960.png) | Page header from an actual game scene |
 | [screenshot-01-title.jpg](screenshot-01-title.jpg) | Title and world |
 | [screenshot-02-box-him-in.jpg](screenshot-02-box-him-in.jpg) | Cinematic pursuit |
 | [screenshot-03-interceptor.jpg](screenshot-03-interceptor.jpg) | Interceptor |
@@ -50,4 +50,4 @@ All artwork below is captured or composed from the game. Screenshots show the ac
 | [screenshot-07-nitro-trucks.jpg](screenshot-07-nitro-trucks.jpg) | Nitro and heavy traffic |
 | [screenshot-08-five-stars.jpg](screenshot-08-five-stars.jpg) | Five-star pursuit |
 
-See [CREDITS.md](../CREDITS.md) for asset provenance and third-party licences. The [technical reference](../REFERENCE.md) documents the game; `tools/promo.mjs` renders the marketing stills.
+See [CREDITS.md](../CREDITS.md) for asset provenance and third-party licences. The [technical reference](../REFERENCE.md) documents the game; `tools/promo.mjs` renders the game screenshots.

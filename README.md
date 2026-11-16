@@ -1,42 +1,40 @@
 # MIDNIGHT CRUISE — 1986
 
-![Midnight Cruise — 1986: chrome lettering above a neon highway](press/banner-960.png)
+![Midnight Cruise — 1986: the PHANTOM alongside police cars on a neon highway](press/banner-960.png)
 
-### Three lanes. No brakes. One more chance.
-
-**A synthwave arcade police chase. Thread the traffic, break through roadblocks with nitro, and rewind your last mistake.**
+**A midnight police chase through Neon City, set to an original synthwave soundtrack.**
 
 **[Play free on itch.io](https://leo8654.itch.io/midnight-cruise)** · [Play on GitHub Pages](https://leo-zhang-source.github.io/midnight-cruise/) · [简体中文](README.zh-CN.md)
 
 Single player · Plays in your browser · Keyboard, mouse or touch
 
-Midnight, November 8, 1986. The Neon City Beltway. The city glows ahead. Sirens close in behind. You're at the wheel of the PHANTOM, and lifting off isn't an option.
+It's just after midnight on the Neon City Beltway. You're driving the PHANTOM, traffic is still moving, and the patrol behind you has called for backup.
 
-Read the gaps, slip past a line of brake lights, and get out of the searchlight before it turns red. Every clean overtake builds your combo. Every close call tempts you to push a little harder. Survive long enough, and a lone cruiser becomes a coordinated five-star pursuit.
+**Midnight Cruise — 1986** is an arcade driving game about finding a way through an increasingly crowded pursuit. Read the traffic, time your lane changes and keep the run going to beat your best score. The car accelerates automatically, so every decision is about where to go next.
 
-## Make the next gap
+## Through the traffic
 
-The car accelerates automatically. You choose the lane and the moment to commit. Traffic merges, taxis cut across the road, and police cruisers turn an open lane into a moving trap. Watch the signals, anticipate the next move, and keep your way out in sight.
+Turn signals, brake lights and attack warnings give you a moment to react. A taxi may merge into your lane; a cruiser may try to box you in. As the pursuit builds towards five stars, interceptors, rolling roadblocks and AIR-7 join the chase. Staying ahead means watching more than the car directly in front of you.
 
-![The PHANTOM dodges a helicopter searchlight between a police cruiser and a pickup](press/screenshot-05-searchlight.jpg)
+![The PHANTOM avoids a helicopter searchlight in the blue night palette](press/screenshot-05-searchlight.jpg)
 
-## Turn pursuit into a breakthrough
+## A way through the roadblock
 
-Collect nitro and turn a narrow escape into a charge through traffic. A burst drives you towards double speed, smashes vehicles out of your path, and restores a lost life. Spend a canister to build your score, or keep it for the moment the police close in. You can carry three.
+Nitro gives you a brief burst towards double speed, enough to smash through vehicles, shake off the pursuit car and recover a lost life. You can carry up to three canisters. Using one early can help build your score; keeping one in reserve gives you an escape when the road closes in.
 
-The chase keeps escalating: rolling roadblocks, rear-wheel grapplers, interceptors on your flank, and AIR-7 overhead. At five stars, attacks combine and helicopter fire sweeps from lane to lane. Choose a starting threat level from **LV 0 to LV 20**; higher settings put you straight into a faster, more demanding run.
+Start at **LV 0** while you learn the traffic and attack patterns, or choose a starting threat level up to **LV 20** for a faster, more demanding run.
 
-![A nitro burst carries the PHANTOM through a five-star pursuit](press/screenshot-04-nitro-smash.jpg)
+![The PHANTOM accelerates past two trucks on an orange neon highway](press/screenshot-07-nitro-trucks.jpg)
 
-## The tape still has three seconds left
+## Rewind the last three seconds
 
-A wreck doesn't have to be the final frame. Spend a spare tape to rewind the last **three seconds**, watch the road and traffic run backwards, and take the gap you missed. Every run starts with one tape; collect 100 energy cells to earn another, up to three in reserve.
+After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with one tape. Collect 100 energy cells to earn another, up to three in reserve.
 
-## A night caught on VHS
+## An eighties night drive
 
-A 26-second cinematic opening drops you into the pursuit. Chrome, wireframe mountains and a shifting neon skyline sit beneath scanlines and tape distortion. The original synthwave score is synthesised live, adding urgency as the wanted level rises. Choose **Sunset, Blue Hour, Afterglow or Lagoon**, or let the colours change as you drive.
+A cinematic opening, wireframe hills and a skyline lit in neon set the scene. Scanlines and tape distortion give the picture the texture of an old recording. The original synthwave score is synthesised live and changes as the pursuit intensifies, alongside the sound of shifting gears and approaching sirens.
 
-Turn the sound on. Headphones recommended.
+Choose **Sunset, Blue Hour, Afterglow or Lagoon**, or let the palette change as you drive. Headphones recommended.
 
 ## Take the wheel
 
@@ -66,7 +64,7 @@ If the game is silent, click or tap inside it and check **Settings → volume**,
 The world is rendered in real time with three.js and WebGL 2. The score, engines and effects are synthesised in the browser, with CC0 drum and cymbal samples. The gameplay simulation records a deterministic timeline, which also powers the rewind.
 
 - [Gameplay & technical reference](REFERENCE.md) — complete controls, pursuit mechanics, local setup, testing and builds.
-- [Press kit](press/README.md) — publication-ready descriptions, cover art and screenshots captured from the game.
+- [Press kit](press/README.md) — descriptions, cover art composed from an actual game scene, and gameplay screenshots.
 - [Creative treatment & audio measurements](REPORT.md).
 - [Credits & third-party licences](CREDITS.md).
 

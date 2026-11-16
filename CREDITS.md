@@ -50,3 +50,7 @@ Everything below was made for this piece and none of it is traced or copied. The
 - **The music and sound design.** The composition and arrangement are original. Every tonal instrument (saw bass, pads, the big slam chord, lead, arp, plucks, bells) and every sound effect is synthesised in real time by original DSP code in `js/audio/synth.js`, as is the mastering chain. The engine covers PolyBLEP oscillators, zero-delay-feedback filters, FDN and gated reverbs, chorus, ping-pong delay, a glue compressor and a look-ahead true-peak limiter. Drums and cymbals play the CC0 samples listed above through the engine's own sample player. Synthesised drum voices remain as a fallback if the samples fail to load.
 - **The car.** An original, procedurally modelled 80s-style wedge coupé (`js/car.js`), designed for this piece. It is not based on any real make or model, and its plate reads “NITE 86”.
 - **The invented identity.** “NITE·DECK 86” is an invented product name. No real brands, trademarks or product interfaces are reproduced.
+
+## Promotional artwork
+
+The storefront cover (`press/cover-*.png`) and page banner (`press/banner-960.png`) are composed from an actual replayed game frame using the project's own renderer and title geometry. Framing and title placement are adjusted for these formats. Vehicle models, scenery, colours and effects come directly from the game. The `press/screenshot-*.jpg` images are game captures with the HUD retained. No AI-generated images are used in the published artwork. See [artwork provenance and reproduction](press/ARTWORK.md).
