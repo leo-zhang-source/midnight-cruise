@@ -34,13 +34,13 @@ Midnight Cruise — 1986 is a free browser arcade driving game set on the neon h
 
 ## Artwork
 
-The cover and banner are composed from a replayed game frame, using the original renderer, vehicles, scenery, effects and title artwork. Their framing and title layout are adjusted for the storefront. The eight screenshots retain the in-game HUD. [Artwork provenance and reproduction](ARTWORK.md).
+The cover and banner are AI-generated promotional illustrations based on the game’s visual design. The eight screenshots are actual game captures and retain the in-game HUD. [Artwork provenance](ARTWORK.md).
 
 | File | Use |
 |---|---|
-| [cover-630x500.png](cover-630x500.png) | itch.io cover from an actual game scene |
+| [cover-630x500.png](cover-630x500.png) | itch.io illustrated cover |
 | [cover-1260x1000.png](cover-1260x1000.png) | Higher-resolution cover |
-| [banner-960.png](banner-960.png) | Page header from an actual game scene |
+| [banner-960.png](banner-960.png) | Illustrated page header |
 | [screenshot-01-title.jpg](screenshot-01-title.jpg) | Title and world |
 | [screenshot-02-box-him-in.jpg](screenshot-02-box-him-in.jpg) | Cinematic pursuit |
 | [screenshot-03-interceptor.jpg](screenshot-03-interceptor.jpg) | Interceptor |

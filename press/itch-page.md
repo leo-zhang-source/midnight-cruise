@@ -95,13 +95,13 @@ Use a current browser with **WebGL 2** enabled. On a phone, landscape gives you 
 - Free browser game; single player; game interface in English.
 - English description with an expandable Chinese introduction near the opening.
 - Theme: Lato, Very Large text, screenshot sidebar; original page colours retained.
-- Cover and banner: actual-game pursuit composition, with the car prominent and the title fully inside the frame.
+- Cover and banner: AI-generated illustrations of a ground pursuit, with the car prominent and the title fully inside the frame.
 - Body screenshots: blue searchlight encounter and orange nitro run beside trucks; only one features a helicopter.
 - Genre: Racing.
 - Tags: 1980s, arcade, chase, driving, endless-runner, high-score, neon, police, retrowave, synthwave.
 - [Description HTML](itch-description.html) is the canonical formatted publishing source.
-- [Press kit](README.md) · [Artwork provenance and reproduction](ARTWORK.md).
+- [Press kit](README.md) · [Artwork provenance](ARTWORK.md).
 
 ## AI usage disclosure
 
-The game's code and text were created with AI assistance under the developer's direction and review. The cover, banner and screenshots use scenes rendered by the game itself. In-game graphics and music are rendered and synthesised in real time by code, with credited CC0 drum samples. No AI-generated image or audio assets are used in the published game or promotional artwork.
+The game's code and text were created with AI assistance under the developer's direction and review. The cover and page banner are AI-generated promotional illustrations based on the game's visual design. Gameplay screenshots are captured from the game. In-game graphics and music are rendered and synthesised in real time by code, with credited CC0 drum samples; no generated image or audio assets are used inside the game.

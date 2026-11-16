@@ -53,4 +53,4 @@ Everything below was made for this piece and none of it is traced or copied. The
 
 ## Promotional artwork
 
-The storefront cover (`press/cover-*.png`) and page banner (`press/banner-960.png`) are composed from an actual replayed game frame using the project's own renderer and title geometry. Framing and title placement are adjusted for these formats. Vehicle models, scenery, colours and effects come directly from the game. The `press/screenshot-*.jpg` images are game captures with the HUD retained. No AI-generated images are used in the published artwork. See [artwork provenance and reproduction](press/ARTWORK.md).
+The storefront cover (`press/cover-*.png`) and page banner (`press/banner-960.png`) are AI-generated promotional illustrations made with OpenAI image generation, based on the game's visual design. They are not gameplay screenshots or in-game assets. The `press/screenshot-*.jpg` images are actual game captures with the HUD retained. See [artwork provenance](press/ARTWORK.md).

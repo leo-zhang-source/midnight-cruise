@@ -1,26 +1,21 @@
 # Store artwork provenance
 
-The published cover and banner use the actual game renderer. No generated or repainted vehicle, background, lighting or effect is inserted. The title is the game's own polygonal MIDNIGHT word, neon Cruise path and 1986 plate, repositioned for the store format. The gameplay HUD is omitted.
+## Published cover and banner
 
-## Source frame
+The storefront uses the previously generated purple PHANTOM and police pursuit illustrations, restored at the developer's request. The images were created with OpenAI's built-in image generation tool using the game's visual design as reference. No new image generation was performed for this restoration.
 
-- Replay seed: `2024`.
-- Starting level: `0`.
-- Timeline: [store-art-events.json](../tools/store-art-events.json), generated with `play(2024, 150, { nitro: true, seek: true, lv: 0 })` from [bot.mjs](../tools/bot.mjs).
-- Time: `84.63750000000573` seconds, the first interceptor turn warning plus 0.6 seconds.
-- World, cars and effects: the production classes in `js/world.js`, `js/gameview.js`, `js/car.js`, `js/vehicles.js` and `js/post.js`.
-- Title geometry: `js/title.js` and `js/neon.js`.
-- [Artwork renderer](../tools/store-art.html), with layout in [store-art.js](../tools/store-art.js).
+These are promotional illustrations, not gameplay captures or assets used inside the game. The scene has a purple sports car, ground pursuit, a neon highway, palm silhouettes, wireframe hills and the MIDNIGHT CRUISE — 1986 title; there is no helicopter in either illustration.
 
-## Reproduce
+- `cover-1260x1000.png`: storefront master; the original 1391 × 1131 image is centre-cropped to 1391 × 1104 and resized to the store's 1260 × 1000 format.
+- `cover-630x500.png`: smaller storefront export of the same illustration.
+- `banner-960.png`: the matching wide illustration resized from 1942 × 809 to 960 × 400.
 
-Serve the repository locally, open these paths, and use **Download PNG**:
+The original compositions are restored without repainting or adding new elements.
 
-- Cover, 1260 × 1000: `/tools/store-art.html?scene=interceptor&w=1260&h=1000&zoom=0.94&xshift=-0.45`
-- Banner, 960 × 400: `/tools/store-art.html?scene=interceptor&layout=banner&w=960&h=400`
+## Gameplay screenshots
 
-The cover changes the lens field of view by a factor of 0.94 and shifts the framing to keep the police car in view. These are camera framing changes; the replay's object positions, geometry, palette and effects are unchanged. The 630 × 500 cover is a downscaled export of the full cover.
+The introduction retains `screenshot-05-searchlight.jpg` (blue night, avoiding a searchlight) and `screenshot-07-nitro-trucks.jpg` (orange highway, nitro beside trucks). The second image contains no helicopter. All eight `screenshot-*.jpg` files are captures from the game with the HUD retained.
 
-## Body image selection
+## Replay renderer
 
-The introduction uses `screenshot-05-searchlight.jpg` (blue night, avoiding a searchlight) and `screenshot-07-nitro-trucks.jpg` (orange highway, nitro beside trucks). The second image contains no helicopter.
+The repository also retains `tools/store-art.html`, `tools/store-art.js` and `tools/store-art-events.json` for reproducing the earlier game-rendered artwork. These helpers do not produce the currently published cover or banner.
