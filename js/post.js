@@ -7,8 +7,8 @@ import * as THREE from '../vendor/three.module.min.js';
 const QUAD_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
 class Pass {
-  constructor(frag, uniforms) {
-    this.mat = new THREE.ShaderMaterial({ uniforms, vertexShader: QUAD_VERT, fragmentShader: frag, depthTest: false, depthWrite: false });
+  constructor(frag, uniforms, defines = {}) {
+    this.mat = new THREE.ShaderMaterial({ uniforms, defines, vertexShader: QUAD_VERT, fragmentShader: frag, depthTest: false, depthWrite: false });
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat);
     this.mesh.frustumCulled = false;
     this.scene = new THREE.Scene(); this.scene.add(this.mesh);
@@ -27,12 +27,21 @@ const COMPOSITE = /* glsl */`
     vec3 ne = texture2D(tNeon, vUv).rgb;
     // soft drop shadow of the chrome title (separates it from the sun)
     float sh = 0.0;
+#ifdef LITE
+    for (int j = 0; j < 6; j++) { int i = j * 2;
+#else
     for (int i = 0; i < 12; i++) {
+#endif
       float a = float(i) * 2.39996; float r = sqrt(float(i) + 0.5) / 3.6;
       vec2 o = vec2(cos(a), sin(a)) * r * 14.0 * uPx + vec2(0.0, -7.0) * uPx;
       sh += texture2D(tFg, vUv + o).a;
+#ifdef LITE
+    }
+    sh = sh / 6.0 * uFgA;
+#else
     }
     sh = sh / 12.0 * uFgA;
+#endif
     vec3 col = sc.rgb * (1.0 - sh * uShadow);
     col = col * (1.0 - fg.a) + fg.rgb;
     col += ne;
@@ -113,8 +122,13 @@ const VHS = /* glsl */`
     float spd = uSpeed * (1.0 - 0.9 * texture2D(tFg, uv).a);
     if (spd > 0.01) {
       vec3 acc = vec3(0.0); float wsum = 0.0;
+#ifdef LITE
+      for (int k = 0; k < 3; k++) {
+        float f = float(k) / 2.0; float wk = 1.0 - f * 0.6;
+#else
       for (int k = 0; k < 6; k++) {
         float f = float(k) / 5.0; float wk = 1.0 - f * 0.6;
+#endif
         vec2 su = uv - rad * f * 0.024 * spd;
         acc += vec3(texture2D(tComp, su + o + ca).r, texture2D(tComp, su).g, texture2D(tComp, su - o - ca).b) * wk; wsum += wk;
       }
@@ -123,14 +137,20 @@ const VHS = /* glsl */`
       col = vec3(texture2D(tComp, uv + o).r, texture2D(tComp, uv).g, texture2D(tComp, uv - o).b);
     }
     // ── luma sharpening: restores edge contrast lost to resampling (luma only, so no colour halos) ──
+#ifndef LITE
     vec3 nb = texture2D(tComp, uv + vec2(uTex.x, 0.0)).rgb + texture2D(tComp, uv - vec2(uTex.x, 0.0)).rgb
             + texture2D(tComp, uv + vec2(0.0, uTex.y)).rgb + texture2D(tComp, uv - vec2(0.0, uTex.y)).rgb;
     float Yc = dot(col, vec3(0.299, 0.587, 0.114)), Yn = dot(nb * 0.25, vec3(0.299, 0.587, 0.114));
     col += clamp(Yc - Yn, -0.08, 0.08) * 0.6 * (1.0 - min(spd, 1.0));
+#endif
     // ── VHS chroma bleed: luma stays sharp, chroma smears a little to the right ──
+#ifdef LITE
+    vec3 sm = (texture2D(tComp, uv - vec2(2.4 * uScale / uRes.x, 0.0)).rgb + col) * 0.5;
+#else
     vec3 sm = vec3(0.0);
     for (int k = 1; k <= 2; k++) sm += texture2D(tComp, uv - vec2(float(k) * 1.6 * uScale / uRes.x, 0.0)).rgb;
     sm = (sm + col) / 3.0;
+#endif
     float Y = dot(col, vec3(0.299, 0.587, 0.114));
     float Ys = dot(sm, vec3(0.299, 0.587, 0.114));
     col = Y + (sm - Ys) * 0.5 + (col - Y) * 0.5;
@@ -185,8 +205,11 @@ const VHS = /* glsl */`
   }`;
 
 export class Post {
-  constructor(renderer) {
-    this.r = renderer;
+  // lite (phones and tablets): cheaper VHS / composite shaders, and the title and neon layers are skipped while they're empty.
+  // Off on desktop, where every pass runs exactly as before.
+  constructor(renderer, { lite = false } = {}) {
+    this.r = renderer; this.lite = lite;
+    const D = lite ? { LITE: '' } : {};
     this.half = renderer.capabilities.isWebGL2 && renderer.extensions.has('EXT_color_buffer_float');
     const type = this.half ? THREE.HalfFloatType : THREE.UnsignedByteType;
     this.type = type;
@@ -197,7 +220,9 @@ export class Post {
     for (let i = 0; i < 6; i++) this.levels.push(mk(0, false));
     this.ups = [];
     for (let i = 0; i < 5; i++) this.ups.push(mk(0, false));
-    this.comp = new Pass(COMPOSITE, { tScene: { value: null }, tFg: { value: null }, tNeon: { value: null }, uPx: { value: new THREE.Vector2() }, uShadow: { value: 0.55 }, uFgA: { value: 1 } });
+    this.comp = new Pass(COMPOSITE, { tScene: { value: null }, tFg: { value: null }, tNeon: { value: null }, uPx: { value: new THREE.Vector2() }, uShadow: { value: 0.55 }, uFgA: { value: 1 } }, D);
+    // a 1×1 transparent black layer that stands in for an empty title / neon buffer (lite only)
+    this.empty = new THREE.DataTexture(new Uint8Array(4), 1, 1); this.empty.needsUpdate = true;
     this.down = new Pass(DOWN, { tSrc: { value: null }, uPx: { value: new THREE.Vector2() }, uPre: { value: 0 } });
     this.up = new Pass(UP, { tSrc: { value: null }, tBase: { value: null }, uPx: { value: new THREE.Vector2() }, uMix: { value: 1 } });
     this.acc = new Pass('precision highp float; varying vec2 vUv; uniform sampler2D tSrc; uniform float uW; void main(){ gl_FragColor = texture2D(tSrc, vUv) * uW; }', { tSrc: { value: null }, uW: { value: 1 } });
@@ -207,7 +232,7 @@ export class Post {
       uRgb: { value: 1.5 }, uTrack: { value: 0 }, uTrackY: { value: 0.5 }, uNoise: { value: 0 }, uScan: { value: 1 }, uVig: { value: 0.4 }, uFlash: { value: 0 },
       uCrt: { value: 0 }, uBloom: { value: 1 }, uSpeed: { value: 0 }, uFfwd: { value: 0 }, uRew: { value: 0 }, uWarp: { value: 0 }, uHz: { value: 0.44 }, uTint: { value: new THREE.Vector3() }, uDanger: { value: 0 },
       uGlint: { value: new THREE.Vector4() }, uFlare: { value: new THREE.Vector3() }, cA: { value: new THREE.Vector3() }, cB: { value: new THREE.Vector3() },
-    });
+    }, D);
     this.samples = 4;
   }
   setSize(w, h, scale, samples) {
@@ -224,8 +249,12 @@ export class Post {
     r.setClearColor(0x000000, 1);
     r.setRenderTarget(this.rtScene); r.clear(); r.render(world.scene, world.camera);
     r.setClearColor(0x000000, 0);
-    let fgTex = this.rtFg.texture;
-    if (subs && subs.length > 1) {
+    let fgTex = this.rtFg.texture, neonTex = this.rtNeon.texture;
+    // lite: nothing of the chrome title, its 1986 plate or the neon subtitle is on screen → skip those passes
+    const N = s.neon, fgEmpty = this.lite && !s.title.visible && !(s.aux.a > 0) && !subs;
+    const neonEmpty = this.lite && !(N.pow * (1 + (N.surge || 0)) > 0) && !(N.glass > 0) && (N.prog <= 0.0005 || N.prog >= 0.999);
+    if (fgEmpty) fgTex = this.empty;
+    else if (subs && subs.length > 1) {
       r.setRenderTarget(this.rtFgAcc); r.clear();
       for (const sub of subs) {
         title.update(sub, this.outW, this.outH);
@@ -238,9 +267,10 @@ export class Post {
     } else {
       r.setRenderTarget(this.rtFg); r.clear(); r.render(title.scene, title.camera);
     }
-    r.setRenderTarget(this.rtNeon); r.clear(); r.render(title.neon.scene, title.camera);
+    if (neonEmpty) neonTex = this.empty;
+    else { r.setRenderTarget(this.rtNeon); r.clear(); r.render(title.neon.scene, title.camera); }
     const c = this.comp.u;
-    c.tScene.value = this.rtScene.texture; c.tFg.value = fgTex; c.tNeon.value = this.rtNeon.texture; c.uPx.value.set(1 / this.W, 1 / this.H);
+    c.tScene.value = this.rtScene.texture; c.tFg.value = fgTex; c.tNeon.value = neonTex; c.uPx.value.set(1 / this.W, 1 / this.H);
     c.uShadow.value = 0.6; c.uFgA.value = s.post.fgA;
     this.comp.render(r, this.rtComp);
     // bloom pyramid

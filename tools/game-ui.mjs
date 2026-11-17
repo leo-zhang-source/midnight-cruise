@@ -5,6 +5,8 @@
 import { chromium } from 'playwright-core';
 import { plan } from './bot.mjs';
 import { Timeline, CANONICAL } from '../js/timeline.js';
+import { scenarios } from './juice.mjs';
+import { GAME } from '../js/cue.js';
 const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const ok = (n, c, i = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 const logs = [];
@@ -21,7 +23,7 @@ const gs = (p) => p.evaluate(() => {
   return { phase: s.phase, ct: s.ct, on: g.on, over: g.over, score: g.score, gear: g.gear, tapes: g.tapes, run: g.run, star: g.star, close: g.close, pol: g.pol, rew: g.rew, nstock: g.nstock, cellsN: g.cells, level: g.level, vel: s.road.vel,
     veh: s.game.veh ? s.game.veh.length : 0, cells: s.game.cells ? s.game.cells.length : 0, polDz: s.game.pol ? s.game.pol.dz : null,
     hud: vis('ghud'), hudScore: el('g-score').textContent, gearTxt: el('gear').textContent, nitro: el('turbo').dataset.ready, nitroN: el('turbo').dataset.n, nitroTxt: el('turbo-state').textContent, stars: el('g-stars').dataset.n, tail: vis('g-tail'), lives: el('g-lives').dataset.n, tailTxt: el('g-tail-text').textContent,
-    panel: !el('over').hidden, title: el('over-title').textContent, ovScore: el('ov-score').textContent, reviveOff: el('revive').disabled, focus: document.activeElement && document.activeElement.id,
+    panel: !el('over').hidden, title: el('over-title').textContent, ovScore: el('ov-score').dataset.v || el('ov-score').textContent, reviveOff: el('revive').disabled, focus: document.activeElement && document.activeElement.id,
     police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: !!el('replay'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent };
 });
 // the simulation state, as plain data for the planner
@@ -157,7 +159,7 @@ async function wreck(p, touch, once) {
   await drive(p, 3000, { touch: true });
   let s = await gs(p); ok('phone: the drive bar holds the speedometer and NITRO only', !(await p.$('#brake')) && (await p.locator('#drivebar button').count()) === 1 && s.vel > 50, `v=${Math.round(s.vel)}`);
   await wreck(p, true);
-  s = await gs(p); ok('phone: crash → panel fits the screen, buttons are touch-sized', s.over && s.panel && await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return r.left >= 0 && r.right <= 390 && r.top >= 0 && r.bottom <= 844 && a.height >= 44 && c.height >= 44; }), `over ${s.over}, panel ${s.panel}, ` + await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return `panel ${Math.round(r.left)}…${Math.round(r.right)} × ${Math.round(r.top)}…${Math.round(r.bottom)}, buttons ${Math.round(a.height)} and ${Math.round(c.height)} high`; }));
+  s = await gs(p); ok('phone: crash → panel fits the screen, buttons are touch-sized', s.over && s.panel && await p.evaluate(() => { const r = document.getElementById('rs-card').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(), o = document.getElementById('over'); return r.left >= 0 && r.right <= 390 && r.top >= 0 && r.bottom <= 844 && o.scrollHeight <= o.clientHeight + 1 && a.height >= 44 && c.height >= 44 && a.bottom <= r.bottom && c.right <= r.right; }), `over ${s.over}, panel ${s.panel}, ` + await p.evaluate(() => { const r = document.getElementById('over').getBoundingClientRect(), a = document.getElementById('home').getBoundingClientRect(), c = document.getElementById('revive').getBoundingClientRect(); return `panel ${Math.round(r.left)}…${Math.round(r.right)} × ${Math.round(r.top)}…${Math.round(r.bottom)}, buttons ${Math.round(a.height)} and ${Math.round(c.height)} high`; }));
   const hud = await p.evaluate(() => { const h = document.getElementById('ghud').getBoundingClientRect(), d = document.getElementById('deck').getBoundingClientRect(), c = document.getElementById('corner').getBoundingClientRect(); return { top: h.top, left: h.left, right: h.right, deckBottom: d.bottom, cornerBottom: c.bottom }; });
   ok('phone: HUD sits right below the corner keys (no deck in the way), inside the screen', hud.top >= hud.cornerBottom - 1 && hud.top < 90 && hud.left >= 0 && hud.right <= 390, JSON.stringify(hud));
   await p.tap('#revive'); await p.waitForTimeout(500);
@@ -173,6 +175,40 @@ async function wreck(p, touch, once) {
   await p.tap('#start'); await p.waitForTimeout(900); await p.tap('#skip'); await p.waitForTimeout(900);
   s = await gs(p); ok('phone: START, then SKIP INTRO → a new run', s.phase === 'cruise' && s.run === 2);
   await p.context().close();
+}
+// ── the title's neon, the energy counter, the smash chain and the results screen (staged moments, seeked to) ──
+{
+  const S = scenarios(['chain', 'fling', 'results']);
+  const dom = (p) => p.evaluate(() => {
+    const el = (id) => document.getElementById(id), vis = (id) => getComputedStyle(el(id)).visibility === 'visible', num = (t) => +t.replace(/[^0-9]/g, ''), g = MC.state().ui.g || {};
+    const box = (id) => { const r = el(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+    return { neon: MC.state().neon.pow, energy: vis('energy'), cells: el('g-cells').textContent, simCells: g.cells, next: el('g-cellnext').textContent,
+      chain: vis('chain'), chN: el('ch-n').textContent, chCap: el('ch-cap').textContent, chPts: num(el('ch-pts').textContent), chBar: el('ch-bar').style.transform, simChain: g.chain, bank: el('chain').dataset.bank,
+      panel: !el('over').hidden, total: num(el('ov-score').textContent), final: num(el('ov-score').dataset.v || '0'), score: g.score, rows: [...el('rs-rows').children].map((li) => num(li.children[2].textContent)),
+      grade: el('rs-letter').textContent, gradeOn: +el('rs-grade').style.opacity, rank: el('rs-rank').textContent, best: el('rs-best').textContent, take: el('rs-take').textContent, chainBest: el('ov-combo').textContent, stats: g.stats,
+      hud: vis('ghud'), card: box('rs-card'), eBox: box('energy'), cBox: box('chain'), hBox: box('ghud'), kBox: box('corner'), W: innerWidth, H: innerHeight, scroll: el('over').scrollHeight - el('over').clientHeight };
+  });
+  const at = async (p, ev, T) => { await p.evaluate(([ev, T]) => { MC.load(ev); MC.seek(T); }, [ev, T]); await p.waitForTimeout(80); return dom(p); };
+  const clear = (a, b) => a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t;
+  for (const [name, vp] of [['desktop', { width: 1280, height: 720 }], ['phone', { width: 390, height: 664, deviceScaleFactor: 2, hasTouch: true, isMobile: true }], ['phone on its side', { width: 750, height: 340, deviceScaleFactor: 2, hasTouch: true, isMobile: true }]]) {
+    const p = await open({ viewport: vp }, 'capture=1&t=3&tier=1');
+    let d = await dom(p);
+    if (name === 'desktop') ok('the title screen: the neon CRUISE is lit', d.neon > 0.8, `power ${d.neon.toFixed(2)}`);
+    const sc = S.chain, last = sc.at[sc.at.length - 1];
+    d = await at(p, sc.ev, last + 0.3);
+    ok(`${name}: the energy counter is on screen and shows the cells picked up`, d.energy && +d.cells === d.simCells && d.simCells > 0 && d.eBox.l >= 0 && d.eBox.r <= d.W && clear(d.eBox, d.hBox) && clear(d.eBox, d.kBox), `${d.cells} (${d.next})`);
+    ok(`${name}: the smash chain shows its links, its points and the time left; clear of the score, the keys and the energy counter`, d.chain && +d.chN === sc.n && d.simChain.n === sc.n && d.chPts === d.simChain.pts && /scaleX\(0\.[0-9]+\)/.test(d.chBar) && d.cBox.r <= d.W + 1 && clear(d.cBox, d.hBox) && clear(d.cBox, d.kBox) && clear(d.cBox, d.eBox), `×${d.chN} ${d.chCap} +${d.chPts}`);
+    d = await at(p, sc.ev, sc.end + 0.4);
+    ok(`${name}: when the chain ends it is banked, then goes`, d.chain && d.bank === '1' && d.chCap === 'CHAIN BANKED' && +d.chN === sc.n && !(await at(p, sc.ev, sc.end + 2.2)).chain);
+    const rs = S.results, T0 = rs.at[0] + GAME.overLock;
+    d = await at(p, rs.ev, T0 + 0.6);
+    ok(`${name}: the results screen counts up: part of the way through, some lines are in and the total is short of the score`, d.panel && !d.hud && d.total > 0 && d.total < d.final && d.gradeOn === 0, `${d.total} of ${d.final}`);
+    d = await at(p, rs.ev, T0 + 4);
+    ok(`${name}: … and ends on the score, its lines adding up to it exactly, with the grade and the rank`, d.total === d.final && d.final === d.score && d.rows.reduce((a, v) => a + v, 0) === d.final && /^[SABCD]$/.test(d.grade) && d.gradeOn === 1 && d.rank.length > 3 && d.take === String(d.stats.takedown) && d.chainBest === '×' + d.stats.chain,
+      `${d.final} = ${d.rows.join(' + ')} · grade ${d.grade} ${d.rank} · ${d.best.trim()}`);
+    ok(`${name}: the results fit the screen without scrolling`, d.card.l >= 0 && d.card.r <= d.W && d.card.t >= 0 && d.card.b <= d.H && d.scroll <= 1, JSON.stringify(d.card));
+    await p.context().close();
+  }
 }
 console.log('console errors/warnings:', logs.length ? '\n  ' + logs.join('\n  ') : 'none');
 await b.close();

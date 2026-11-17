@@ -20,7 +20,7 @@ export const POL_HL = 2.4, POL_HW = 1.05;                  // the pursuit car
 // pursuit car modes: on the tail, lining up with the grappler out, lunging, dropping back, hooked onto our rear wheel
 export const P_TAIL = 0, P_WARN = 1, P_CHARGE = 2, P_BACK = 3, P_HOOK = 4;
 // the interceptor: away, coming up beside us, riding level, slamming across, holding the lane it took, dropping back
-export const I_OFF = 0, I_COME = 1, I_PACE = 2, I_TELL = 3, I_SLAM = 4, I_HOLD = 5, I_LEAVE = 6;
+export const I_OFF = 0, I_COME = 1, I_PACE = 2, I_TELL = 3, I_SLAM = 4, I_HOLD = 5, I_LEAVE = 6, I_FLUNG = 7;   // … thrown off the road by a nitro burst
 export const H_LANE = 0, H_TWIN = 1, H_WALK = 2;           // the helicopter's attacks
 // the grappler (a net on a fork ahead of the cruiser's bumper) reaches our rear wheel at this distance, within this offset
 export const HOOK_Z = POL_HL + CAR_HL + 1.25, HOOK_W = 1.7;
@@ -81,6 +81,11 @@ export function freshGame(seed = 1986, free = 0, lv0 = 0) {
     vt: GAME.trafficK * baseAt(d0), tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: gearAtDist(d0),
     nstock: free ? 1 : 0, nfree: 0,
+    // the smash chain (links so far, when the last one was made, what it has paid), the best one, police units knocked off, canisters
+    // picked up, nitro bursts fired, when the pursuit car was last shoved; and where the points came from: distance, passes, close calls,
+    // smashes, dodges, pickups, slipstream (they add up to the score)
+    chain: 0, chainT: -1e9, chainPts: 0, chainBest: 0, takedown: 0, cans: 0, bursts: 0, shT: -1e9,
+    pD: 0, pP: 0, pN: 0, pS: 0, pG: 0, pC: 0, pF: 0,
     lvN: lv0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0, gapWant: 0, flowNext: 6, cutNext: 12, flowN: 0, cuts: 0,   // … the traffic's next lane change, how many so far, how many aimed at us                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
     heat: 1, heatGt: -1e9, star: 1, nUse: 0, wd0: 0,                                 // nitro bursts since the heat was last cleared, and the road position where it was
     lives: 2, nz: 0,                                                                 // lives left (1 = the pursuit car is on our tail until nitro shakes it off); nitro was on last step
@@ -88,7 +93,7 @@ export function freshGame(seed = 1986, free = 0, lv0 = 0) {
     polM: P_TAIL, polT: 0, polLane: 0, polZ: -GAME.polClose, polX: 0, polF: 0, ramNext: GAME.ramFirst,
     drT: -1, drLane: 0, drHit: 0, drS: 0, drAcc: 0, drNext: 0, drPat: 0, drB: 0, drWant: -1, drW: 1.2, polW: 1.2,   // … its attack (pattern, second lane or direction), the length of its warning; of the pursuit car's
     // the interceptor: mode, since when, its side, where it is (z ahead of us, x in lanes), the move it is making (from, to, its warning, 1 = into our lane)
-    icM: I_OFF, icT: 0, icA: 1, icZ: -60, icX: 0, icFrom: 0, icTo: 0, icW: 1, icNext: 0, icAsk: 0, icF: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
+    icM: I_OFF, icT: 0, icA: 1, icZ: -60, icX: 0, icFrom: 0, icTo: 0, icW: 1, icNext: 0, icAsk: 0, icF: 0, icVx: 0,                      // helicopter: lock time (−1 = searching), locked lane, …
     hOn: 0, hNext: 0, hLeft: 0, hSide: 1,                                            // helicopter visits: on station, when it is next due, attacks left this visit, which side it flies in from
     hx: 0, sx: 0, sk: 0, ha: 0, hb: 0,                                               // helicopter x, searchlight spot x, how locked the light is (0..1), how far it has arrived (0..1), its bank
     inv: 0, draft: 0, draftEv: -1e9, goEv: 0, blkEv: -1e9, over: 0,
@@ -364,11 +369,13 @@ function genRow(g) {
 }
 
 function addHeat(g, n) { g.heat = Math.min(5.999, g.heat + n); g.heatGt = g.gt; }
+// the smash chain is over (it ran out of time, or a hit broke it): what it came to is called out
+function endChain(g, out) { if (g.chain) { out.push({ k: 'chainend', n: g.chain, pts: Math.round(g.chainPts) }); g.chain = 0; g.chainPts = 0; } }
 // A hit takes a life: the pursuit car closes in and stays there. A hit while it is on the tail ends the run.
 function stumble(g, out, by) {
   const gt = g.gt;
   if (gt < g.stG) return false;                              // still reeling from the last one
-  g.combo = 0;
+  g.combo = 0; endChain(g, out);
   if (g.lives < 2) { g.over = by === 'crash' ? 1 : 2; out.push({ k: by === 'crash' ? 'crash' : 'bust', by }); return true; }
   g.lives = 1; g.stG = gt + GAME.stumbleGrace;
   // a moment to recover before the next attack — and the others break off: a warning or a lock still running is called off
@@ -421,7 +428,7 @@ function laneWin(g, l, vel, t0, t1) {
 
 // inp: { dt, x (car lateral position), lane (target lane), vel, nitro (smashing through) }
 // out: receives events { k, … }: gear, near, smash, wreck, swipe{back,dir}, crash, bust, stumble{by}, shake, star, block, weave, ramwarn, ram,
-//      lock, strike, tail, draft, cell, tape, item, full
+//      lock, strike, tail, draft, cell, tape, item, full, smash{n,pts,dir}, shove{ic,n,pts,dir}, chainend{n,pts}, outrun{who}
 export function stepGame(g, inp, out) {
   const DT = inp.dt, G = GAME, L = ROAD.lane;
   g.gt += DT; g.gd += inp.vel * DT;
@@ -436,7 +443,12 @@ export function stepGame(g, inp, out) {
   }
   if (!g.goEv && gt >= G.introHold) { g.goEv = 1; out.push({ k: 'go' }); }
   // a nitro burst shakes the pursuit car off and gives the lost life back; the third one clears the heat
+  if (g.chain && gt - g.chainT > G.chainWin) endChain(g, out);
   if (inp.nitro && !g.nz) {
+    g.bursts++;
+    // … and it cannot follow: a grappler run it was lining up, or had begun, is off
+    if (g.polM === P_WARN) { g.polM = P_TAIL; g.ramNext = Math.max(g.ramNext, gt + 2); out.push({ k: 'outrun', who: 'pol' }); }
+    else if (g.polM === P_CHARGE && g.polZ < -(POL_HL + CAR_HL)) { g.polM = P_BACK; g.polT = gt; out.push({ k: 'outrun', who: 'pol' }); }
     if (g.lives < 2) { g.lives = 2; g.pcl = 0; out.push({ k: 'shake' }); }
     if (++g.nUse >= G.nitroClear) { g.nUse = 0; const to = Math.max(1, g.star - G.clearDrop); g.heat = to; g.heatGt = gt; g.wd0 = gd - G.starAt[to - 1]; out.push({ k: 'clear', n: to }); }
     else out.push({ k: 'nuse', n: g.nUse });
@@ -461,6 +473,13 @@ export function stepGame(g, inp, out) {
   // Warnings are timed for the speed we would be doing flat out, so being slowed by a hit never shortens one.
   // (… and for the speed we will be doing two seconds on, so the car's own acceleration does not shorten one either)
   const veh = g.veh, vFull = Math.max(inp.vel, baseAt(g.d0 + gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv); let draft = 0;
+  // one more link in the smash chain, worth `m` times the base: → the points it pays
+  const link = (m) => {
+    g.chain++; g.chainT = gt; if (g.chain > g.chainBest) g.chainBest = g.chain;
+    const p = G.ptsSmash * m * (1 + G.chainStep * (Math.min(g.chain, G.chainCap) - 1)) * mult;
+    g.score += p; g.pS += p; g.chainPts += p;
+    return Math.round(p);
+  };
   for (let i = 0; i < NV; i++) {
     const o = i * VF, type = veh[o]; if (!type) continue;
     if (type === T_BLOCK && (veh[o + 5] & MIRROR) && veh[o + 2] - gd - (veh[o + 4] + CAR_HL) < (vFull - g.vt) * tAt) {
@@ -517,9 +536,11 @@ export function stepGame(g, inp, out) {
     const rel = inp.vel - veh[o + 3], gap = dz - reach;
     if (lat && lon) {
       if (inp.nitro) {
-        veh[o] = 0; g.smash++; g.combo++; g.score += G.ptsSmash * mult;
+        veh[o] = 0; g.smash++; g.combo++; if (type >= T_BLOCK) g.takedown++;
+        const pts = link(G.smashMul[type]);
         addHeat(g, type >= T_BLOCK ? G.heatCruiser : G.heatSmash);
-        out.push({ k: 'smash', lane: veh[o + 1], dz, type });
+        // (dir: the side it is thrown to, away from us · v: its speed, so the picture can carry it on)
+        out.push({ k: 'smash', lane: veh[o + 1], dz, type, n: g.chain, pts, dir: px < vx - 0.05 ? 1 : px > vx + 0.05 ? -1 : (veh[o + 8] & 1 ? 1 : -1), id: veh[o + 8] });
         continue;
       }
       if (gt >= g.inv) {
@@ -542,11 +563,11 @@ export function stepGame(g, inp, out) {
       const nearD = clamp(rel * G.nearT, 4, 30);
       if (lat && gap > 0 && gap < nearD) fl |= THREAT;
       if ((fl & THREAT) && !(fl & NEAR) && !lat && gap < nearD && dz > -reach) {
-        fl |= NEAR; g.near++; g.combo += G.comboNear; g.score += G.ptsNear * mult;
+        fl |= NEAR; g.near++; g.combo += G.comboNear; g.score += G.ptsNear * mult; g.pN += G.ptsNear * mult;
         out.push({ k: 'near', lane: veh[o + 1], pts: Math.round(G.ptsNear * mult) });
       }
       if (!(fl & PASSED) && dz < -reach) {
-        fl |= PASSED; g.passed++; g.combo++; g.score += G.ptsPass * mult;
+        fl |= PASSED; g.passed++; g.combo++; g.score += G.ptsPass * mult; g.pP += G.ptsPass * mult;
         if (dx < L * 1.5) out.push({ k: 'pass', side: Math.sign(vx - px), big: type === T_TRUCK ? 1 : 0 });   // it goes by in the next lane: you hear it
       }
       if (lat && type < T_BLOCK && gap > 0 && gap < clamp(rel * G.draftT, 12, 60)) draft = 1;
@@ -559,7 +580,7 @@ export function stepGame(g, inp, out) {
   // ── slipstream: points for tucking in behind a vehicle ──
   g.draft += (draft - g.draft) * (1 - Math.exp(-DT / 0.15));
   if (draft) {
-    g.score += G.ptsDraft * mult * DT;
+    g.score += G.ptsDraft * mult * DT; g.pF += G.ptsDraft * mult * DT;
     if (gt - g.draftEv > 2.5) { g.draftEv = gt; out.push({ k: 'draft' }); }
   }
 
@@ -588,7 +609,7 @@ export function stepGame(g, inp, out) {
     if (k < 0 || k >= n || Math.abs(z0 + k * sp - gd) > 2.2) continue;
     const bit = 1 << k;
     if (cel[o + 4] & bit) continue;
-    cel[o + 4] |= bit; g.cells++; g.score += G.ptsCell * mult;
+    cel[o + 4] |= bit; g.cells++; g.score += G.ptsCell * mult; g.pC += G.ptsCell * mult;
     out.push({ k: 'cell' });
     if (g.cells % G.tapeEvery === 0) out.push({ k: 'tape' });
   }
@@ -601,8 +622,8 @@ export function stepGame(g, inp, out) {
     if (itm[o + 5]) continue;
     if (keepClear(g, itm, o + 1, o + 3, o + 4, itm[o + 2], itm[o + 2], CAN_R, lv, me, itm[o + 2] > hz, DT)) { if (itm[o + 2] > hz || laneTaken(g, itm[o + 3], itm[o + 2], itm[o + 2], CAN_R, lv, 0)) itm[o] = 0; else itm[o + 5] = gt; continue; }
     if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
-      itm[o] = 0;
-      if (g.nstock < G.nitroMax) g.nstock++; else g.score += 500 * mult;
+      itm[o] = 0; g.cans++;
+      if (g.nstock < G.nitroMax) g.nstock++; else { g.score += 500 * mult; g.pC += 500 * mult; }
       out.push({ k: 'item', n: g.nstock, l: g.lives });
     }
   }
@@ -631,7 +652,7 @@ export function stepGame(g, inp, out) {
   if (star >= 3 && g.hOn && g.drT < 0) due.push(g.drNext);
   if (star >= 4 && g.icM === I_OFF) due.push(g.icNext); else if (g.icM === I_PACE || g.icM === I_COME) due.push(g.icT);     // (an interceptor on its way, or riding level, goes before the others)
   const turn = (t) => { if (gt < t) return false; for (const d of due) if (d < t - 1e-9 && gt - d < 2) return false; return true; };
-  const learn = (from) => { const d = Math.sign(inp.lane - from); if (d) { g.bias += (d - g.bias) * 0.35; g.dodges++; g.score += G.ptsDodge * mult; out.push({ k: 'dodge', pts: Math.round(G.ptsDodge * mult) }); } };   // which way this driver dodges
+  const learn = (from) => { const d = Math.sign(inp.lane - from); if (d) { g.bias += (d - g.bias) * 0.35; g.dodges++; g.score += G.ptsDodge * mult; g.pG += G.ptsDodge * mult; out.push({ k: 'dodge', pts: Math.round(G.ptsDodge * mult) }); } };   // which way this driver dodges
 
   // ── the traffic is alive. Two things go on in it all the time, both more often as the level rises:
   //    · drift: somewhere ahead a car, van or taxi signals and changes lane, for no reason but its own;
@@ -685,7 +706,8 @@ export function stepGame(g, inp, out) {
   if (g.polM === P_TAIL) {
     const close = policeClose(g);
     const near = gt < G.introClose || gt < g.pcl || gt < g.stG + 1.5;                // right on the bumper: the opening, just after a hit
-    g.polZ += ((close ? (near ? -G.polClose : -G.chaseZ) : -G.polFar) - g.polZ) * eK(close ? (near ? 0.3 : 0.9) : 1.1);
+    // (in a nitro burst it is left standing: it falls well back, and makes the distance up again afterwards)
+    g.polZ += ((inp.nitro ? -(G.polFar + G.polDrop) : close ? (near ? -G.polClose : -G.chaseZ) : -G.polFar) - g.polZ) * eK(inp.nitro ? 0.35 : close ? (near ? 0.3 : 0.9) : 1.1);
     g.polX += (px + (close && !near ? (px > 0.5 ? -G.chaseX : G.chaseX) : 0) - g.polX) * eK(close && !near ? 0.5 : 0.3);   // on a long chase it sits off our rear quarter, on the side with more road
     const tRam = ramLen(warn);
     if (star >= 2 && turn(g.ramNext) && may(tRam, inp.lane !== 0)) {
@@ -717,8 +739,9 @@ export function stepGame(g, inp, out) {
     // contact with the pursuit car
     const lat = Math.abs(px - g.polX) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.polZ) < POL_HL + CAR_HL - 0.2;
     if (lat && lon && g.polM !== P_WARN && g.polM !== P_HOOK) {
-      if (inp.nitro) { g.polM = P_BACK; g.polT = gt; addHeat(g, 0.5); out.push({ k: 'shove' }); }
-      else if (gt >= g.inv) {
+      if (inp.nitro) {                                       // knocked back off our tail: once (it is clear of us in a moment)
+        if (gt - g.shT > 0.6) { g.shT = gt; g.polM = P_BACK; g.polT = gt - 0.25; g.takedown++; const pts = link(G.takedownMul); addHeat(g, 0.5); out.push({ k: 'shove', n: g.chain, pts, dir: px < g.polX ? 1 : -1 }); }
+      } else if (gt >= g.inv) {
         g.inv = gt + G.swipeInv;
         if (g.polF & LAT) {                                  // it came up behind us in our lane
           g.slow = gt + G.ramSlow; stumble(g, out, 'ram');
@@ -738,14 +761,20 @@ export function stepGame(g, inp, out) {
   //    a time. Each move is signalled for the length of a warning and only made if it leaves us a way through. ──
   if (g.icM === I_OFF) {
     if (star >= 4 && gt >= g.icNext && !g.icAsk) { g.icAsk = 1; g.gapWant = Math.max(g.gapWant, G.gapFor[0]); g.icNext = gt + G.gapLead; }   // it has the traffic held back, and sets off so as to be level when the gap comes
-    else if (star >= 4 && turn(g.icNext) && think && gt > G.introT + 4) {
+    else if (star >= 4 && turn(g.icNext) && think && gt > G.introT + 4 && !inp.nitro) {
       g.icA = inp.lane !== 0 ? inp.lane : g.bias > 0.15 ? 1 : g.bias < -0.15 ? -1 : g.hSide;
       g.icM = I_COME; g.icT = gt; g.icZ = G.icZ0; g.icX = g.icA * G.icShoulder; g.icF = 0; g.icAsk = 0;
       out.push({ k: 'icwarn', side: g.icA });
     }
   } else {
+    // a nitro burst leaves it standing: on its way up, or riding level, it cannot keep pace and falls away behind
+    if (inp.nitro && (g.icM === I_COME || g.icM === I_PACE)) { g.icM = I_LEAVE; g.icT = gt; g.icNext = Math.max(g.icNext, gt + G.icEvery[0] * cad); out.push({ k: 'outrun', who: 'ic', side: g.icA }); }
     const u = gt - g.icT, m0 = g.icM, a = g.icA;
-    if (g.icM === I_COME) {
+    if (g.icM === I_FLUNG) {
+      // thrown off the road: it slews away sideways, hangs level for a moment, then it is gone behind us
+      g.icX += g.icVx * DT; g.icVx *= Math.exp(-DT / 0.35); g.icZ += (5 - 55 * u * u) * DT;
+      if (g.icZ <= G.icZ0 - 2) { g.icM = I_OFF; g.icZ = -60; g.icVx = 0; }
+    } else if (g.icM === I_COME) {
       g.icZ = Math.min(G.icZp, g.icZ + G.icV * DT);
       if (g.icZ >= G.icZp) { g.icM = I_PACE; g.icT = gt; }
     } else if (g.icM === I_PACE) {
@@ -766,14 +795,20 @@ export function stepGame(g, inp, out) {
     } else if (g.icM === I_HOLD) {
       if (u >= G.icHold) { g.icM = I_LEAVE; g.icT = gt; rest(); }
     } else {
-      g.icZ -= G.icBack * DT * Math.min(1, u / 0.25);
+      g.icZ -= G.icBack * DT * Math.min(1, u / 0.25) * (inp.nitro ? G.icOutrun : 1);
       if (g.icZ <= G.icZ0 - 2) { g.icM = I_OFF; g.icZ = -60; g.icNext = Math.max(g.icNext, gt + (G.icEvery[0] + rnd(g) * (G.icEvery[1] - G.icEvery[0])) * cad); }
     }
     // contact with the interceptor
-    const ix = g.icX * L, lat = Math.abs(px - ix) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.icZ) < POL_HL + CAR_HL - 0.2;
-    if (lat && lon) {
-      if (inp.nitro) { if (g.icM !== I_LEAVE) rest(); g.icM = I_LEAVE; g.icT = gt; g.icNext = gt + G.icOut; g.smash++; g.score += G.ptsSmash * mult; addHeat(g, G.heatCruiser); out.push({ k: 'shove', ic: 1 }); }
-      else if (gt >= g.inv) {
+    // (in a nitro burst the car throws it off before it is properly alongside: its reach is a little wider)
+    const ix = g.icX * L, lat = Math.abs(px - ix) < POL_HW + CAR_HW - 0.12 + (inp.nitro ? G.flingReach : 0), lon = Math.abs(g.icZ) < POL_HL + CAR_HL - 0.2;
+    if (lat && lon && g.icM !== I_FLUNG) {
+      if (inp.nitro) {
+        if (g.icM !== I_LEAVE) rest();
+        const dir = px < ix - 0.05 ? 1 : px > ix + 0.05 ? -1 : g.icA;                 // away from us
+        g.icM = I_FLUNG; g.icT = gt; g.icVx = dir * G.flingV; g.icNext = gt + G.icOut; g.smash++; g.takedown++;
+        const pts = link(G.takedownMul); addHeat(g, G.heatCruiser);
+        out.push({ k: 'shove', ic: 1, n: g.chain, pts, dir });
+      } else if (gt >= g.inv) {
         g.inv = gt + G.swipeInv; addHeat(g, G.heatSwipe);
         const dir = px < ix ? -1 : 1, back = clamp(Math.round(g.icX) + dir, -1, 1);
         if (m0 === I_SLAM || (g.icF & LAT)) { g.slow = gt + G.ramSlow; stumble(g, out, 'slam'); }      // it drove into us
@@ -837,5 +872,6 @@ export function stepGame(g, inp, out) {
   g.sx += ((lk ? aim * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
   g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
 
-  g.score += inp.vel * DT * G.ptsDist * mult;
+  g.score += inp.vel * DT * G.ptsDist * mult; g.pD += inp.vel * DT * G.ptsDist * mult;
+  if (g.over) endChain(g, out);
 }

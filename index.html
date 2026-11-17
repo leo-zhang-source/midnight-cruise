@@ -27,7 +27,7 @@
   <div id="cine" aria-hidden="true"><i class="cb-t"></i><i class="cb-b"></i><p id="cine-cap"></p></div>
 
   <h1 class="sr-only">Midnight Cruise — 1986</h1>
-  <p class="sr-only" id="about">Midnight Cruise — 1986 is a single-player synthwave arcade police chase. The car accelerates automatically and has no brake. Press the left and right arrow keys or A and D, or click or tap the left and right halves of the road, to change lane. Collect nitro canisters and press the up arrow or the NITRO button to boost through traffic and restore a lost life. You start with two lives; a hit costs one, and another hit before you recover ends the run. After a wreck or capture, spend a spare tape to rewind three seconds. Every run starts with one tape; collect 100 energy cells to earn another, up to three in reserve. Open Settings with O or the gear icon to adjust music, colours and the starting threat level, from 0 to 20. Your best score is saved in this browser when local storage is available.</p>
+  <p class="sr-only" id="about">Midnight Cruise — 1986 is a single-player synthwave arcade police chase. The car accelerates automatically and has no brake. Press the left and right arrow keys or A and D, or click or tap the left and right halves of the road, to change lane. Collect nitro canisters and press the up arrow or the NITRO button to boost through traffic and restore a lost life. Every vehicle rammed in one boost adds a link to a smash chain, each link worth more than the last, and a boost leaves the police behind. You start with two lives; a hit costs one, and another hit before you recover ends the run. After a wreck or capture, spend a spare tape to rewind three seconds. Every run starts with one tape; collect 100 energy cells to earn another, up to three in reserve. Open Settings with O or the gear icon to adjust music, colours and the starting threat level, from 0 to 20. Energy cells are counted at the top left. When the run ends a results screen counts up the score and grades it. Your best score is saved in this browser when local storage is available.</p>
 
   <!-- VCR on-screen display (crisp, above the tape image) -->
   <div id="osd" aria-hidden="true">
@@ -62,31 +62,68 @@
     <div class="gh-sub">
       <span class="gh-stars" id="g-stars" data-n="1"><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6Z"/></svg></span><span class="gh-lv" id="g-lv" data-hot="0">LV 0</span>
       <span class="gh-lives" id="g-lives" data-n="2"><svg viewBox="0 0 24 24"><path d="M12 21 3.5 12.6a5.2 5.2 0 0 1 7.4-7.4L12 6.3l1.1-1.1a5.2 5.2 0 0 1 7.4 7.4Z"/></svg><svg viewBox="0 0 24 24"><path d="M12 21 3.5 12.6a5.2 5.2 0 0 1 7.4-7.4L12 6.3l1.1-1.1a5.2 5.2 0 0 1 7.4 7.4Z"/></svg></span>
-      <span class="gh-cells"><i></i><b id="g-cells">0</b></span>
       <span class="gh-tapes" id="g-tapes" data-n="0"><i></i><i></i><i></i></span>
     </div>
     <div class="gh-tail" id="g-tail"><span id="g-tail-text">POLICE ON YOUR TAIL</span><i><b id="g-tail-bar"></b></i></div>
   </div>
+  <!-- energy cells picked up this run (and how near the next spare tape is); the smash chain while a nitro burst is ramming traffic -->
+  <div id="energy" aria-hidden="true">
+    <span class="en-cap"><i></i>ENERGY</span>
+    <b class="en-n" id="g-cells">0</b>
+    <span class="en-bar"><u id="g-cellbar"></u></span>
+    <span class="en-next" id="g-cellnext">SPARE TAPE AT 100</span>
+    <span class="en-plus" id="g-cellplus">+1</span>
+  </div>
+  <div id="chain" aria-hidden="true">
+    <span class="ch-cap" id="ch-cap">SMASH CHAIN</span>
+    <span class="ch-x"><i>×</i><b id="ch-n">1</b></span>
+    <span class="ch-pts" id="ch-pts">+0</span>
+    <span class="ch-bar"><u id="ch-bar"></u></span>
+    <span class="ch-hit" id="ch-hit"></span>
+  </div>
   <div id="gpops" aria-hidden="true"><p></p><p></p><p></p></div>
   <div id="police" aria-hidden="true"><i class="pl"></i><i class="pr"></i></div>
-  <section id="over" role="dialog" aria-labelledby="over-title" hidden>
-    <p class="ov-tag"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11 7 H1 Z M1 9 H11 V11 H1 Z"/></svg> TAPE EJECTED</p>
-    <h2 id="over-title">CRASHED</h2>
-    <dl class="ov-stats">
-      <div class="big"><dt>SCORE</dt><dd id="ov-score">0</dd></div>
-      <div class="big"><dt id="ov-best-l">BEST</dt><dd id="ov-best">0</dd></div>
-      <div><dt>DISTANCE</dt><dd id="ov-dist">0</dd></div>
-      <div><dt>TOP SPEED</dt><dd id="ov-speed">0</dd></div>
-      <div><dt>BEST COMBO</dt><dd id="ov-combo">0</dd></div>
-      <div><dt>CLOSE CALLS</dt><dd id="ov-near">0</dd></div>
-      <div><dt>SMASHED · DODGED</dt><dd id="ov-smash">0</dd></div>
-      <div><dt>WANTED</dt><dd id="ov-star">★☆☆☆☆</dd></div>
-    </dl>
-    <div class="ov-btns">
-      <button id="revive" class="start" type="button"><span class="start-icon" aria-hidden="true"><svg viewBox="0 0 16 10"><path d="M15 1 L9 5 L15 9 Z M8 1 L2 5 L8 9 Z"/></svg></span><span class="start-label">REWIND 3&nbsp;S</span><small id="ov-tapes">1 TAPE</small></button>
-      <button id="home" class="ghost on" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11.5 6 H10 V11 H7.2 V7.6 H4.8 V11 H2 V6 H0.5 Z"/></svg> HOME</button>
+  <!-- the results screen: how the run ended, the score counted up line by line, the grade, and what to do next -->
+  <section id="over" role="dialog" aria-modal="true" aria-labelledby="over-title" hidden>
+    <div class="rs-card" id="rs-card">
+      <header class="rs-head">
+        <p class="ov-tag"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11 7 H1 Z M1 9 H11 V11 H1 Z"/></svg> TAPE EJECTED <span id="rs-run">RUN 01</span></p>
+        <h2 id="over-title">WRECKED</h2>
+        <p class="rs-sub" id="rs-sub"></p>
+      </header>
+      <div class="rs-score">
+        <div class="rs-grade" id="rs-grade" data-g="C"><i></i><b id="rs-letter">C</b></div>
+        <div class="rs-total">
+          <span class="rs-cap">FINAL SCORE</span>
+          <b id="ov-score">0</b>
+          <span class="rs-rank" id="rs-rank">STREET RACER</span>
+          <span class="rs-best" id="rs-best"><span id="ov-best-l">BEST</span> <b id="ov-best">0</b></span>
+          <span class="rs-next" id="rs-next"></span>
+        </div>
+      </div>
+      <ol class="rs-rows" id="rs-rows" aria-label="Where the points came from">
+        <li data-k="dist"><span>DISTANCE</span><i></i><b>0</b></li>
+        <li data-k="pass"><span>TRAFFIC PASSED</span><i></i><b>0</b></li>
+        <li data-k="near"><span>CLOSE CALLS</span><i></i><b>0</b></li>
+        <li data-k="smash" class="hot"><span>NITRO SMASHES</span><i></i><b>0</b></li>
+        <li data-k="dodge"><span>POLICE DODGED</span><i></i><b>0</b></li>
+        <li data-k="cells"><span>ENERGY</span><i></i><b>0</b></li>
+        <li data-k="draft"><span>SLIPSTREAM</span><i></i><b>0</b></li>
+      </ol>
+      <dl class="rs-stats" id="rs-stats">
+        <div><dt>TOP SPEED</dt><dd id="ov-speed">0</dd></div>
+        <div><dt>TIME</dt><dd id="rs-time">0:00</dd></div>
+        <div><dt>BEST CHAIN</dt><dd id="ov-combo">0</dd></div>
+        <div><dt>POLICE WRECKED</dt><dd id="rs-take">0</dd></div>
+        <div><dt>NITRO FIRED</dt><dd id="rs-nitro">0</dd></div>
+        <div><dt>WANTED</dt><dd id="ov-star">★☆☆☆☆</dd></div>
+      </dl>
+      <div class="ov-btns">
+        <button id="revive" class="start" type="button"><span class="start-icon" aria-hidden="true"><svg viewBox="0 0 16 10"><path d="M15 1 L9 5 L15 9 Z M8 1 L2 5 L8 9 Z"/></svg></span><span class="start-label">REWIND 3&nbsp;S</span><small id="ov-tapes">1 TAPE</small></button>
+        <button id="home" class="ghost on" type="button"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11.5 6 H10 V11 H7.2 V7.6 H4.8 V11 H2 V6 H0.5 Z"/></svg> HOME</button>
+      </div>
+      <p class="ov-keys"><span class="ov-rk"><kbd>R</kbd> REWIND</span><kbd>H</kbd> HOME</p>
     </div>
-    <p class="ov-keys"><span class="ov-rk"><kbd>R</kbd> REWIND</span><kbd>H</kbd> HOME</p>
   </section>
   <section id="paused" role="dialog" aria-labelledby="paused-title" hidden>
     <h2 id="paused-title">PAUSED</h2>

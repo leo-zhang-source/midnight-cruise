@@ -19,6 +19,94 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 48: hits that hit, the smash chain, a results screen
+
+Six things were asked for. They were built as one piece: a nitro burst is now the game's big scoring moment, the hits around it land harder, and the run ends on a screen that adds it all up.
+
+### 1. Crashes shake the picture
+
+Before, a hit moved the lens by at most 2.2 % of the screen's height. Now every hit adds "trauma", and the camera shakes with its square: the lens shifts, the camera itself moves and rolls. Measured from the game's own frames (`tools/shake-check.mjs`):
+
+| Hit | Lens shift (share of screen height) | Roll | Picture held |
+|---|---|---|---|
+| The crash that ends the run | 8.1 % | 2.9° | 233 ms |
+| A hit that costs a life | 4.5 % | 2.0° | 133 ms |
+| An interceptor thrown off | 3.8 % | 4.4° | 92 ms |
+| A nitro smash, fifth link | 2.4 % | 2.9° | 92 ms |
+| A nitro smash, first link | 1.5 % | 2.4° | 50 ms |
+
+- The HUD jumps with the camera, and the picture smears for a moment on a hit.
+- A sideswipe tips the horizon as you are thrown back across the lane.
+- Being rammed, slammed or shot now has its own blow in the sound (it used to be the siren alone), and the final crash has more low end.
+- A phone that can vibrate does (Android; iPhones have no web vibration).
+- With reduced motion the shake is a third as strong and bright flashes are capped. The hold on the hit stays.
+
+### 2. Nitro smashes: extra points and a chain
+
+- **The chain.** Every vehicle rammed in a burst is a link. A link made within 2.2 s of the last pays half the base more than the one before: 200, 300, 400 … up to 1,100 from the tenth link on. That is multiplied by what you hit (truck ×1.5, taxi ×1.25, police cruiser ×2, pursuit car or interceptor ×2.5) and by your multiplier.
+- **On screen.** A meter at the top right shows the links (the number slams in with each one), what the chain has paid, and a bar for the time left. What each link paid drops out of it. At 3, 5, 8, 12, 16 and 20 links the chain is called out (TRIPLE SMASH, RAMPAGE, WRECKING BALL, UNSTOPPABLE, JUGGERNAUT, MIDNIGHT LEGEND) with a longer hold, a brighter flash and a bigger burst. When the time runs out the meter turns green, reads CHAIN BANKED and rises towards the score.
+- **In the sound.** Each link rings a note higher than the last, up the A minor pentatonic scale the music is in, so a run of hits climbs. A milestone adds a rising chord, a boom and a cymbal. Banking rings like a till.
+- **On the road.** A rammed vehicle is no longer just gone. The blow carries it on ahead of you and off to the side, spinning, lamps lit, shedding sparks, before it drops away. Later links throw more shards and sparks.
+- **Example.** In the staged test run a five-link chain (car, cruiser, cruiser, car, cruiser) at a ×10 multiplier paid 2,000 + 6,000 + 8,000 + 5,000 + 12,000 = 33,000.
+
+### 3. The results screen
+
+When the run ends, the small panel is replaced by a full screen in the game's own style: the head is the cassette's label, the title is WRECKED (pink) or BUSTED (blue).
+
+- **The score is counted up line by line:** distance, traffic passed, close calls, nitro smashes (with the best chain), police dodged, energy, slipstream. The simulation now keeps these separately, and the lines add up to the total exactly.
+- **Then the total lands and a grade is stamped on it:** D, C from 15,000, B from 50,000, A from 120,000, S from 250,000, named SUNDAY DRIVER, STREET RACER, OUTLAW, ROAD PHANTOM, MIDNIGHT LEGEND. For scale, the bot's clean three-minute run scores about 340,000.
+- **Your best score answers:** NEW BEST with the old one, or BEST; and how many points the next grade is away.
+- **Six numbers sum the run up:** top speed, time, best chain, police wrecked, nitro bursts fired, wanted level reached.
+- Each line ticks as it is counted, the total lands with a chord, the grade with a stamp, a new best with a fanfare. A tap or click skips the count. REWIND and HOME work from the first moment, as before, and there is still no direct retry.
+- It fits without scrolling at 1280×720, 1024×768, a phone upright (390×664) and a phone on its side (750×340).
+
+### 4. The energy counter
+
+The count used to be a small number in the row under the score. It is now its own panel at the top left: ENERGY, the number in large green digits, and a bar that fills towards the next spare tape with the cells still needed ("37 TO A SPARE TAPE"). Each cell makes the number jump and glow and floats a +1. The number is the simulation's own count for the run, and the results screen shows the same one. Taking a cell still makes no sound, as you asked in Revision 31.
+
+### 5. CRUISE on the title screen
+
+On the first screen and the home screen the neon "Cruise" was unlit glass, at 5 % brightness. It is now lit: it stutters alight in the first second, then burns steadily with a slight waver and a short flicker every few seconds. When a run begins it now stays fully lit for the first half second and goes out as the chrome title leaves (it used to start flickering out after 0.2 s). The energy panel waits until the title has left its corner.
+
+### 6. Nitro breaks free of the police
+
+- **An interceptor that swerves into you during a burst is thrown off the road.** It spins away sideways over the rail in a shower of sparks, the camera kicks and rolls, and it is out for 14 s. It counts as a chain link at the ×2.5 rate (INTERCEPTOR SMASHED OFF THE ROAD). The car's reach is a little wider during a burst, so it goes just as it arrives.
+- **One riding level with you is left behind** the moment the burst fires (INTERCEPTOR LEFT BEHIND): it drops away 2.6 times as fast as it normally retires, and none comes up while a burst is on.
+- **The pursuit car cannot follow.** A grappler run it was lining up or had begun is called off (GRAPPLER OUTRUN), and it falls from 19 to 35 units behind until the burst ends.
+- **A bug this fixed.** Before, an interceptor or pursuit car touching you during a burst was counted again on every simulation step while the two overlapped (240 times a second): points and half a star of heat each time. It now counts once.
+
+### What was verified
+
+- **Simulation tests** (`tools/game-test.mjs`): 101 pass, 14 of them new: chain numbering and pay, banking after 2.2 s, the interceptor thrown off once and away from you, the outrun cases, no repeated shoves, the score equal to the sum of its seven parts, the counts matching the events.
+- **Browser tests** (`tools/game-ui.mjs`): 62 pass, 19 of them new. The new ones run at three sizes (desktop, phone upright, phone on its side): the neon lit, the energy counter equal to the simulation's count, the chain meter's number and points, the banking, the results counting up and ending on the exact score with its lines adding up, and everything inside the screen and clear of the other HUD parts.
+- **Staged frames** (`tools/juice.mjs`): I looked at the chain link by link, the interceptor being thrown, the crash, the results as they arrive, and the title, at four screen sizes.
+- **Sound levels** (`tools/sfx-check.mjs`): no clipping with any new effect over the music.
+- **The other suites** pass unchanged: `interact` 44, `touch` 8, `auto-env-test` 7, `adapt-test` 5, `smoke` on the three built pages, the iPhone 13 WebKit smoke test, and `shake-check` 4. The bot's soak is clean: 16 seeds × 300 s with and without nitro, no hits.
+- **Live playback** on the built page: the chain, the interceptor and the results were played in real time (not seeked) with the audio engine running; the right sounds were queued and there were no page errors.
+- **The canonical demo run** was re-recorded, because the police now behave differently around a burst. It is clean again and includes two bursts with chains of 4 and 5.
+
+### What I could not check
+
+- **How it sounds and feels in the hand.** I measured levels and looked at frames; I did not hear the audio or play it on a device. The shake strength, the chain's notes and the flash levels are the first things to tell me about if they are off.
+- **Real phones.** Layouts were checked in emulation only.
+
+## Revision 47: smooth on phones and tablets
+
+You said the game lagged on phones and iPads, and asked for it to run well there without changing the desktop experience.
+
+- **Where the time went.** On a phone-sized screen with the CPU slowed 6×, the game logic, the world update and the render setup together take about 2 ms a frame. So the lag is on the graphics chip: a stack of full-screen passes (the scene, the chrome title layer, the neon layer, the composite, the bloom pyramid and the VHS pass).
+- **A lighter render path for phones and tablets.** It is chosen when the device has a touch screen as its main pointer, a small screen, or a phone or tablet browser. An iPad with a trackpad also counts: it reports a Mac browser, but Macs have no touch points. On this path:
+  - the speed blur takes 3 samples instead of 6, the chroma smear 1 instead of 2, and the luma sharpening is skipped;
+  - the title's drop shadow uses 6 samples instead of 12;
+  - the sky draws one star layer instead of two;
+  - the chrome title and neon layers are skipped whenever nothing of them is on screen, which is the whole of a run;
+  - the title's motion blur at the slam uses 4 sub-frames instead of 8.
+  The picture is almost the same. Over 8 test frames the average difference from the full path is about 1/255 per pixel.
+- **Quality steps down faster and further.** Phones still start at tier 3. If frames run slow for 0.8 s (1.2 s on desktop), the game drops a tier, and phones now have two more tiers below the desktop's lowest: 0.5 MP, then 0.34 MP at ¾ resolution. A phone also never climbs back into a tier that already proved too slow, so it doesn't see-saw (each change of size is a small hitch). In a test with the CPU slowed 40×, a phone went from tier 3 to tier 6 in 3 s and stayed there.
+- **Desktop unchanged.** Desktop browsers take exactly the old path. 13 frames across the opening and a run hash identically before and after the change, and a desktop still never goes below tier 4.
+- **What I could not test.** I have no real phone or iPad here. The measurements come from Chrome's phone emulation on this Mac and from WebKit's iPhone 13 emulation. How much smoother it feels on your devices is for you to check. `?hud=1` shows the fps and the tier.
+- **New tools.** `tools/perf-mobile.mjs` (phone viewport, slowed CPU, frame cost per scene), `tools/adapt-test.mjs` (the tier stepping) and `tools/frame-hash.mjs` (proves two copies render the same pictures).
+
 ## Revision 46: a higher start comes with the speed to match
 
 You asked for a high starting level to come with the speed a normal run has when it reaches that level.

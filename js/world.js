@@ -25,9 +25,9 @@ const COMMON = /* glsl */`
 `;
 
 // ── Sky & sun ─────────────────────────────────────────────────────────────
-function makeSky() {
+function makeSky(lite) {
   const mat = new THREE.ShaderMaterial({
-    depthWrite: false, depthTest: false,
+    depthWrite: false, depthTest: false, defines: lite ? { LITE: '' } : {},
     uniforms: {
       uInvVP: { value: new THREE.Matrix4() }, uCam: { value: new THREE.Vector3() }, uRes: { value: new THREE.Vector2(1, 1) },
       uTime: { value: 0 }, uSunEl: { value: 0.06 }, uSunR: { value: 0.18 }, uSunPow: { value: 1 }, uBand: { value: 0 },
@@ -70,7 +70,11 @@ function makeSky() {
         // stars
         if (el > 0.02) {
           vec2 sp = vec2(az, el);
+#ifdef LITE
+          float st = starLayer(sp, 70.0, pxAng * 1.1, 3.0);            // phones: the fine star layer is dropped
+#else
           float st = starLayer(sp, 70.0, pxAng * 1.1, 3.0) + 0.6 * starLayer(sp, 140.0, pxAng * 0.9, 11.0);
+#endif
           col += vec3(0.85, 0.9, 1.0) * st * uStars * smoothstep(0.03, 0.2, el);
         }
         // sun
@@ -464,11 +468,11 @@ function makeTraffic() {
 }
 
 export class World {
-  constructor(seed) {
+  constructor(seed, { lite = false } = {}) {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(56, 16 / 9, 0.1, 20000);
     this.camera.rotation.order = 'YXZ';
-    this.sky = makeSky(); this.grid = makeGrid(); this.mount = makeMountains(seed); this.palms = makePalms(seed); this.trails = makeTrails(); this.traffic = makeTraffic(); this.car = new Car(); this.gv = new GameView();
+    this.sky = makeSky(lite); this.grid = makeGrid(); this.mount = makeMountains(seed); this.palms = makePalms(seed); this.trails = makeTrails(); this.traffic = makeTraffic(); this.car = new Car(); this.gv = new GameView();
     this.scene.add(this.sky, this.mount, this.grid, this.trails, this.traffic, this.palms, this.gv.group, this.car.group);
     this._m = new THREE.Matrix4();
   }

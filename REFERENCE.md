@@ -10,6 +10,10 @@ Detailed controls, chase mechanics, audiovisual design and development tools. Fo
 
 It opens in a current Chrome, Edge, Safari or Firefox, on desktop or phone, and nothing needs installing.
 
+**On phones and tablets** the game uses a lighter render path: cheaper speed blur, sharpening and chroma smear in the VHS pass, a lighter title shadow, one star layer instead of two, and no title or neon passes while those are off screen. It starts at a lower resolution and, on a slow device, steps down within a second or so (two extra steps below the desktop's lowest), then stays at the level that runs smoothly. Desktop browsers keep the full path, and their picture is unchanged frame for frame.
+
+**The title screen** shows the chrome MIDNIGHT with the neon *Cruise* lit under it (it stutters alight as the tape starts), the 1986 plate and START DRIVE.
+
 **Also on itch.io:** https://leo8654.itch.io/midnight-cruise. It's free and plays in the page, with screenshots and a store description; the cover, screenshots and copy are in [`press/`](press/). The itch.io copy is a snapshot: it updates only when a new zip is uploaded there, so the GitHub Pages link above is always the newest build.
 
 - **One file.** The live site is a single self-contained page, `docs/index.html`, with all code, fonts and samples inlined. A browser can't end up with a mix of old and new files.
@@ -74,7 +78,7 @@ The score is thirteen bars in A minor at 120 BPM: a pedal bass, a ticking hat an
 | Rolling roadblock | From two stars: two police cruisers in echelon, lights on, snaking across their lanes, a warning sign over each. They brake as you come up. One lane is left — and when a cruiser is in the middle lane it usually (half the time at two stars, 60 % from three; that pair does not brake) signals with chevrons and steers across into that open side lane, so the middle becomes the way through. |
 | Weaving cruiser | From two stars: one cruiser swinging between the middle lane and one side; chevrons over the two lanes show which way it is steering. About 1.2 s before you reach it, it takes the lane it is heading for and the sign over that lane turns into a warning triangle. At three stars a second cruiser may hold the third lane. |
 | Cruiser that cuts you off | From four stars: a single cruiser in the middle lane that waits until you are 1.8 s away (1.1 s at the highest levels), looks which lane you are in, and cuts across into it (CRUISER CUTTING YOU OFF). The lane it leaves is your way round. If you are behind it in the middle it stays and brakes. |
-| Energy cells | Mark the open lane. Each adds score (silently); 100 of them earn a spare tape (up to 3). |
+| Energy cells | Mark the open lane. Each adds score (silently); 100 of them earn a spare tape (up to 3). The **ENERGY** counter at the top left shows how many you have picked up this run, with a bar that fills towards the next tape. |
 | Pickups and traffic | Cells and canisters never sit under a vehicle. Each one watches the next 0.9 s of traffic around it; when a car is about to drive over it (it catches up, wanders or changes lanes), the pickup slides across to a lane that stays clear. If no lane is clear, the cells that are in the way fade out where they are and cannot be taken. |
 | Nitro canister | A pressure bottle (blue, NITRO on its label) that hovers and turns over a seal of gold light on the road, in a shaft of gold light with sparks rising round it: the first about 15 s into a run, then one every 30 to 45 s in top gear, and up to half as far apart again as the threat level rises. Drive through it to take it aboard; you can carry three. |
 | Nitro, on screen | Taking a canister pops a gold **+1 NITRO n/3** tag out of the NITRO button. During a burst a gold panel over the controls shows **NITRO BOOST ×2 SPEED · SMASH THROUGH** and a bar that drains over the 5.6 s the burst lasts; the speedometer turns gold. |
@@ -87,7 +91,7 @@ The score is thirteen bars in A minor at 120 BPM: a pedal bass, a ticking hat an
 - **A nitro burst shakes it off and gives the life back.** So a canister in stock is your second chance: spend it on points, or keep it. The game says so once, quietly: NITRO SHAKES THEM OFF shows under the stars for four seconds after the hit, a canister picked up on the last life says FIRE IT TO SHAKE THEM OFF, and the nitro button wears a pink ring while you hold one.
 - After a hit nothing new attacks you for two and a half seconds, and a warning or a searchlight lock that was still running is called off: with two units on you, one mistake still costs one life.
 
-**After a crash** the tape is ejected and the panel offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability and both lives. **HOME** goes back to the home screen. A new run always starts from the home screen, and every start opens the same way: the tape rewinds and the 26-second intro plays, into the run. **SKIP INTRO** cuts it to a 0.4 s fast-forward. **RESTART** in the pause menu opens the same way.
+**After a crash** the tape is ejected and the results screen comes up (see below). It offers two things: **REWIND** spends a spare tape (you start with one) and runs the last three seconds backwards, road, traffic and all, then gives you 2 s of invulnerability and both lives. **HOME** goes back to the home screen. A new run always starts from the home screen, and every start opens the same way: the tape rewinds and the 26-second intro plays, into the run. **SKIP INTRO** cuts it to a 0.4 s fast-forward. **RESTART** in the pause menu opens the same way.
 
 **Wanted level: five stars**
 
@@ -130,8 +134,12 @@ Heat from hits cools by one star every 12 s once 10 s pass without an incident, 
 - **Distance** scores points all the time.
 - **Overtakes** add 1 to the combo, **close calls** (leaving a lane just before you would hit) add 3. **Dodging a police attack** scores 300 × the multiplier (DODGED). The multiplier is ×1 + 0.1 per combo step, up to ×5, plus 25 % per star above the first.
 - **The car accelerates all the way.** It pulls steadily through six gears, from 139 MPH off the line to 269 MPH as top gear engages (after 6.4 km, about 80 s), and in top gear it keeps gaining, up to 550 MPH, which it reaches about five minutes into a run (41.5 km). You hear it: the engine note climbs through each gear and falls back at the change. There is no brake. The car has weight: when a hit slows it, it takes about two seconds to get the speed back.
-- **Nitro** lasts 5.6 s: it accelerates towards twice your normal speed, holds full boost for 4 s, then eases off over 1.6 s during which you smash through traffic and police cruisers (a cruiser costs a whole star), and shove the pursuit car back if it is in your way. Each vehicle smashed scores points. Every third burst cools the wanted level by two stars. A burst also rams the interceptor off for 14 s. Nothing can touch you for a second after a burst ends (at top gear it peaks at about 1,100 MPH, and the car needs that long to settle).
+- **Nitro** lasts 5.6 s: it accelerates towards twice your normal speed, holds full boost for 4 s, then eases off over 1.6 s. During a burst you smash through traffic and police cruisers (a cruiser costs half a star). Every third burst cools the wanted level by two stars. Nothing can touch you for a second after a burst ends (at top gear it peaks at about 1,100 MPH, and the car needs that long to settle).
+- **The smash chain.** Every vehicle you ram in a burst is a link. A link made within 2.2 s of the last one is worth half the base more than the one before: 200 for the first, 300, 400 … up to 1,100 from the tenth on. That is multiplied by what you hit (a truck ×1.5, a taxi ×1.25, a police cruiser ×2, the pursuit car or the interceptor ×2.5) and by your multiplier. The meter at the top right shows the links, what the chain has paid and the time left to add another; each link rings a note higher than the last, and the chain is called out at 3, 5, 8, 12, 16 and 20 links (TRIPLE SMASH, RAMPAGE, WRECKING BALL, UNSTOPPABLE, JUGGERNAUT, MIDNIGHT LEGEND). When the time runs out the chain is banked. A hit breaks it.
+- **A burst breaks the police off.** The pursuit car cannot follow: a grappler run it was lining up is called off (GRAPPLER OUTRUN) and it falls well back until the burst is over. An interceptor riding level with you is left behind. One that swerves into you during a burst is thrown off the road, spinning, in a shower of sparks, and is out of action for 14 s; a vehicle you ram is not just gone either: the blow carries it on ahead of you and off to the side before it drops away.
 - **Slipstream**: staying close behind a vehicle before you pull out scores a bonus.
+
+**The results screen.** When the run ends the tape is ejected and the score is counted up, line by line: distance, traffic passed, close calls, nitro smashes (with the best chain), police dodged, energy and slipstream. The lines add up to the total exactly. Then the total lands, a grade is stamped on it (D below 15,000, C, B from 50,000, A from 120,000, S from 250,000, each with its name, from SUNDAY DRIVER to MIDNIGHT LEGEND), and it is set against your best score, with how far the next grade is. Six numbers sum the run up: top speed, time, best chain, police wrecked, nitro bursts fired and the wanted level reached. A tap or a click skips the count; REWIND and HOME work from the start.
 
 **The road.** One highway into the city for the whole run, drawn on the neon grid: three grid cells are the three lanes, the bright rails are its edges, reflector posts stand on them (amber on the left, white on the right). It is not straight or flat. After the opening straight it sweeps left and right in long bends and rises and falls over crests, the whole grid bending with it; the camera looks into each bend, the car leans, and the sun and the city swing across the screen and come back: the road always returns to the line that leads to them. The bends are in the picture only; the game is still three lanes. On the horizon the megastructure towers, over the road a sign gantry every 2,400 units and a big billboard every 1,600, beside it roadside signs on posts. The four colour presets only change the mood, like the time of the evening; they switch every 40 s or 5,200 road units, whichever comes first.
 
@@ -146,8 +154,8 @@ Heat from hits cools by one star every 12 s once 10 s pass without an incident, 
 
 And it hits on screen:
 
-- **Hit-stop.** The picture holds for a few frames on every impact and then catches up: a smash 55 ms, a hit that costs a life 140 ms, a crash 240 ms.
-- **The camera** kicks towards the side a hit came from, the lens punches in on a smash and out on a hit, gunfire close by rattles it, and the faster you go the wider it opens.
+- **Hit-stop.** The picture holds for a few frames on every impact and then catches up: a smash 55 ms (95 ms on a chain milestone or an interceptor thrown off), a hit that costs a life 140 ms, a crash 240 ms.
+- **The camera** kicks towards the side a hit came from, the lens punches in on a smash and out on a hit, gunfire close by rattles it, and the faster you go the wider it opens. Every hit also shakes the whole camera, the lens, its position and its roll, with a force that goes with the square of how hard the hit was: a scrape rattles, a smash thumps, a crash throws the picture about (up to a tenth of the screen's height). The HUD jumps with it, and a phone that can vibrate does. With reduced motion the shake is a third as strong and the flashes are capped.
 - **Light.** Smashes throw sparks and light the grid under them with a ring running out from the wreck; a sideswipe sprays sparks along your flank; a nitro burst sends a shockwave over the grid; flashes are tinted by what they were (amber smash, red police hit, white-hot crash, magenta level-up). Streaks of light rush past at the roadside at speed.
 - **The last life** is a state you can see: the edges of the picture glow red in time with the heartbeat and the car trails smoke and sheds sparks until a nitro burst gives the life back.
 - A crash is the biggest of all: a white-hot core, 70 sparks and 44 shards of the car, a ring 30 units out over the grid, the lens slamming back, the picture shaking for most of a second.
@@ -172,7 +180,8 @@ Every frame is a pure function of scene time, the seed, the viewport and the eve
 | `?events=[…]` | Replay any JSON event list. Export one from the console with `MC.events()` |
 | `?hud=1` | Debug HUD: time, phase, fps, quality tier, audio state |
 | `?frame.carKWide=5.2&frame.shiftWide=0` | Override a framing constant (`FRAME` in `js/director.js`) for tuning |
-| `?tier=0..3` | Pin a quality tier. Without it, tiers adapt to the measured frame time |
+| `?tier=0..6` | Pin a quality tier. Without it, tiers adapt to the measured frame time: desktops use 0–4, phones and tablets start at 3 and can go down to 6 |
+| `?lite=1` / `?lite=0` | Force the phone render path on or off (it is on by default only on phones and tablets; see below) |
 | `?w=1920&h=1080&capture=1` | Fixed-size render target for stills |
 
 **Console API**
@@ -206,7 +215,7 @@ node tools/game-test.mjs         # game simulation unit tests: determinism, cras
 ```
 
 ```bash
-node tools/game-ui.mjs           # browser test of the game flow: run opening, no brake, EJECT panel, rewind, home, pause menu, busted, nitro stock, phone layout
+node tools/game-ui.mjs           # browser test of the game flow: run opening, no brake, results screen, rewind, home, pause menu, busted, nitro stock, energy counter, smash chain, phone layouts
 ```
 
 ```bash
@@ -228,7 +237,27 @@ node tools/touch.mjs             # emulated-touch test at 390×844
 ```
 
 ```bash
+node tools/juice.mjs renders/juice 1280x720 chain,fling,outrun,crash,results   # frames around staged moments: a smash chain, an interceptor thrown off, a crash, the results screen
+```
+
+```bash
+node tools/sfx-check.mjs         # levels of the game's sound effects against the music
+```
+
+```bash
 node tools/perf.mjs              # GPU-synchronised frame cost at several sizes and tiers
+```
+
+```bash
+node tools/perf-mobile.mjs 4 "&tier=3"   # phone viewport, CPU throttled ×4: frame cost and the CPU split per scene
+```
+
+```bash
+node tools/adapt-test.mjs        # a slow phone steps down to the lowest lite tier and stays; a desktop never enters the lite tiers
+```
+
+```bash
+node tools/frame-hash.mjs > a.txt   # hashes of 13 canonical frames: run on two working copies and diff to prove the picture is unchanged
 ```
 
 ```bash

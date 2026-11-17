@@ -264,6 +264,23 @@
     comboCap: 40,
     comboStep: 0.1,
     starBonus: 0.25,
+    // Smash chain: every vehicle rammed in a nitro burst is a link. A link made within chainWin s of the last one is worth chainStep more
+    // of the base (ptsSmash) than the one before, up to link chainCap; then the chain is banked. What it was counts too (smashMul by
+    // vehicle type: car, van, truck, taxi, cruisers) and so does a police unit knocked off us (takedownMul: the pursuit car, the interceptor).
+    // chainTier: the links at which the chain is called out, louder each time.
+    chainWin: 2.2,
+    chainCap: 10,
+    chainStep: 0.5,
+    smashMul: [0, 1, 1, 1.5, 1.25, 2, 2],
+    takedownMul: 2.5,
+    chainTier: [3, 5, 8, 12, 16, 20],
+    // A nitro burst breaks the police off. The pursuit car cannot follow: a grappler run is called off and it falls polDrop further back
+    // while the burst lasts. An interceptor riding level is left behind (it drops away icOutrun times as fast as usual); one that swerves
+    // into us, or that we steer into, is thrown off the road (flingV lanes/s sideways, spinning) and is out of action for icOut seconds.
+    polDrop: 16,
+    icOutrun: 2.6,
+    flingV: 6.5,
+    flingReach: 0.45,
     tapeEvery: 100,
     tapesStart: 1,
     maxTapes: 3,
@@ -796,6 +813,7 @@
   var I_SLAM = 4;
   var I_HOLD = 5;
   var I_LEAVE = 6;
+  var I_FLUNG = 7;
   var H_LANE = 0;
   var H_TWIN = 1;
   var H_WALK = 2;
@@ -899,6 +917,24 @@
       gear: gearAtDist(d0),
       nstock: free ? 1 : 0,
       nfree: 0,
+      // the smash chain (links so far, when the last one was made, what it has paid), the best one, police units knocked off, canisters
+      // picked up, nitro bursts fired, when the pursuit car was last shoved; and where the points came from: distance, passes, close calls,
+      // smashes, dodges, pickups, slipstream (they add up to the score)
+      chain: 0,
+      chainT: -1e9,
+      chainPts: 0,
+      chainBest: 0,
+      takedown: 0,
+      cans: 0,
+      bursts: 0,
+      shT: -1e9,
+      pD: 0,
+      pP: 0,
+      pN: 0,
+      pS: 0,
+      pG: 0,
+      pC: 0,
+      pF: 0,
       lvN: lv0,
       aiNext: 0,
       atkGap: 0,
@@ -954,6 +990,7 @@
       icNext: 0,
       icAsk: 0,
       icF: 0,
+      icVx: 0,
       // helicopter: lock time (−1 = searching), locked lane, …
       hOn: 0,
       hNext: 0,
@@ -1326,10 +1363,18 @@
     g.heat = Math.min(5.999, g.heat + n);
     g.heatGt = g.gt;
   }
+  function endChain(g, out) {
+    if (g.chain) {
+      out.push({ k: "chainend", n: g.chain, pts: Math.round(g.chainPts) });
+      g.chain = 0;
+      g.chainPts = 0;
+    }
+  }
   function stumble(g, out, by) {
     const gt = g.gt;
     if (gt < g.stG) return false;
     g.combo = 0;
+    endChain(g, out);
     if (g.lives < 2) {
       g.over = by === "crash" ? 1 : 2;
       out.push({ k: by === "crash" ? "crash" : "bust", by });
@@ -1414,7 +1459,18 @@
       g.goEv = 1;
       out.push({ k: "go" });
     }
+    if (g.chain && gt - g.chainT > G.chainWin) endChain(g, out);
     if (inp.nitro && !g.nz) {
+      g.bursts++;
+      if (g.polM === P_WARN) {
+        g.polM = P_TAIL;
+        g.ramNext = Math.max(g.ramNext, gt + 2);
+        out.push({ k: "outrun", who: "pol" });
+      } else if (g.polM === P_CHARGE && g.polZ < -(POL_HL + CAR_HL)) {
+        g.polM = P_BACK;
+        g.polT = gt;
+        out.push({ k: "outrun", who: "pol" });
+      }
       if (g.lives < 2) {
         g.lives = 2;
         g.pcl = 0;
@@ -1445,6 +1501,16 @@
     };
     const veh = g.veh, vFull = Math.max(inp.vel, baseAt(g.d0 + gd + 2 * inp.vel)), lr = laneRate(g, inp.vel), tAt = taxiAtFor(lv);
     let draft = 0;
+    const link = (m) => {
+      g.chain++;
+      g.chainT = gt;
+      if (g.chain > g.chainBest) g.chainBest = g.chain;
+      const p = G.ptsSmash * m * (1 + G.chainStep * (Math.min(g.chain, G.chainCap) - 1)) * mult;
+      g.score += p;
+      g.pS += p;
+      g.chainPts += p;
+      return Math.round(p);
+    };
     for (let i = 0; i < NV; i++) {
       const o = i * VF, type = veh[o];
       if (!type) continue;
@@ -1533,9 +1599,10 @@
           veh[o] = 0;
           g.smash++;
           g.combo++;
-          g.score += G.ptsSmash * mult;
+          if (type >= T_BLOCK) g.takedown++;
+          const pts = link(G.smashMul[type]);
           addHeat(g, type >= T_BLOCK ? G.heatCruiser : G.heatSmash);
-          out.push({ k: "smash", lane: veh[o + 1], dz, type });
+          out.push({ k: "smash", lane: veh[o + 1], dz, type, n: g.chain, pts, dir: px < vx - 0.05 ? 1 : px > vx + 0.05 ? -1 : veh[o + 8] & 1 ? 1 : -1, id: veh[o + 8] });
           continue;
         }
         if (gt >= g.inv) {
@@ -1566,6 +1633,7 @@
           g.near++;
           g.combo += G.comboNear;
           g.score += G.ptsNear * mult;
+          g.pN += G.ptsNear * mult;
           out.push({ k: "near", lane: veh[o + 1], pts: Math.round(G.ptsNear * mult) });
         }
         if (!(fl & PASSED) && dz < -reach) {
@@ -1573,6 +1641,7 @@
           g.passed++;
           g.combo++;
           g.score += G.ptsPass * mult;
+          g.pP += G.ptsPass * mult;
           if (dx < L * 1.5) out.push({ k: "pass", side: Math.sign(vx - px), big: type === T_TRUCK ? 1 : 0 });
         }
         if (lat && type < T_BLOCK && gap > 0 && gap < clamp2(rel * G.draftT, 12, 60)) draft = 1;
@@ -1584,6 +1653,7 @@
     g.draft += (draft - g.draft) * (1 - Math.exp(-DT2 / 0.15));
     if (draft) {
       g.score += G.ptsDraft * mult * DT2;
+      g.pF += G.ptsDraft * mult * DT2;
       if (gt - g.draftEv > 2.5) {
         g.draftEv = gt;
         out.push({ k: "draft" });
@@ -1636,6 +1706,7 @@
       cel[o + 4] |= bit;
       g.cells++;
       g.score += G.ptsCell * mult;
+      g.pC += G.ptsCell * mult;
       out.push({ k: "cell" });
       if (g.cells % G.tapeEvery === 0) out.push({ k: "tape" });
     }
@@ -1657,8 +1728,12 @@
       }
       if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
         itm[o] = 0;
+        g.cans++;
         if (g.nstock < G.nitroMax) g.nstock++;
-        else g.score += 500 * mult;
+        else {
+          g.score += 500 * mult;
+          g.pC += 500 * mult;
+        }
         out.push({ k: "item", n: g.nstock, l: g.lives });
       }
     }
@@ -1710,6 +1785,7 @@
         g.bias += (d - g.bias) * 0.35;
         g.dodges++;
         g.score += G.ptsDodge * mult;
+        g.pG += G.ptsDodge * mult;
         out.push({ k: "dodge", pts: Math.round(G.ptsDodge * mult) });
       }
     };
@@ -1783,7 +1859,7 @@
     if (g.polM === P_TAIL) {
       const close = policeClose(g);
       const near = gt < G.introClose || gt < g.pcl || gt < g.stG + 1.5;
-      g.polZ += ((close ? near ? -G.polClose : -G.chaseZ : -G.polFar) - g.polZ) * eK(close ? near ? 0.3 : 0.9 : 1.1);
+      g.polZ += ((inp.nitro ? -(G.polFar + G.polDrop) : close ? near ? -G.polClose : -G.chaseZ : -G.polFar) - g.polZ) * eK(inp.nitro ? 0.35 : close ? near ? 0.3 : 0.9 : 1.1);
       g.polX += (px + (close && !near ? px > 0.5 ? -G.chaseX : G.chaseX : 0) - g.polX) * eK(close && !near ? 0.5 : 0.3);
       const tRam = ramLen(warn);
       if (star >= 2 && turn(g.ramNext) && may(tRam, inp.lane !== 0)) {
@@ -1838,10 +1914,15 @@
       const lat = Math.abs(px - g.polX) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.polZ) < POL_HL + CAR_HL - 0.2;
       if (lat && lon && g.polM !== P_WARN && g.polM !== P_HOOK) {
         if (inp.nitro) {
-          g.polM = P_BACK;
-          g.polT = gt;
-          addHeat(g, 0.5);
-          out.push({ k: "shove" });
+          if (gt - g.shT > 0.6) {
+            g.shT = gt;
+            g.polM = P_BACK;
+            g.polT = gt - 0.25;
+            g.takedown++;
+            const pts = link(G.takedownMul);
+            addHeat(g, 0.5);
+            out.push({ k: "shove", n: g.chain, pts, dir: px < g.polX ? 1 : -1 });
+          }
         } else if (gt >= g.inv) {
           g.inv = gt + G.swipeInv;
           if (g.polF & LAT) {
@@ -1864,7 +1945,7 @@
         g.icAsk = 1;
         g.gapWant = Math.max(g.gapWant, G.gapFor[0]);
         g.icNext = gt + G.gapLead;
-      } else if (star >= 4 && turn(g.icNext) && think && gt > G.introT + 4) {
+      } else if (star >= 4 && turn(g.icNext) && think && gt > G.introT + 4 && !inp.nitro) {
         g.icA = inp.lane !== 0 ? inp.lane : g.bias > 0.15 ? 1 : g.bias < -0.15 ? -1 : g.hSide;
         g.icM = I_COME;
         g.icT = gt;
@@ -1875,8 +1956,23 @@
         out.push({ k: "icwarn", side: g.icA });
       }
     } else {
+      if (inp.nitro && (g.icM === I_COME || g.icM === I_PACE)) {
+        g.icM = I_LEAVE;
+        g.icT = gt;
+        g.icNext = Math.max(g.icNext, gt + G.icEvery[0] * cad);
+        out.push({ k: "outrun", who: "ic", side: g.icA });
+      }
       const u = gt - g.icT, m0 = g.icM, a = g.icA;
-      if (g.icM === I_COME) {
+      if (g.icM === I_FLUNG) {
+        g.icX += g.icVx * DT2;
+        g.icVx *= Math.exp(-DT2 / 0.35);
+        g.icZ += (5 - 55 * u * u) * DT2;
+        if (g.icZ <= G.icZ0 - 2) {
+          g.icM = I_OFF;
+          g.icZ = -60;
+          g.icVx = 0;
+        }
+      } else if (g.icM === I_COME) {
         g.icZ = Math.min(G.icZp, g.icZ + G.icV * DT2);
         if (g.icZ >= G.icZp) {
           g.icM = I_PACE;
@@ -1920,24 +2016,27 @@
           rest();
         }
       } else {
-        g.icZ -= G.icBack * DT2 * Math.min(1, u / 0.25);
+        g.icZ -= G.icBack * DT2 * Math.min(1, u / 0.25) * (inp.nitro ? G.icOutrun : 1);
         if (g.icZ <= G.icZ0 - 2) {
           g.icM = I_OFF;
           g.icZ = -60;
           g.icNext = Math.max(g.icNext, gt + (G.icEvery[0] + rnd(g) * (G.icEvery[1] - G.icEvery[0])) * cad);
         }
       }
-      const ix = g.icX * L, lat = Math.abs(px - ix) < POL_HW + CAR_HW - 0.12, lon = Math.abs(g.icZ) < POL_HL + CAR_HL - 0.2;
-      if (lat && lon) {
+      const ix = g.icX * L, lat = Math.abs(px - ix) < POL_HW + CAR_HW - 0.12 + (inp.nitro ? G.flingReach : 0), lon = Math.abs(g.icZ) < POL_HL + CAR_HL - 0.2;
+      if (lat && lon && g.icM !== I_FLUNG) {
         if (inp.nitro) {
           if (g.icM !== I_LEAVE) rest();
-          g.icM = I_LEAVE;
+          const dir = px < ix - 0.05 ? 1 : px > ix + 0.05 ? -1 : g.icA;
+          g.icM = I_FLUNG;
           g.icT = gt;
+          g.icVx = dir * G.flingV;
           g.icNext = gt + G.icOut;
           g.smash++;
-          g.score += G.ptsSmash * mult;
+          g.takedown++;
+          const pts = link(G.takedownMul);
           addHeat(g, G.heatCruiser);
-          out.push({ k: "shove", ic: 1 });
+          out.push({ k: "shove", ic: 1, n: g.chain, pts, dir });
         } else if (gt >= g.inv) {
           g.inv = gt + G.swipeInv;
           addHeat(g, G.heatSwipe);
@@ -2062,6 +2161,8 @@
     g.sx += ((lk ? aim * L : px + Math.sin(gt * 0.9) * L * 1.1) - g.sx) * eK(lk ? 0.09 : 0.45);
     g.sk += ((lk ? 1 : 0) - g.sk) * eK(lk ? 0.1 : 0.25);
     g.score += inp.vel * DT2 * G.ptsDist * mult;
+    g.pD += inp.vel * DT2 * G.ptsDist * mult;
+    if (g.over) endChain(g, out);
   }
 
   // js/timeline.js
@@ -2412,6 +2513,8 @@
       g.over = 0;
       g.inv = g.gt + GAME.reviveInv;
       g.combo = 0;
+      g.chain = 0;
+      g.chainPts = 0;
       g.pcl = 0;
       g.stG = 0;
       g.slow = 0;
@@ -2423,6 +2526,7 @@
       g.ramNext = Math.max(g.ramNext, g.gt + 5);
       g.icM = 0;
       g.icZ = -60;
+      g.icVx = 0;
       g.icNext = Math.max(g.icNext, g.gt + 6);
       g.aiNext = 0;
       g.atkGap = g.gt + 3;
@@ -2667,39 +2771,36 @@
     { type: "start", t: 1 },
     { type: "lane", t: 17.55, dir: -1 },
     { type: "lane", t: 20.95, dir: 1 },
-    { type: "lane", t: 22.2, dir: -1 },
-    { type: "lane", t: 23.05, dir: 1 },
+    { type: "lane", t: 22.25, dir: -1 },
+    { type: "lane", t: 23.1, dir: 1 },
     { type: "lane", t: 26.1, dir: -1 },
     { type: "lane", t: 28, dir: 1 },
     { type: "lane", t: 28.95, dir: 1 },
     { type: "lane", t: 30, dir: -1 },
-    { type: "turbo", t: 30.15 },
+    { type: "turbo", t: 30.2 },
     { type: "env", t: 34, preset: 1 },
-    { type: "lane", t: 35.1, dir: 1 },
-    { type: "lane", t: 36.8, dir: -1 },
-    { type: "lane", t: 38.5, dir: -1 },
-    { type: "lane", t: 39.7, dir: 1 },
-    { type: "lane", t: 40.65, dir: -1 },
-    { type: "lane", t: 43.85, dir: 1 },
+    { type: "lane", t: 37.5, dir: -1 },
+    { type: "lane", t: 43.75, dir: 1 },
     { type: "env", t: 44, preset: 2 },
-    { type: "lane", t: 46.75, dir: -1 },
-    { type: "lane", t: 48.85, dir: 1 },
-    { type: "lane", t: 49.2, dir: 1 },
-    { type: "lane", t: 50.15, dir: -1 },
+    { type: "lane", t: 44.7, dir: -1 },
+    { type: "lane", t: 46.9, dir: 1 },
+    { type: "lane", t: 48.05, dir: -1 },
+    { type: "lane", t: 51.45, dir: 1 },
     { type: "env", t: 54, preset: 3 },
-    { type: "lane", t: 56.2, dir: -1 },
-    { type: "lane", t: 59.85, dir: 1 },
-    { type: "lane", t: 63.1, dir: -1 },
+    { type: "lane", t: 55.05, dir: -1 },
+    { type: "lane", t: 56.1, dir: 1 },
+    { type: "lane", t: 57.85, dir: -1 },
+    { type: "lane", t: 59.2, dir: 1 },
+    { type: "lane", t: 61.6, dir: 1 },
+    { type: "lane", t: 62.6, dir: -1 },
     { type: "env", t: 64, preset: 0 },
-    { type: "lane", t: 65.15, dir: 1 },
-    { type: "lane", t: 69.2, dir: 1 },
+    { type: "turbo", t: 67.05 },
     { type: "music", t: 70, on: false },
-    { type: "lane", t: 72.15, dir: -1 },
+    { type: "lane", t: 72.55, dir: 1 },
     { type: "music", t: 73, on: true },
-    { type: "lane", t: 73.6, dir: 1 },
-    { type: "lane", t: 74.9, dir: -1 },
-    { type: "lane", t: 75.8, dir: -1 },
-    { type: "lane", t: 79.45, dir: 1 },
+    { type: "lane", t: 74.75, dir: -1 },
+    { type: "lane", t: 77.9, dir: -1 },
+    { type: "lane", t: 78.85, dir: 1 },
     { type: "home", t: 80 },
     { type: "start", t: 83 }
   ];
@@ -4073,20 +4174,80 @@
           this.voices.push(new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
           break;
         // a close call: two rising blips (no whoosh)
-        case "smash":
+        case "smash": {
           v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0);
           this.duck(o, 0.32, 0.12);
+          if (n.n) {
+            const k = Math.min(n.n - 1, 14), f = 440 * Math.pow(2, (Math.floor(k / 5) * 12 + [0, 3, 5, 7, 10][k % 5]) / 12), a = Math.min(0.1, 0.06 + 4e-3 * k), pn = (n.pan || 0) * 0.5;
+            this.voices.push(new Blip(s, o, f * 1.5, f, 0.11, a, pn), new Blip(s, o, f * 2, f * 2.005, 0.16, a * 0.55, -pn, 0.012), new Blip(s, o, f * 3, f * 3.01, 0.07, a * 0.3, pn, 0.02));
+            if (n.big) this.voices.push(new Sub(s, o, 0.35));
+            if (n.tier) {
+              [0, 7, 12, 19].forEach((st, i) => this.voices.push(new Blip(s, o, f * Math.pow(2, st / 12), f * Math.pow(2, st / 12) * 1.003, 0.32, 0.075, i % 2 ? 0.4 : -0.4, 0.05 + i * 0.05)));
+              this.voices.push(new Sub(s, o, 0.6), new Impact(s, o, 0.5));
+              if (S.crash_f) play("crash_f", { gain: 0.2 + 0.03 * Math.min(4, n.tier), rev: 0.08 });
+              this.duck(o, 0.4, 0.2);
+            }
+          }
           break;
-        // a vehicle rammed in a nitro burst
+        }
+        case "bank": {
+          const k = Math.min(1, ((n.n || 2) - 2) / 8), a = 0.05 + 0.03 * k;
+          v = new Click(s, o, 0.5);
+          this.voices.push(new Blip(s, o, 1318.5, 1320, 0.09, a, -0.3), new Blip(s, o, 1760, 1762, 0.1, a, 0.3, 0.07), new Blip(s, o, 2637, 2640, 0.4, a * 0.9, 0, 0.14), new Blip(s, o, 3520, 3526, 0.5, a * 0.45 * k, 0.2, 0.2));
+          break;
+        }
+        case "fling": {
+          const pn = n.pan || 0;
+          v = new Crunch(s, o, 1.2, pn, 1);
+          this.voices.push(new Sub(s, o, 0.6), new Skid(s, o), new Impact(s, o, 0.55));
+          for (let k = 0; k < 5; k++) this.voices.push(new Blip(s, o, (k % 2 ? 900 : 1250) * Math.pow(0.86, k), (k % 2 ? 1250 : 900) * Math.pow(0.86, k + 1), 0.1, 0.05 * Math.pow(0.8, k), pn * 0.9, 0.06 + k * 0.12));
+          this.duck(o, 0.5, 0.22);
+          break;
+        }
+        case "outrun": {
+          const pn = n.pan || 0;
+          v = new Blip(s, o, 1100, 640, 0.22, 0.045, pn);
+          this.voices.push(new Blip(s, o, 900, 520, 0.3, 0.035, pn, 0.2));
+          break;
+        }
+        // left behind: its siren drops away
+        case "hit":
+          v = new Crunch(s, o, 1, n.pan || 0, 0);
+          this.voices.push(new Sub(s, o, 0.5), new Impact(s, o, 0.4));
+          this.duck(o, 0.45, 0.2);
+          break;
+        // rammed, slammed or shot: the blow itself
+        // the results screen: a tick as each line is counted, the total landing, the grade stamped on it, a fanfare for a new best
+        case "tally": {
+          const f = 523.25 * Math.pow(2, (n.n || 0) * 2 / 12);
+          v = new Click(s, o, 0.35);
+          this.voices.push(new Blip(s, o, f, f * 1.003, 0.05, 0.045, (n.n || 0) % 2 ? 0.3 : -0.3));
+          break;
+        }
+        case "total":
+          v = new Impact(s, o, 0.45);
+          this.voices.push(new Sub(s, o, 0.45));
+          [220, 329.6, 440, 659.3].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, 0.45, 0.05, i % 2 ? 0.35 : -0.35, i * 0.012)));
+          break;
+        case "stamp":
+          v = new Click(s, o, 1.1, 1);
+          this.voices.push(new Sub(s, o, 0.55), new Blip(s, o, 196, 98, 0.16, 0.12, 0, 5e-3));
+          if ((n.g || 0) >= 3) [880, 1318.5, 1760].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, 0.5, 0.045, i - 1, 0.06 + i * 0.06)));
+          break;
+        case "fanfare":
+          v = new Blip(s, o, 880, 881, 0.12, 0.075, -0.4);
+          [1046.5, 1318.5, 1760, 2093, 2637].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, i === 4 ? 0.7 : 0.13, 0.07, i % 2 ? 0.4 : -0.4, 0.085 * (i + 1))));
+          if (S.crash_f) play("crash_f", { gain: 0.16, rev: 0.1 });
+          break;
         case "swipe":
           v = new Scrape(s, o, 0.36, 1, n.pan || 0);
           this.voices.push(new Click(s, o, 0.9, 1));
           this.duck(o, 0.25, 0.1);
           break;
         case "crashfx":
-          v = new Crunch(s, o, 1.25, 0, 1);
-          this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false));
-          this.duck(o, 0.6, 0.35);
+          v = new Crunch(s, o, 1.3, 0, 1);
+          this.voices.push(new Impact(s, o, 1), new Sub(s, o, 0.8), new Squeal(s, o, 0.5, false));
+          this.duck(o, 0.7, 0.4);
           break;
         // the run ends against a vehicle
         case "wreck":

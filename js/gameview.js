@@ -392,7 +392,7 @@ const BODY = {
   leviathan: { tz: 6.1, ty: 1.48, tx: 0.86, w: 1.75, glow: [0.25, 0.9, 1.0] },
   orbit: { tz: 6.12, ty: 1.28, tx: 0.95, w: 1.75, glow: [0.6, 0.35, 1.0], paint: [[0.62, 0.56, 0.82], [0.5, 0.74, 0.72], [0.8, 0.8, 0.85]] },
 };
-const WHITE = [1, 1, 1];
+const WHITE = [1, 1, 1], SPARK = [1, 0.62, 0.22], HOTW = [1, 0.9, 0.65];
 
 export class GameView {
   constructor() {
@@ -469,11 +469,22 @@ export class GameView {
       this.glow(x + Math.cos(a) * r, 0.4 + h * 2.8, z - 0.3 + Math.sin(a) * r * 0.4, 0.28, 0, 0, 0, 0.28, 0, [1.0, 0.9, 0.55], 14, 1.5 * k * Math.sin(Math.PI * h), j * 0.37 + seed);
     }
   }
+  // a body thrown along the road sheds sparks: a fan from where it scrapes, streaming back from it (u: seconds since it was hit; dir: the way it goes)
+  flingSparks(x, y, z, u, dir, seed, f = 1) {
+    const tick = Math.floor(u * 40);
+    for (let k = 0; k < 18; k++) {
+      const b = tick - (k % 9), a = u - b / 40;                           // each spark was struck at one of the last few ticks
+      const h1 = hash1(seed + b * 3.1 + k * 5.3), h2 = hash1(seed + b * 1.7 + k * 9.1 + 2), life = 0.16 + 0.2 * h2; if (b < 0 || a > life) continue;
+      const vx = -dir * (3 + 11 * h1), vy = 3 + 7 * h2, vz = 14 + 26 * h1, wy = vy - 32 * a;
+      const px = x + vx * a, py = Math.max(0.05, y * 0.4 + 0.2 + vy * a - 16 * a * a), pz = z + vz * a, m = Math.hypot(vx, wy, vz) || 1, len = 0.3 + 0.03 * m;
+      this.glow(px, py, pz, 0.08, 0, 0, vx / m * len, wy / m * len, vz / m * len, k % 3 ? SPARK : HOTW, 8, 4.4 * (1 - a / life) * f);
+    }
+  }
   // a police cruiser (the WARDEN) with its light bar flashing
-  cruiser(x, z, yaw, fade, T, phase = 0, roll = 0, pitch = 0, brake = 0) {
+  cruiser(x, z, yaw, fade, T, phase = 0, roll = 0, pitch = 0, brake = 0, y = 0) {
     const on = Math.floor(T * 5 + phase) % 2 === 0, cs = Math.cos(yaw), sn = Math.sin(yaw);
-    this.veh.add('warden', x, 0, z, yaw, 1, WHITE, fade, 0.7, on ? 1 : 0.06, on ? 0.06 : 1, brake, roll, pitch);
-    this.sprite(x - 0.5 * cs - 0.3 * sn, 1.72, z + 0.5 * sn - 0.3 * cs, 1.25, [1, 0.1, 0.2], (on ? 1.1 : 0.08) * fade); this.sprite(x + 0.5 * cs - 0.3 * sn, 1.72, z - 0.5 * sn - 0.3 * cs, 1.25, [0.15, 0.4, 1], (on ? 0.08 : 1.1) * fade);
+    this.veh.add('warden', x, y, z, yaw, 1, WHITE, fade, 0.7, on ? 1 : 0.06, on ? 0.06 : 1, brake, roll, pitch);
+    this.sprite(x - 0.5 * cs - 0.3 * sn, y + 1.72, z + 0.5 * sn - 0.3 * cs, 1.25, [1, 0.1, 0.2], (on ? 1.1 : 0.08) * fade); this.sprite(x + 0.5 * cs - 0.3 * sn, y + 1.72, z - 0.5 * sn - 0.3 * cs, 1.25, [0.15, 0.4, 1], (on ? 0.08 : 1.1) * fade);
     this.glow(x, 0.04, z, 3.2, 0, 0, 0, 0, 4.2, on ? [1, 0.1, 0.2] : [0.15, 0.4, 1], 2, 0.4 * fade);
     if (brake) this.sprite(x + sn * 2.6, 0.93, z + cs * 2.6, 1.5, RED, 0.75 * fade);
   }
@@ -669,10 +680,19 @@ export class GameView {
       //    signals a swerve, chevrons run from it into the lane it is going for and a warning stands over that lane ──
       const ic = G.ic;
       if (ic && ic.fade > 0.01) {
-        const x = ic.x, z = cz - ic.dz, f = ic.fade, yaw = -Math.atan2(ic.vx, Math.max(40, Math.abs(s.road.vel))) * 1.3, c = [1.0, 0.14, 0.16];
-        this.cruiser(x, z, yaw, f, T * 1.8, 0.5, Math.max(-0.12, Math.min(0.12, ic.ax * 0.004)), 0, ic.leaving);
-        for (const sx of [-0.7, 0.7]) this.sprite(x + sx, 0.72, z - 2.62, 1.0, LAMP, 0.9 * f);
-        this.glow(x, 0.04, z - 8, 1.6, 0, 0, 0, 0, 6, LAMP, 2, 0.35 * f);
+        const x = ic.x, z = cz - ic.dz, f = ic.fade, c = [1.0, 0.14, 0.16];
+        if (ic.flung >= 0) {
+          // thrown off the road by a nitro burst: it spins away sideways, hops as it crosses the rail, and showers sparks all the way
+          const u = ic.flung, d = ic.fdir, hop = Math.max(0, 5.2 * u - 9 * u * u) + Math.max(0, 1.6 * (u - 0.62) - 6 * (u - 0.62) * (u - 0.62));
+          this.cruiser(x, z, d * (0.5 + 9.5 * u - 2.6 * u * u), f, T * 3, 0.5, -d * Math.min(0.5, 2.2 * u) * Math.exp(-u * 1.2), 0.1 * Math.sin(u * 14), 1, hop);
+          this.flingSparks(x, hop + 0.4, z, u, d, ic.flung * 7.3 + 3, f);
+          this.glow(x, 0.05, z, 3.4, 0, 0, 0, 0, 4.4, [1, 0.5, 0.2], 2, 0.9 * Math.exp(-u / 0.25) * f);
+        } else {
+          const yaw = -Math.atan2(ic.vx, Math.max(40, Math.abs(s.road.vel))) * 1.3;
+          this.cruiser(x, z, yaw, f, T * 1.8, 0.5, Math.max(-0.12, Math.min(0.12, ic.ax * 0.004)), 0, ic.leaving);
+          for (const sx of [-0.7, 0.7]) this.sprite(x + sx, 0.72, z - 2.62, 1.0, LAMP, 0.9 * f);
+          this.glow(x, 0.04, z - 8, 1.6, 0, 0, 0, 0, 6, LAMP, 2, 0.35 * f);
+        }
         if (ic.to !== null) {
           const tx = ic.to * L, dir = Math.sign(tx - x) || -ic.side, k = ic.tell < 0 ? 1 : ic.tell, blink = Math.floor(T * (5 + 7 * k)) % 2 ? 1 : 0.4;
           if (ic.tell >= 0) {
@@ -686,7 +706,6 @@ export class GameView {
       }
       // ── debris: smashed vehicles and the wrecked car shatter into shards of light; every hit throws sparks, and a smash lights the
       //    road under it for a moment ──
-      const SPARK = [1, 0.62, 0.22], HOTW = [1, 0.9, 0.65];
       const sparks = (bx, by, bz, a, n, seed, spread, back, life, k0 = 1) => {
         for (let k = 0; k < n; k++) {
           const h1 = hash1(seed + k * 5.3), h2 = hash1(seed + k * 9.1 + 2), h3 = hash1(seed + k * 2.7 + 5), al = a / (life * (0.5 + 0.5 * h3));
@@ -702,7 +721,31 @@ export class GameView {
         const a = b.age;
         if (b.kind === 'scrape') { sparks(b.x, 0.55, cz + 0.3, a, 26, b.seed, 5, 34, 0.45); this.sprite(b.x, 0.6, cz, 1.4, SPARK, Math.max(0, 1.6 - a * 6)); continue; }   // along the side we rubbed
         if (b.kind === 'sparks') { sparks(b.x, 0.5, cz + b.dz, a, 22, b.seed, 7, 26, 0.5); continue; }
-        const n = b.car ? 44 : 28, life = b.car ? 1.3 : 0.8;
+        if (b.kind === 'slam') {                                             // a police car knocked off us: white heat where the two met, sparks, a ring over the road
+          const z = cz - b.dz; sparks(b.x, 0.7, z, a, 48, b.seed, 14, 16, 0.55, 1.5);
+          this.sprite(b.x, 0.9, z, 2.5 + 10 * a, HOTW, 2.8 * Math.exp(-a / 0.07)); this.glow(b.x, 0.06, z, 11, 0, 0, 0, 0, 13, [1, 0.3, 0.3], 2, 1.5 * Math.exp(-a / 0.12));
+          const R = 2 + 24 * Math.sqrt(a); this.glow(b.x, 0.07, z, R, 0, 0, 0, 0, R, [1, 0.25, 0.35], 11, 1.7 * (1 - a / 0.7) * (1 - a / 0.7), 0, 0.08);
+          continue;
+        }
+        const ch = Math.min(1, Math.max(0, (b.n || 1) - 1) / 9);                // how far up the smash chain this one was: the higher, the bigger the burst
+        if (b.kind === 'smash' && b.dir) {
+          // rammed in a nitro burst: it is not just gone — the blow carries it on ahead of us and off to the side, spinning, its lamps still
+          // lit, shedding sparks; then it drops away behind
+          const d = b.dir, long = b.type === T_TRUCK, k = long ? 0.45 : 1, fa = 1 - smooth((a - 0.8) / 0.4);
+          const fx = b.x + d * (long ? 8 : 14) * (1 - Math.exp(-a / 0.5)), fz = cz - (b.dz0 + 30 * a - 42 * a * a);
+          const hop = long ? 0 : Math.max(0, 6 * a - 10 * a * a) + Math.max(0, 2 * (a - 0.62) - 8 * (a - 0.62) * (a - 0.62));
+          const yaw = d * (0.35 + 10 * a - 3 * a * a) * k, roll = long ? 0 : -d * Math.min(0.5, 2.5 * a) * Math.exp(-a * 1.2), id = b.id | 0;
+          if (fa > 0.01) {
+            if (b.type >= T_BLOCK) this.cruiser(fx, fz, yaw, fa, T * 3, id, roll, 0.1 * Math.sin(a * 14), 1, hop);
+            else {
+              const taxi = b.type === T_TAXI, style = taxi ? 'firefly' : b.type === T_VAN ? (id % 2 ? 'mule' : 'relay') : long ? (id % 3 === 0 ? 'orbit' : 'leviathan') : (id % 2 ? 'nomad' : 'monolith'), B = BODY[style];
+              this.veh.add(style, fx, hop, fz, yaw, 1, B.paint ? B.paint[(id >> 2) % B.paint.length] : WHITE, fa, 1, taxi ? 1 : 0, taxi ? 1 : 0, 1, roll, 0.1 * Math.sin(a * 14));
+            }
+            this.flingSparks(fx, hop, fz, a, d, b.seed, fa);
+            this.glow(fx, 0.05, fz, 3.2, 0, 0, 0, 0, long ? 8 : 4.2, [1, 0.5, 0.2], 2, 0.8 * Math.exp(-a / 0.3) * fa);
+          }
+        }
+        const n = b.car ? 44 : Math.round(28 + 22 * ch), life = b.car ? 1.3 : 0.8;
         if (a >= life) continue;
         const cA = b.car ? P.neon : b.type === T_TAXI ? [1, 0.82, 0.12] : b.type >= T_BLOCK ? [1, 0.15, 0.2] : edge, cB = b.car ? P.gridAlt : b.type >= T_BLOCK ? [0.2, 0.4, 1] : edge2;
         for (let k = 0; k < n; k++) {
@@ -714,11 +757,11 @@ export class GameView {
           this.box(x, y, z, sz, sz, sz * (1 + 2 * h2), k % 2 ? cA : cB, 1, 1 - a / life, 2.4);
         }
         this.sprite(b.x, 1.0, cz - b.dz, 3 + 10 * a, b.car ? P.neon : cA, Math.max(0, 1.8 - a * 5));
-        sparks(b.x, 0.9, cz - b.dz, a, b.car ? 70 : 46, b.seed + 0.5, b.car ? 16 : 13, 18, b.car ? 0.85 : 0.65, b.car ? 1.5 : 1.15);
+        sparks(b.x, 0.9, cz - b.dz, a, b.car ? 70 : Math.round(46 + 30 * ch), b.seed + 0.5, b.car ? 16 : 13 + 5 * ch, 18, b.car ? 0.85 : 0.65, b.car ? 1.5 : 1.15 + 0.5 * ch);
         const fl = Math.exp(-a / 0.12);                                                     // the flash lights the road around it, and a ring runs out over the grid
         this.glow(b.x, 0.06, cz - b.dz, b.car ? 14 : 10, 0, 0, 0, 0, b.car ? 16 : 12, b.car ? [1, 0.7, 0.4] : [1, 0.5, 0.2], 2, 1.3 * fl);
-        this.sprite(b.x, 1.2, cz - b.dz, (b.car ? 9 : 6) * (0.4 + a), [1, 0.85, 0.6], 2.2 * Math.exp(-a / 0.07));       // the white-hot core of it
-        const R = 2 + (b.car ? 30 : 20) * Math.sqrt(a);
+        this.sprite(b.x, 1.2, cz - b.dz, (b.car ? 9 : 6 + 4 * ch) * (0.4 + a), [1, 0.85, 0.6], (2.2 + 1.2 * ch) * Math.exp(-a / 0.07));       // the white-hot core of it
+        const R = 2 + (b.car ? 30 : 20 + 12 * ch) * Math.sqrt(a);
         this.glow(b.x, 0.07, cz - b.dz, R, 0, 0, 0, 0, R, b.car ? P.neon : cA, 11, 1.5 * (1 - a / life) * (1 - a / life), 0, 0.08);
       }
       // ── a nitro burst: a shockwave runs out over the grid from the car as it fires ──

@@ -379,3 +379,58 @@ let crashT;
   const d = tl.stateAt(C + 11.6);
   ok('resume: the run continues from where it stopped', d.paused === 0 && !d.over && d.g.gt > gt1 && d.g.gt < gt1 + 0.7 && d.g.gd > gd1 && c.paused === 0 && c.over !== 0 && Math.abs(c.overT - (C + 11) - (t0 - 4)) < 4, `the run ends ${(c.overT - C - 11).toFixed(2)} s after resuming (4.0 s were driven before the pause, ${t0.toFixed(2)} s without one)`);
 }
+
+// ── the smash chain, police thrown off in a nitro burst, and where the points came from ──
+{
+  const { scenarios } = await import('./juice.mjs');
+  const { gameMult, I_FLUNG, I_LEAVE, P_WARN, P_CHARGE } = await import('../js/game.js');
+  const S = scenarios(['chain', 'fling', 'outrun', 'results']);
+  const load = (ev) => { const tl = new Timeline(); tl.load(ev); return tl; };
+  // the chain
+  {
+    const sc = S.chain, tl = load(sc.ev), ev = tl.gameEvents(sc.at[0] - 0.01, sc.end + 0.01), links = ev.filter((e) => e.k === 'smash' || e.k === 'shove'), end = ev.find((e) => e.k === 'chainend');
+    ok('a smash chain: every vehicle rammed in a nitro burst is a link, numbered in order', links.length >= 3 && links.every((e, i) => e.n === i + 1), `${links.length} links: ${links.map((e) => e.n).join(' ')}`);
+    const want = links.map((e) => { const m = gameMult(tl.stateAt(e.t - 0.004).g); return GAME.ptsSmash * (e.k === 'shove' ? GAME.takedownMul : GAME.smashMul[e.type]) * (1 + GAME.chainStep * (Math.min(e.n, GAME.chainCap) - 1)) * m; });
+    ok('each link pays more than the last: the base × what it was × (1 + ½ per link), with the multiplier', links.every((e, i) => Math.abs(e.pts - want[i]) <= Math.max(2, want[i] * 0.02)), links.map((e, i) => `${e.pts}/${Math.round(want[i])}`).join(' '));
+    ok('the chain is banked chainWin s after its last link, for the sum of its links', end && end.n === links.length && Math.abs(end.pts - links.reduce((a, e) => a + e.pts, 0)) <= links.length && Math.abs(end.t - links[links.length - 1].t - GAME.chainWin) < 0.02, end ? `×${end.n}, ${end.pts} pts, ${(end.t - links[links.length - 1].t).toFixed(2)} s after the last link` : 'no chainend');
+    const a = tl.stateAt(links[links.length - 1].t + 0.5).g, b = tl.stateAt(end.t + 0.5).g;
+    ok('while it runs the state carries it; afterwards it is cleared and the best chain is kept', a.chain === links.length && a.chainPts > 0 && b.chain === 0 && b.chainPts === 0 && b.chainBest >= links.length, `chain ${a.chain} → ${b.chain}, best ${b.chainBest}`);
+    const gaps = links.slice(1).map((e, i) => e.t - links[i].t);
+    ok('(every link came within the window of the one before)', gaps.every((d) => d <= GAME.chainWin + 1e-6), gaps.map((d) => d.toFixed(2)).join(' '));
+  }
+  // the interceptor
+  {
+    const sc = S.fling, tl = load(sc.ev), t = sc.at[0], ev = tl.gameEvents(sc.tell, t + 4);
+    const sh = ev.filter((e) => e.k === 'shove'), b = tl.stateAt(t - 0.01).g, a = tl.stateAt(t + 0.3).g, late = tl.stateAt(t + 3).g;
+    ok('an interceptor that swerves into us in a nitro burst is thrown off the road: once, away from us, out of action for icOut s',
+      sh.length === 1 && sh[0].ic === 1 && a.icM === I_FLUNG && Math.sign(a.icX - b.icX) === sh[0].dir && Math.abs(a.icX - b.icX) > 0.8 && late.icM === I_OFF && late.icNext >= b.gt + GAME.icOut - 0.1 && !tl.stateAt(t + 3).over && a.lives === 2,
+      `${sh.length} shove, x ${b.icX.toFixed(2)} → ${a.icX.toFixed(2)} lanes in 0.3 s (dir ${sh[0] && sh[0].dir}), next no sooner than ${(late.icNext - b.gt).toFixed(1)} s on`);
+    ok('… it is a link in the chain, pays the takedown rate and counts as a police unit wrecked', sh[0].n >= 1 && sh[0].pts > 0 && a.takedown === b.takedown + 1 && a.smash === b.smash + 1 && a.score - b.score >= sh[0].pts, `link ${sh[0].n}, ${sh[0].pts} pts`);
+    ok('… and no stumble, swipe or second shove follows from it', !ev.some((e) => e.k === 'stumble' || e.k === 'swipe') && tl.gameEvents(t + 0.001, t + 3).every((e) => e.k !== 'shove'));
+  }
+  {
+    const sc = S.outrun, tl = load(sc.ev), t = sc.at[0], a = tl.stateAt(t + 0.02).g, z0 = a.icZ, b = tl.stateAt(t + 0.6).g;
+    ok('an interceptor riding level is left behind when the nitro fires: it drops away fast and attacks nothing', a.icM === I_LEAVE && b.icZ < z0 - 20 && !tl.gameEvents(t, t + 5).some((e) => e.k === 'ictell' || e.k === 'slam'), `z ${z0.toFixed(1)} → ${b.icZ.toFixed(1)} in 0.6 s`);
+  }
+  // the pursuit car cannot follow a nitro burst
+  {
+    let found = null;
+    for (const seed of [5, 9, 21, 33, 47, 58]) {
+      const r = play(seed, 80, { seek: true, lv: 5 }), w = r.tl.gameEvents(0, 1e9).find((e) => e.k === 'ramwarn' && r.tl.stateAt(e.t).g.nstock > 0);
+      if (w) { found = { ev: [...r.ev.filter((e) => e.t <= w.t + 0.3), { type: 'turbo', t: +(w.t + 0.3).toFixed(3) }], t: w.t }; break; }
+    }
+    const tl = load(found.ev), ev = tl.gameEvents(found.t, found.t + 6), g1 = tl.stateAt(found.t + 0.4).g, g2 = tl.stateAt(found.t + 2.5).g;
+    ok('a grappler run is called off when the nitro fires, and the pursuit car falls far behind for the burst', ev.some((e) => e.k === 'outrun' && e.who === 'pol') && !ev.some((e) => e.k === 'ram' || (e.k === 'stumble' && e.by === 'hook')) && g1.polM !== P_WARN && g1.polM !== P_CHARGE && g2.polZ < -(GAME.polFar + GAME.polDrop * 0.7),
+      `${ev.filter((e) => e.k === 'outrun').length} outrun, pursuit car at ${g2.polZ.toFixed(1)} two seconds into the burst (usually ${-GAME.polFar})`);
+    ok('no burst of repeated shoves or heat from one contact', ev.filter((e) => e.k === 'shove').length <= 1);
+  }
+  // where the points came from
+  {
+    const sc = S.results, tl = load(sc.ev), g = tl.stateAt(sc.at[0] + 0.5).g, sum = g.pD + g.pP + g.pN + g.pS + g.pG + g.pC + g.pF;
+    const all = tl.gameEvents(0, sc.at[0] + 0.5), n = (k) => all.filter((e) => e.k === k).length;
+    ok('the score is the sum of its parts: distance, passes, close calls, smashes, dodges, pickups, slipstream', Math.abs(sum - g.score) < 1e-6 * Math.max(1, g.score) && g.pD > 0 && g.pS > 0, `${Math.round(g.score)} = ${[g.pD, g.pP, g.pN, g.pS, g.pG, g.pC, g.pF].map(Math.round).join(' + ')}`);
+    ok('the counts on the results screen match what happened', g.cells === n('cell') && g.cans === n('item') && g.bursts === n('nitro') && g.smash === n('smash') + all.filter((e) => e.k === 'shove' && e.ic).length && g.chainBest === Math.max(0, ...all.filter((e) => e.k === 'chainend').map((e) => e.n)),
+      `${g.cells} cells, ${g.cans} canisters, ${g.bursts} bursts, ${g.smash} smashed, best chain ×${g.chainBest}, ${g.takedown} police`);
+    ok('the run ends with its chain closed', g.chain === 0 && tl.stateAt(sc.at[0] + 0.5).over !== 0);
+  }
+}

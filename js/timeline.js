@@ -245,9 +245,9 @@ export class Timeline {
     }
     st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;
     const g = st.g;
-    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.lives = 2;
+    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.chain = 0; g.chainPts = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.lives = 2;
     g.polM = P_TAIL; g.polZ = Math.min(g.polZ, -GAME.polFar + 2); g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
-    g.icM = 0; g.icZ = -60; g.icNext = Math.max(g.icNext, g.gt + 6); g.aiNext = 0; g.atkGap = g.gt + 3; g.drWant = -1;
+    g.icM = 0; g.icZ = -60; g.icVx = 0; g.icNext = Math.max(g.icNext, g.gt + 6); g.aiNext = 0; g.atkGap = g.gt + 3; g.drWant = -1;
     st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
     this._endNitro(T);
     this._gev.push({ t: T, k: 'revive' });
@@ -410,7 +410,7 @@ export function phaseFrom(segs, T) {
 // canister picked up and fired, the four presets and a music pause; then the home screen and
 // a second start, which opens with the intro again.
 const CANONICAL_10 = [
-  { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.2, dir: -1 }, { type: 'lane', t: 23.05, dir: 1 }, { type: 'lane', t: 26.1, dir: -1 }, { type: 'lane', t: 28, dir: 1 }, { type: 'lane', t: 28.95, dir: 1 }, { type: 'lane', t: 30, dir: -1 }, { type: 'turbo', t: 30.15 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 35.1, dir: 1 }, { type: 'lane', t: 36.8, dir: -1 }, { type: 'lane', t: 38.5, dir: -1 }, { type: 'lane', t: 39.7, dir: 1 }, { type: 'lane', t: 40.65, dir: -1 }, { type: 'lane', t: 43.85, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 46.75, dir: -1 }, { type: 'lane', t: 48.85, dir: 1 }, { type: 'lane', t: 49.2, dir: 1 }, { type: 'lane', t: 50.15, dir: -1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 56.2, dir: -1 }, { type: 'lane', t: 59.85, dir: 1 }, { type: 'lane', t: 63.1, dir: -1 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 65.15, dir: 1 }, { type: 'lane', t: 69.2, dir: 1 }, { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.15, dir: -1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 73.6, dir: 1 }, { type: 'lane', t: 74.9, dir: -1 }, { type: 'lane', t: 75.8, dir: -1 }, { type: 'lane', t: 79.45, dir: 1 },
+  { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.25, dir: -1 }, { type: 'lane', t: 23.1, dir: 1 }, { type: 'lane', t: 26.1, dir: -1 }, { type: 'lane', t: 28, dir: 1 }, { type: 'lane', t: 28.95, dir: 1 }, { type: 'lane', t: 30, dir: -1 }, { type: 'turbo', t: 30.2 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 37.5, dir: -1 }, { type: 'lane', t: 43.75, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 44.7, dir: -1 }, { type: 'lane', t: 46.9, dir: 1 }, { type: 'lane', t: 48.05, dir: -1 }, { type: 'lane', t: 51.45, dir: 1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 55.05, dir: -1 }, { type: 'lane', t: 56.1, dir: 1 }, { type: 'lane', t: 57.85, dir: -1 }, { type: 'lane', t: 59.2, dir: 1 }, { type: 'lane', t: 61.6, dir: 1 }, { type: 'lane', t: 62.6, dir: -1 }, { type: 'env', t: 64, preset: 0 }, { type: 'turbo', t: 67.05 }, { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.55, dir: 1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 74.75, dir: -1 }, { type: 'lane', t: 77.9, dir: -1 }, { type: 'lane', t: 78.85, dir: 1 },
   { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
 ];
 // (recorded when the opening was ten seconds long: everything after the START moves with its length)

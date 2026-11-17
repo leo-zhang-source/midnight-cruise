@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, IGNITION, CINE, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, PICK_FADE, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
+import { NV, VF, NC, CF, NI, IF, PICK_FADE, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, I_FLUNG, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { cinemaShot, cinemaTail, cinemaUI } from './cinema.js';
@@ -54,12 +54,13 @@ export function layoutFor(w, h) {
 
 // Visual time warp: tape hesitation / hit-stop, local to the picture.
 // Hit-stop while driving: the picture holds on the moment of a hit for a few frames, then catches up. [freeze, catch-up] in s.
-const HITSTOP = { smash: [0.055, 0.08], shove: [0.055, 0.08], wreck: [0.14, 0.18], stumble: [0.14, 0.18], crash: [0.24, 0.3], bust: [0.18, 0.24] };   // (in every mode, reduced motion included)
+const HITSTOP = { smash: [0.055, 0.08], shove: [0.055, 0.08], big: [0.095, 0.12], wreck: [0.14, 0.18], stumble: [0.14, 0.18], crash: [0.24, 0.3], bust: [0.18, 0.24] };   // (in every mode, reduced motion included)
 export function visualTime(T, ph, tb, reduced, tl) {
   if (ph.phase === 'cruise' && tl) {
     let lag = 0;
     for (const e of tl.gameEvents(T - 0.36, T)) {
-      const h = HITSTOP[e.k]; if (!h || e.t < ph.seg.C) continue;
+      let h = HITSTOP[e.k]; if (!h || e.t < ph.seg.C) continue;
+      if ((e.k === 'smash' || e.k === 'shove') && (e.ic || GAME.chainTier.includes(e.n))) h = HITSTOP.big;      // a chain milestone, a cruiser thrown off: the frame holds a little longer
       const u = T - e.t, l = u < h[0] ? u - 0.004 : u < h[0] + h[1] ? (h[0] - 0.004) * (1 - (u - h[0]) / h[1]) : 0;   // held, then winding back to zero
       if (l > lag) lag = l;
     }
@@ -78,10 +79,13 @@ export function visualTime(T, ph, tb, reduced, tl) {
 
 // What the game layer draws and what the HUD shows.
 // sim: the simulation state at T · sv: the state being shown (the same, except while a rewind replays the past).
+// the smash chain's call-outs, by milestone (GAME.chainTier)
+export const CHAIN_NAME = ['TRIPLE SMASH', 'RAMPAGE', 'WRECKING BALL', 'UNSTOPPABLE', 'JUGGERNAUT', 'MIDNIGHT LEGEND'];
+export const chainTier = (n) => { let k = -1; for (let i = 0; i < GAME.chainTier.length; i++) if (n >= GAME.chainTier[i]) k = i; return k; };
 const STAR_NEW = { 2: 'ROADBLOCKS', 3: 'HELICOPTER', 4: 'INTERCEPTOR', 5: 'ALL UNITS' };
 const POP = {
   run: () => ['POLICE! PULL OVER', 'bad'], go: () => ['FLOOR IT', 'good'],
-  near: (e) => [`CLOSE CALL +${e.pts}`, 'good'], smash: () => ['SMASH', 'hot'], gear: (e) => [`GEAR ${e.n}`, 'info'],
+  near: (e) => [`CLOSE CALL +${e.pts}`, 'good'], gear: (e) => [`GEAR ${e.n}`, 'info'],
   star: (e) => (e.up ? [`WANTED ${'★'.repeat(e.n)}${STAR_NEW[e.n] ? ' · ' + STAR_NEW[e.n] : ''}`, 'bad'] : [`HEAT DOWN ${'★'.repeat(e.n)}`, 'good']),
   level: (e) => (e.n ? [`THREAT LEVEL ${e.n}`, 'bad'] : null),
   stumble: (e) => [(e.by === 'hook' ? 'HOOKED' : e.by === 'ram' ? 'RAMMED' : e.by === 'heli' ? 'HIT FROM THE AIR' : e.by === 'slam' ? 'SLAMMED' : e.by === 'crash' ? 'CRASH' : 'SIDESWIPE') + ' · ONE LIFE LEFT', 'bad'],
@@ -92,7 +96,8 @@ const POP = {
   icwarn: (e) => [`INTERCEPTOR COMING UP ON YOUR ${e.side < 0 ? 'LEFT' : 'RIGHT'}`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
   mirror: () => ['CRUISER CUTTING YOU OFF', 'bad'], pincer: () => ['PINCER', 'bad'], dodge: (e) => [`DODGED +${e.pts}`, 'good'],
   tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
-  draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR RAMMED OFF' : 'SHOVED THE POLICE BACK', 'hot'],
+  draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR SMASHED OFF THE ROAD' : 'POLICE KNOCKED BACK', 'hot'],
+  outrun: (e) => [e.who === 'ic' ? 'INTERCEPTOR LEFT BEHIND' : 'GRAPPLER OUTRUN', 'good'],
 };
 function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const g = sv.g, G = GAME, L = ROAD.lane;
@@ -165,32 +170,55 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     const u = g.gt - g.icT, T = icMoveT(g.icFrom, g.icTo), m = g.icM === I_SLAM ? u / T : 0, dx = (g.icTo - g.icFrom) * L;
     const vx = g.icM === I_SLAM ? dx * sCurveD(m) / T : 0, ax = g.icM === I_SLAM ? dx * sCurveA(m) / (T * T) : 0;
     const dz = g.icZ, fade = smooth((dz - G.icZ0) / 8);
-    out.ic = { x: g.icX * L - back * vx, dz, side: g.icA, mode: g.icM, fade, vx, ax, tell: g.icM === I_TELL ? sat(u / g.icW) : -1, to: g.icM === I_TELL || g.icM === I_SLAM ? g.icTo : null, leaving: g.icM === I_LEAVE ? 1 : 0 };
+    out.ic = { x: g.icX * L - back * vx, dz, side: g.icA, mode: g.icM, fade, vx, ax, tell: g.icM === I_TELL ? sat(u / g.icW) : -1, to: g.icM === I_TELL || g.icM === I_SLAM ? g.icTo : null, leaving: g.icM === I_LEAVE ? 1 : 0,
+      flung: g.icM === I_FLUNG ? u : -1, fdir: Math.sign(g.icVx) || 1 };
   }
   // ── how each event hits: debris and sparks in the world; a kick of the camera towards where it happened, a punch of the lens, a
   //    flash tinted by what it was (white-hot for a crash, amber for a smash, red for the police). out.fx collects the lens and
   //    camera moves for frameState.
-  const pops = [], fx = out.fx = { fov: 0, kx: 0, ky: 0 }, tint = post.tint; let bump = 0, gain = null;   // bump: the score jumps when points come in a lump
+  // Every hit also adds `trauma` (0..1): frameState turns it into a shake of the whole camera — the lens, its place and its roll — that
+  // goes with the square of the trauma, so a scrape rattles and a crash throws the picture about.
+  const pops = [], fx = out.fx = { fov: 0, kx: 0, ky: 0, tr: 0, roll: 0 }, tint = post.tint; let bump = 0, gain = null;   // bump: the score jumps when points come in a lump
+  let hit = null, bank = null, cellAge = 9;                // the smash chain's last link and its banking; the last cell picked up
+  const trauma = (amt, age, tau) => { fx.tr += amt * Math.exp(-age / tau); };
   const kick = (dir, amt, age, f = 38) => { const r = Math.exp(-age / 0.1); fx.kx += dir * amt * r * Math.cos(age * f); fx.ky += amt * 0.7 * r * Math.sin(age * f * 1.3); };
   const glow = (c, k) => { tint[0] += c[0] * k; tint[1] += c[1] * k; tint[2] += c[2] * k; };
   const side = (lane) => Math.sign(lane * L - sim.x) || 0;
   for (const e of tl.gameEvents(T - 1.9, T)) {
     const age = T - e.t;
-    if ((e.k === 'smash' || e.k === 'wreck') && age < 0.8) out.bursts.push({ x: e.lane * L, dz: e.dz - age * (sv.vel - g.vt), age, type: e.type, seed: e.t * 91.7, kind: e.k });
+    if ((e.k === 'smash' || e.k === 'wreck') && age < 1.25) out.bursts.push({ x: e.lane * L, dz: e.dz - age * (sv.vel - g.vt), dz0: e.dz, age, type: e.type, seed: e.t * 91.7, kind: e.k, n: e.n || 0, dir: e.dir || 0, id: e.id || 0 });
+    else if (e.k === 'shove' && age < 0.7) out.bursts.push({ x: e.ic ? sim.x + e.dir * 1.6 : sim.x, dz: e.ic ? 0 : -3, age, seed: e.t * 61.3, kind: 'slam', dir: e.dir || 0 });
     else if (e.k === 'crash' && age < 1.2) out.bursts.push({ car: 1, x: sim.x, dz: 0, age, seed: e.t * 53.3 });
     else if (e.k === 'swipe' && age < 0.6) out.bursts.push({ x: sim.x - e.dir * 1.0, dz: 0, age, seed: e.t * 37.1, kind: 'scrape', dir: -e.dir });
     else if (e.k === 'stumble' && (e.by === 'hook' || e.by === 'heli' || e.by === 'slam' || e.by === 'ram') && age < 0.7) out.bursts.push({ x: sim.x, dz: e.by === 'heli' ? -1 : 1.5, age, seed: e.t * 29.3, kind: 'sparks' });
-    if (e.k === 'smash' && age < 0.35) { kick(side(e.lane), 0.012, age); fx.fov += 0.075 * Math.exp(-age / 0.08); glow([1, 0.55, 0.15], 0.2 * Math.exp(-age / 0.07)); post.flash = Math.max(post.flash, 0.06 * Math.exp(-age / 0.04)); post.rgb = Math.max(post.rgb, 1 + 3 * Math.exp(-age / 0.12)); }
-    if (e.k === 'shove' && age < 0.35) { kick(0, 0.012, age); fx.fov += 0.07 * Math.exp(-age / 0.08); glow([1, 0.15, 0.25], 0.18 * Math.exp(-age / 0.07)); }
+    if (e.k === 'smash' && age < 0.5) {                           // rammed in a nitro burst: a punch, harder with every link of the chain
+      const c = Math.min(1, ((e.n || 1) - 1) / 9), tier = G.chainTier.includes(e.n) ? 1 : 0, big = e.type === T_TRUCK || e.type >= T_BLOCK ? 1 : 0;
+      kick(e.dir || side(e.lane), 0.03 + 0.016 * c + 0.012 * big, age, 46); trauma(0.42 + 0.2 * c + 0.12 * big + 0.15 * tier, age, 0.13 + 0.05 * tier);
+      fx.fov += (0.09 + 0.05 * c + 0.06 * tier) * Math.exp(-age / 0.08); fx.roll += (e.dir || 0) * -0.012 * (1 + c) * Math.exp(-age / 0.12);
+      glow(e.type >= T_BLOCK ? [1, 0.3, 0.3] : [1, 0.62, 0.15], (0.22 + 0.14 * c + 0.2 * tier) * Math.exp(-age / 0.08));
+      post.flash = Math.max(post.flash, (0.05 + 0.03 * c + 0.12 * tier) * Math.exp(-age / 0.045)); post.rgb = Math.max(post.rgb, 1 + (3 + 3 * c + 3 * tier) * Math.exp(-age / 0.13));
+      if (tier) post.bloom += 0.5 * Math.exp(-age / 0.2);
+    }
+    if (e.k === 'shove' && age < 0.6) {                           // a police car knocked off us: sideways for the interceptor, back for the pursuit car
+      kick(e.ic ? e.dir : 0, e.ic ? 0.05 : 0.03, age, 44); trauma(e.ic ? 0.75 : 0.55, age, 0.2); fx.fov += (e.ic ? 0.13 : 0.09) * Math.exp(-age / 0.09); fx.roll += (e.ic ? e.dir : 0) * -0.03 * Math.exp(-age / 0.15);
+      glow([1, 0.2, 0.28], 0.3 * Math.exp(-age / 0.09)); post.flash = Math.max(post.flash, 0.16 * Math.exp(-age / 0.05)); post.rgb = Math.max(post.rgb, 1 + 6 * Math.exp(-age / 0.15));
+    }
+    if ((e.k === 'smash' || e.k === 'shove') && e.n && (!hit || age < hit.age)) hit = { age, n: e.n, pts: e.pts, pol: e.k === 'shove' || e.type >= T_BLOCK ? 1 : 0 };
+    if (e.k === 'chainend' && e.n >= 2 && age < 1.7) bank = { age, n: e.n, pts: e.pts };
+    if (e.k === 'chainend' && e.n >= 2 && age < 0.4) glow([1, 0.8, 0.3], 0.08 * Math.exp(-age / 0.1));
+    if (e.k === 'outrun' && age < 0.4) glow([0.2, 0.9, 1], 0.07 * Math.exp(-age / 0.1));
+    if (e.k === 'cell' && age < cellAge) cellAge = age;
     if ((e.k === 'stumble' || e.k === 'bust') && age < 0.6) {    // a hit that costs a life: the biggest jolt short of a crash
-      kick(e.by === 'swipe' ? 0 : 1, e.by === 'crash' ? 0.034 : 0.026, age, 44);
-      fx.fov -= (e.by === 'crash' ? 0.13 : 0.09) * Math.exp(-age / 0.14);
+      kick(e.by === 'swipe' ? 0 : 1, e.by === 'crash' ? 0.06 : 0.045, age, 44);
+      trauma(e.k === 'bust' ? 0.7 : e.by === 'crash' ? 0.95 : e.by === 'swipe' ? 0.6 : 0.85, age, e.by === 'crash' ? 0.34 : e.by === 'swipe' ? 0.22 : 0.3);
+      fx.fov -= (e.by === 'crash' ? 0.16 : 0.11) * Math.exp(-age / 0.14);
+      post.speed = Math.max(post.speed, (e.by === 'swipe' ? 0.3 : 0.6) * Math.exp(-age / 0.12));       // the picture smears for a moment
       post.rgb = Math.max(post.rgb, 1 + 5 * Math.exp(-age / 0.2));
       post.flash = Math.max(post.flash, (e.by === 'crash' ? 0.2 : 0.13) * Math.exp(-age / 0.06));
       glow(e.by === 'crash' ? [1, 0.7, 0.4] : [1, 0.05, 0.12], 0.34 * Math.exp(-age / 0.14));
       post.tracking = Math.max(post.tracking, 0.4 * Math.exp(-age / 0.14)); post.trackY = 0.35 + 0.3 * hash1(e.t * 7);
     }
-    if (e.k === 'swipe' && age < 0.35) kick(-e.dir, 0.02, age, 50);
+    if (e.k === 'swipe' && age < 0.45) { kick(-e.dir, 0.05, age, 50); fx.roll += e.dir * 0.035 * Math.exp(-age / 0.14) * Math.cos(age * 30); }   // thrown back across the lane: the horizon tips
     if (e.k === 'near' && age < 0.35) { fx.fov += 0.025 * Math.exp(-age / 0.1); post.rgb = Math.max(post.rgb, 1 + 1.4 * Math.exp(-age / 0.12)); car.streak += 6 * Math.exp(-age / 0.15); }
     if (e.k === 'dodge' && age < 0.3) glow([0.2, 0.9, 1], 0.05 * Math.exp(-age / 0.08));
     if (e.k === 'strike' && age < (e.d || 0.45) && Math.abs(e.lane * L - sim.x) < L * 1.6) kick(side(e.lane), 0.0035 * (1 - age / (e.d || 0.45)), age % 0.09, 70);   // gunfire nearby rattles the camera
@@ -198,7 +226,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     if (e.k === 'star' && e.up && age < 0.9) { const bl = Math.floor(age * 10) % 2; glow(bl ? [0.05, 0.15, 1] : [1, 0.04, 0.1], 0.07 * (1 - age / 0.9)); }
     if (e.k === 'item' && age < 0.4) glow([1, 0.72, 0.2], 0.14 * Math.exp(-age / 0.1));
     if (e.k === 'item' && age < 1.6) gain = { age, n: e.n };                 // a canister taken aboard: +1 NITRO rises from the button
-    if ((e.k === 'smash' || e.k === 'near' || e.k === 'dodge' || e.k === 'shove') && age < 0.4) bump = Math.max(bump, Math.exp(-age / 0.1));
+    if ((e.k === 'smash' || e.k === 'near' || e.k === 'dodge' || e.k === 'shove' || e.k === 'chainend') && age < 0.4) bump = Math.max(bump, Math.exp(-age / 0.1));
     const p = POP[e.k] && POP[e.k](e);
     if (p && age < 1.6) pops.push({ id: e.k + e.t.toFixed(3), text: p[0], tone: p[1], age });
   }
@@ -212,7 +240,8 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     if (sim.over === 1) {                                     // crashed: the car shatters, the tape glitches
       car.visible = false;
       post.flash = Math.max(post.flash, 0.4 * Math.exp(-u / 0.07));
-      if (u < 0.9) post.shake = [ring(u, 44, 0.24) * 0.034, ring(u, 37, 0.26) * 0.044];
+      if (u < 0.9) { fx.kx += ring(u, 44, 0.24) * 0.07; fx.ky += ring(u, 37, 0.26) * 0.09; }
+      fx.tr += 1.1 * Math.exp(-u / 0.42); fx.roll += ring(u, 26, 0.3) * 0.06; post.speed = Math.max(post.speed, 0.9 * Math.exp(-u / 0.18));
       for (let k = 0; k < 3; k++) post.tint[k] += [1, 0.75, 0.5][k] * 0.3 * Math.exp(-u / 0.12);
       post.vignette += 0.25 * Math.exp(-u / 0.3);
       out.fx.fov -= 0.16 * Math.exp(-u / 0.2); out.fx.kx += ring(u, 30, 0.3) * 0.01;   // the lens slams back
@@ -223,6 +252,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
       car.lights = 1 - k; car.glow = (1 - k) * fl; car.tail = 0.85 * (1 - k) * fl; car.exhaust = 0; car.flame = 0;
       post.tracking = Math.max(post.tracking, 0.25 * k); post.noise = Math.max(post.noise, 0.12 * k);
       out.pol.busted = smooth(u / 0.8);
+      fx.tr += 0.5 * Math.exp(-u / 0.3);
     }
     post.vignette += 0.22 * smooth(u / 1.0);
   }
@@ -239,11 +269,17 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const lg = sim.g;                                           // HUD numbers come from the live state
   ui.g = {
     on: 1, free: 0, run: sim.run, score: Math.floor(lg.score), mult: gameMult(lg), combo: lg.combo, cells: lg.cells, gear: lg.gear + 1,
-    star: lg.star, level: lg.lvN, ic: stepping && lg.icM !== I_OFF && lg.icM !== I_LEAVE ? lg.icA : 0, lives: lg.lives, close: stepping && lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0,
+    star: lg.star, level: lg.lvN, ic: stepping && lg.icM !== I_OFF && lg.icM !== I_LEAVE && lg.icM !== I_FLUNG ? lg.icA : 0, lives: lg.lives, close: stepping && lg.gt < lg.pcl ? sat((lg.pcl - lg.gt) / 1.6) : 0,
     hint: stepping && lg.lives < 2 ? 1 - smooth((lg.gt - (lg.stG - G.stumbleGrace) - 4) / 0.8) : 0,     // "nitro shakes them off": for four seconds after the hit, then it goes
  pol: stepping && policeClose(lg) ? 1 : 0, nstock: lg.nstock, tapes: sim.tapes,
     over: sim.over, overU: sim.over ? T - sim.overT : 0, paused: sim.paused, rew, draft: lg.draft, pops, bump, gain,
-    stats: { dist: lg.gd, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax, level: lg.lvN, dodges: lg.dodges },
+    // the smash chain: links so far, what it has paid, how much of its window is left, its milestone (−1: none yet); `hit`: the last link
+    // (for the punch of the number), `bank`: the chain just ended. Shown from the first smash.
+    chain: lg.chain && !sim.over ? { n: lg.chain, pts: Math.round(lg.chainPts), left: sat(1 - (lg.gt - lg.chainT) / G.chainWin), tier: chainTier(lg.chain) } : null, hit, bank,
+    cellAge, tapeK: (lg.cells % G.tapeEvery) / G.tapeEvery, cans: lg.cans,
+    stats: { dist: lg.gd, time: lg.gt, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax, level: lg.lvN, lv0: lg.lv0, dodges: lg.dodges, passed: lg.passed,
+      cells: lg.cells, cans: lg.cans, bursts: lg.bursts, chain: lg.chainBest, takedown: lg.takedown,
+      pts: { dist: lg.pD, pass: lg.pP, near: lg.pN, smash: lg.pS, dodge: lg.pG, cells: lg.pC, draft: lg.pF } },
   };
   return out;
 }
@@ -308,7 +344,17 @@ export function frameState(tl, T, w, h, opt = {}) {
       post.noise = Math.max(post.noise, 0.45 * (1 - smooth(u / 0.6))); post.fgA = smooth(lin(u, 0.15, 0.6));
       if (u < 1.4) ui.osd = 'STOP';
     }
-    neon.glass = 1; neon.pow = 0; neon.prog = 1;
+    // the neon sign is on: it stutters alight as the tape starts (and again when the home screen comes back), then burns steadily,
+    // wavering a little, with a short flicker now and then
+    { const u = ph.phase === 'home' ? ph.ht - 0.35 : T - 0.25, wv = Math.floor(tv / 7.3), fu = tv - wv * 7.3 - 2 - hash1(wv * 19 + 5) * 4;
+      let pw = 0.95 + 0.04 * Math.sin(tv * 1.7) + 0.025 * vnoise(tv * 9, 41);
+      if (reduced) pw = 0.95 * smooth(u / 0.6);
+      else {
+        if (u < 1.1) pw *= u <= 0 ? 0 : hash1(Math.floor(u * 26) * 13 + 7) < 0.25 + 0.75 * (u / 1.1) ** 2 ? 1 : 0.1;
+        else if (fu > 0 && fu < 0.16 && hash1(Math.floor(fu * 40) + wv * 3) < 0.5) pw *= 0.35;
+        if (u > 0 && u < 1.6) neon.surge = 0.5 * Math.exp(-Math.max(0, u - 1.1) / 0.2) * (u < 1.1 ? u / 1.1 : 1);
+      }
+      neon.glass = 1; neon.pow = pw; neon.prog = 1; }
     car.visible = false;
     // periodic idle glint every 6 s
     const k = (tv % 6) / 6;
@@ -433,7 +479,7 @@ export function frameState(tl, T, w, h, opt = {}) {
     if (reduced) neon.pow = 1 - smooth(nk);
     else {
       neon.pow = 1 - smooth(lin(nk, 0.55, 1));
-      if (nk > 0 && nk < 0.55 && hash1(Math.floor(ct * 30) * 17 + 3) < 0.45) neon.pow *= 0.12;
+      if (nk > 0 && nk < 0.55 && hash1(Math.floor(ct * 30) * 17 + 3) < 0.35) neon.pow *= 0.4;
       if (nk > 0 && nk < 0.2) neon.surge = 0.6 * Math.sin(Math.PI * nk / 0.2);
     }
     const pk = lin(ct, X.plate[0], X.plate[1]);
@@ -516,7 +562,20 @@ export function frameState(tl, T, w, h, opt = {}) {
     game = gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced);
     // a nitro burst under way: how much of it is left (1 → 0), for the boost display
     { const len = TURBO.sustain + TURBO.recover; ui.g.boost = tbV && tbV.a >= tbV.antic && tbV.u < len && !sim.over ? 1 - tbV.u / len : 0; }
-    if (game.fx) { fovK *= 1 + game.fx.fov; post.shake = [post.shake[0] + game.fx.kx, post.shake[1] + game.fx.ky]; }
+    if (game.fx) {
+      const f = game.fx, m = reduced ? 0.3 : 1;                     // (reduced motion: a third of the shake; the flash and the hold stay)
+      fovK *= 1 + f.fov; post.shake = [post.shake[0] + f.kx * m, post.shake[1] + f.ky * m];
+      // trauma → shake: three bands of noise on the lens shift, the camera's place and its roll, with the square of the trauma
+      const tr = Math.min(1, f.tr), q = tr * tr * m;
+      if (q > 0.0004) {
+        const nx = vnoise(T * 33, 71) * 0.7 + vnoise(T * 61, 72) * 0.3, ny = vnoise(T * 37, 73) * 0.7 + vnoise(T * 67, 74) * 0.3, nr = vnoise(T * 27, 75);
+        post.shake[0] += nx * 0.2 * q; post.shake[1] += ny * 0.22 * q;
+        camX += vnoise(T * 29, 76) * 0.8 * q; camY += vnoise(T * 31, 77) * 0.45 * q; roll += nr * 0.1 * q;
+      }
+      roll += f.roll * m;
+      ui.jolt = [post.shake[0], post.shake[1]];                     // the HUD takes the knock too
+      if (reduced) post.flash = Math.min(post.flash, 0.08);          // (reduced motion: no bright flashes either)
+    }
     game.speedK = sat((Math.abs(sv.vel) - 120) / 110);              // (for the speed streaks)
     if (tbV && tbV.a >= tbV.antic) game.shock = tbV.u;                           // a nitro burst: the shockwave
     scenery = 1; trafficI = 0;

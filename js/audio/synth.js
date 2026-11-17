@@ -687,9 +687,40 @@ export class Synth {
       case 'yelp': v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5); for (let k = 1; k < 8; k++) this.voices.push(new Blip(s, o, k % 2 ? 900 : 1250, k % 2 ? 1250 : 900, 0.09, 0.05, k % 2 ? -0.5 : 0.5, k * 0.13)); break;   // the interceptor's siren: a fast yelp
       case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4), new Sub(s, o, 0.4)); if (S.crash_f) play('crash_f', { gain: 0.26, rev: 0.08 }); this.duck(o, 0.2, 0.15); break;   // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
       case 'near': v = new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2); this.voices.push(new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;   // a close call: two rising blips (no whoosh)
-      case 'smash': v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0); this.duck(o, 0.32, 0.12); break;                    // a vehicle rammed in a nitro burst
+      case 'smash': {                                                            // a vehicle rammed in a nitro burst
+        v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0); this.duck(o, 0.32, 0.12);
+        // … and every link of a smash chain rings a step higher up the scale (A minor pentatonic, from A4), so a run of them climbs
+        if (n.n) {
+          const k = Math.min(n.n - 1, 14), f = 440 * Math.pow(2, (Math.floor(k / 5) * 12 + [0, 3, 5, 7, 10][k % 5]) / 12), a = Math.min(0.1, 0.06 + 0.004 * k), pn = (n.pan || 0) * 0.5;
+          this.voices.push(new Blip(s, o, f * 1.5, f, 0.11, a, pn), new Blip(s, o, f * 2, f * 2.005, 0.16, a * 0.55, -pn, 0.012), new Blip(s, o, f * 3, f * 3.01, 0.07, a * 0.3, pn, 0.02));
+          if (n.big) this.voices.push(new Sub(s, o, 0.35));
+          if (n.tier) {                                                          // a milestone: the chord runs up, a boom under it, a cymbal over it
+            [0, 7, 12, 19].forEach((st, i) => this.voices.push(new Blip(s, o, f * Math.pow(2, st / 12), f * Math.pow(2, st / 12) * 1.003, 0.32, 0.075, i % 2 ? 0.4 : -0.4, 0.05 + i * 0.05)));
+            this.voices.push(new Sub(s, o, 0.6), new Impact(s, o, 0.5)); if (S.crash_f) play('crash_f', { gain: 0.2 + 0.03 * Math.min(4, n.tier), rev: 0.08 }); this.duck(o, 0.4, 0.2);
+          }
+        }
+        break;
+      }
+      case 'bank': {                                                             // the chain is banked: the till rings, brighter the longer it was
+        const k = Math.min(1, ((n.n || 2) - 2) / 8), a = 0.05 + 0.03 * k;
+        v = new Click(s, o, 0.5); this.voices.push(new Blip(s, o, 1318.5, 1320, 0.09, a, -0.3), new Blip(s, o, 1760, 1762, 0.1, a, 0.3, 0.07), new Blip(s, o, 2637, 2640, 0.4, a * 0.9, 0, 0.14), new Blip(s, o, 3520, 3526, 0.5, a * 0.45 * k, 0.2, 0.2));
+        break;
+      }
+      case 'fling': {                                                            // a police car thrown off us in a nitro burst: the blow, its tyres, its siren falling away behind
+        const pn = n.pan || 0;
+        v = new Crunch(s, o, 1.2, pn, 1); this.voices.push(new Sub(s, o, 0.6), new Skid(s, o), new Impact(s, o, 0.55));
+        for (let k = 0; k < 5; k++) this.voices.push(new Blip(s, o, (k % 2 ? 900 : 1250) * Math.pow(0.86, k), (k % 2 ? 1250 : 900) * Math.pow(0.86, k + 1), 0.1, 0.05 * Math.pow(0.8, k), pn * 0.9, 0.06 + k * 0.12));
+        this.duck(o, 0.5, 0.22); break;
+      }
+      case 'outrun': { const pn = n.pan || 0; v = new Blip(s, o, 1100, 640, 0.22, 0.045, pn); this.voices.push(new Blip(s, o, 900, 520, 0.3, 0.035, pn, 0.2)); break; }   // left behind: its siren drops away
+      case 'hit': v = new Crunch(s, o, 1.0, n.pan || 0, 0); this.voices.push(new Sub(s, o, 0.5), new Impact(s, o, 0.4)); this.duck(o, 0.45, 0.2); break;   // rammed, slammed or shot: the blow itself
+      // the results screen: a tick as each line is counted, the total landing, the grade stamped on it, a fanfare for a new best
+      case 'tally': { const f = 523.25 * Math.pow(2, (n.n || 0) * 2 / 12); v = new Click(s, o, 0.35); this.voices.push(new Blip(s, o, f, f * 1.003, 0.05, 0.045, ((n.n || 0) % 2 ? 0.3 : -0.3))); break; }
+      case 'total': v = new Impact(s, o, 0.45); this.voices.push(new Sub(s, o, 0.45)); [220, 329.6, 440, 659.3].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, 0.45, 0.05, i % 2 ? 0.35 : -0.35, i * 0.012))); break;
+      case 'stamp': v = new Click(s, o, 1.1, 1); this.voices.push(new Sub(s, o, 0.55), new Blip(s, o, 196, 98, 0.16, 0.12, 0, 0.005)); if ((n.g || 0) >= 3) [880, 1318.5, 1760].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, 0.5, 0.045, i - 1, 0.06 + i * 0.06))); break;
+      case 'fanfare': v = new Blip(s, o, 880, 881, 0.12, 0.075, -0.4); [1046.5, 1318.5, 1760, 2093, 2637].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, i === 4 ? 0.7 : 0.13, 0.07, i % 2 ? 0.4 : -0.4, 0.085 * (i + 1)))); if (S.crash_f) play('crash_f', { gain: 0.16, rev: 0.1 }); break;
       case 'swipe': v = new Scrape(s, o, 0.36, 1, n.pan || 0); this.voices.push(new Click(s, o, 0.9, 1)); this.duck(o, 0.25, 0.1); break;
-      case 'crashfx': v = new Crunch(s, o, 1.25, 0, 1); this.voices.push(new Impact(s, o, 0.9), new Squeal(s, o, 0.5, false)); this.duck(o, 0.6, 0.35); break;   // the run ends against a vehicle
+      case 'crashfx': v = new Crunch(s, o, 1.3, 0, 1); this.voices.push(new Impact(s, o, 1.0), new Sub(s, o, 0.8), new Squeal(s, o, 0.5, false)); this.duck(o, 0.7, 0.4); break;   // the run ends against a vehicle
       case 'wreck': v = new Crunch(s, o, 1.1, n.pan || 0, 1); this.voices.push(new Sub(s, o, 0.45)); this.duck(o, 0.5, 0.22); break;   // ploughed through one: a life gone
       case 'bust': v = new Blip(s, o, 620, 610, 0.16, 0.09); this.voices.push(new Blip(s, o, 470, 465, 0.16, 0.09, 0, 0.18), new Blip(s, o, 310, 300, 0.4, 0.1, 0, 0.36)); break;
       case 'gear': v = new Shift(s, o); break;

@@ -30,10 +30,15 @@ const fontsReady = Promise.race([
 ]);
 await fontsReady;
 
+// Phones and tablets get the lite render path and lower quality tiers; ?lite=0/1 overrides. An iPad with a trackpad
+// reports a fine pointer and a Mac user agent, so it is caught by its touch points (Macs report none).
+const mobile = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 600
+  || /Android|iPhone|iPad|iPod|Mobile/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const lite = Q.has('lite') ? Q.get('lite') !== '0' : mobile;
 const tl = new Timeline();
-const world = new World(SEED);
+const world = new World(SEED, { lite });
 const title = new Title();
-const post = new Post(renderer);
+const post = new Post(renderer, { lite });
 const audio = new AudioEngine();
 audio.prepare();
 
@@ -90,8 +95,11 @@ const TIERS = [
   { budget: 2.6e6, msaa: 2, dpr: 1.5 },
   { budget: 1.3e6, msaa: 2, dpr: 1.25 },
   { budget: 0.75e6, msaa: 0, dpr: 1 },
+  // lite only (phones / tablets): below one pixel per CSS pixel
+  { budget: 0.5e6, msaa: 0, dpr: 1 },
+  { budget: 0.34e6, msaa: 0, dpr: 0.75 },
 ];
-const mobile = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 600;
+const lowest = lite ? TIERS.length - 1 : 4;
 let tier = Q.has('tier') ? +Q.get('tier') : mobile ? 3 : 0;
 let cssW = 0, cssH = 0, outW = 0, outH = 0;
 function resize() {
@@ -107,13 +115,14 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
-let ema = 16.7, lastP = 0, calm = 0, hot = 0, frames = 0;
+let ema = 16.7, lastP = 0, calm = 0, hot = 0, frames = 0, tooHot = -1;
 function adapt(dt) {
   if (Q.has('capture') || Q.has('tier')) return;
   ema += (dt - ema) * 0.05;
   if (ema > 21) { hot += dt; calm = 0; } else if (ema < 12.5) { calm += dt; hot = 0; } else { hot = Math.max(0, hot - dt); calm = 0; }
-  if (hot > 1200 && tier < TIERS.length - 1) { tier++; hot = 0; ema = 16; resize(); }
-  if (calm > 6000 && tier > (mobile ? 2 : 0)) { tier--; calm = 0; resize(); }
+  if (hot > (lite ? 800 : 1200) && tier < lowest) { tooHot = Math.max(tooHot, tier); tier++; hot = 0; ema = 16; resize(); }
+  // lite never climbs back into a tier that already ran too hot (no see-sawing, and each resize is a hitch on a phone)
+  if (calm > 6000 && tier > (mobile ? 2 : 0) && !(lite && tier - 1 <= tooHot)) { tier--; calm = 0; resize(); }
 }
 
 // ── frame ─────────────────────────────────────────────────────────────────
@@ -134,7 +143,7 @@ function render(T) {
   const f = title.project(s.post.flare.tx - W2, s.post.flare.ty - 50);
   // 180° shutter: while the title is flying, average 8 sub-frames across half a frame
   let subs = null;
-  if (s.title.blur && !app.reduced) { const N = post.W * post.H > 4e6 ? 5 : 8, SH = 1 / 120; subs = []; for (let k = 0; k < N; k++) subs.push(frameState(tl, T - (k * SH) / (N - 1), outW, outH, { reduced: false })); }
+  if (s.title.blur && !app.reduced) { const N = lite ? 4 : post.W * post.H > 4e6 ? 5 : 8, SH = 1 / 120; subs = []; for (let k = 0; k < N; k++) subs.push(frameState(tl, T - (k * SH) / (N - 1), outW, outH, { reduced: false })); }
   post.render(world, title, s, g, f, subs);
   ui.update(s, T, cssW, cssH);
   return s;
@@ -145,7 +154,7 @@ function frame(p) {
   syncClock(p);
   if (!frozen) ui.pump();
   const T = now();
-  if (!frozen) ui.announce(T);
+  if (!frozen) { ui.announce(T); ui.tally(T); }
   let s;
   if (Q.has('perf')) {
     const a = performance.now(); s = render(T);
@@ -169,6 +178,6 @@ window.MC = {
   events: () => tl.serialize(),
   load(list) { tl.events.length = 0; tl._invalidate(-Infinity); tl.load(list); },
   _r: renderer, _post: post, _world: world, _title: title, _audio: audio,
-  stats, state: (T) => frameState(tl, T ?? now(), outW, outH, { reduced: app.reduced }),
+  lite, stats, state: (T) => frameState(tl, T ?? now(), outW, outH, { reduced: app.reduced }),
   get tier() { return tier; },
 };

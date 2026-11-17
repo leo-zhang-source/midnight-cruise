@@ -154,6 +154,15 @@ export const GAME = {
   icEvery: [7, 11], icV: 30, icZ0: -46, icZp: -0.4, icShoulder: 1.82, icPace: 0.5, icWait: 6.5, icMove: 0.4, icHold: 0.45, icBack: 34, icOut: 14,
   ptsDist: 1, ptsNear: 150, ptsPass: 25, ptsCell: 10, ptsSmash: 200, ptsDraft: 80, ptsDodge: 300,
   comboNear: 3, comboCap: 40, comboStep: 0.1, starBonus: 0.25,
+  // Smash chain: every vehicle rammed in a nitro burst is a link. A link made within chainWin s of the last one is worth chainStep more
+  // of the base (ptsSmash) than the one before, up to link chainCap; then the chain is banked. What it was counts too (smashMul by
+  // vehicle type: car, van, truck, taxi, cruisers) and so does a police unit knocked off us (takedownMul: the pursuit car, the interceptor).
+  // chainTier: the links at which the chain is called out, louder each time.
+  chainWin: 2.2, chainCap: 10, chainStep: 0.5, smashMul: [0, 1, 1, 1.5, 1.25, 2, 2], takedownMul: 2.5, chainTier: [3, 5, 8, 12, 16, 20],
+  // A nitro burst breaks the police off. The pursuit car cannot follow: a grappler run is called off and it falls polDrop further back
+  // while the burst lasts. An interceptor riding level is left behind (it drops away icOutrun times as fast as usual); one that swerves
+  // into us, or that we steer into, is thrown off the road (flingV lanes/s sideways, spinning) and is out of action for icOut seconds.
+  polDrop: 16, icOutrun: 2.6, flingV: 6.5, flingReach: 0.45,
   tapeEvery: 100, tapesStart: 1, maxTapes: 3,    // spare tapes: one per 100 cells; a tape rewinds the crash
   overLock: 0.7, rewindSec: 3, reviveHold: 1.3,
 };
@@ -169,7 +178,7 @@ export const ROAD = { lane: 5.0, rail: 7.5, traffic: 5.0, trail: 10.9 };   // tr
 export const LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 0.0046, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
 // Title exit once cruising starts (cruise time, s): the neon flickers out, the 1986 plate wipes shut,
 // the chrome word pulls toward the camera and then recedes to the horizon. After that the road stays clear.
-export const TITLE_EXIT = { neon: [0.2, 0.62], plate: [0.25, 0.7], chrome: [0.3, 1.35] };
+export const TITLE_EXIT = { neon: [0.5, 0.98], plate: [0.25, 0.7], chrome: [0.3, 1.35] };   // (the neon stays lit for the first half second of the run, then goes with the chrome)
 export const THROTTLE = { rise: 0.32, fall: 0.2 };   // drive amount: back to full speed after a pause or a rewind / easing off
 
 export const PRESETS = ['SUNSET', 'BLUE HOUR', 'AFTERGLOW', 'LAGOON'];

@@ -1,11 +1,19 @@
 // DOM layer: accessible controls, input → timeline events, and per-frame UI state.
 // All UI motion (pop-in, drag, settle) is evaluated from the timeline, not CSS transitions.
 import { PRESETS, IGN, GAME, drumPulse } from './cue.js';
-import { clamp, lerp, smooth, spring, ring, sat } from './util.js';
+import { clamp, lerp, smooth, spring, ring, sat, easeOutCubic } from './util.js';
+import { CHAIN_NAME } from './director.js';
 import { startDist, baseAt, gearAtDist } from './game.js';
 
 const $ = (id) => document.getElementById(id);
 const CIRC = 282.74;
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+// The results screen. Grades by score, and what each is called; the score lines in the order they are counted; when each part
+// of the screen arrives (seconds after the panel opens).
+export const GRADES = [['D', 0, 'SUNDAY DRIVER'], ['C', 15000, 'STREET RACER'], ['B', 50000, 'OUTLAW'], ['A', 120000, 'ROAD PHANTOM'], ['S', 250000, 'MIDNIGHT LEGEND']];
+export const gradeOf = (score) => { let k = 0; for (let i = 0; i < GRADES.length; i++) if (score >= GRADES[i][1]) k = i; return k; };
+const RS_ROWS = ['dist', 'pass', 'near', 'smash', 'dodge', 'cells', 'draft'];
+export const RS = { row0: 0.3, rowGap: 0.13, rowDur: 0.32, total: 1.5, grade: 1.85, best: 2.25, done: 2.7 };
 
 export class UI {
   constructor(app) {
@@ -17,9 +25,13 @@ export class UI {
       lcdName: $('lcd-name'), lcdLed: $('lcd-led'), lcdMeter: $('lcd-meter'), lcdCount: $('lcd-count'), reelL: $('reel-l'), reelR: $('reel-r'),
       presets: [...document.querySelectorAll('.preset')], canvas: $('gl'), spd: $('spd'), spdBar: $('spd-bar'), hints: $('hints'),
       ghud: $('ghud'), gScore: $('g-score'), gMult: $('g-mult'), gCells: $('g-cells'), gStars: $('g-stars'), gTail: $('g-tail'), gTailBar: $('g-tail-bar'), gTailText: $('g-tail-text'), gLives: $('g-lives'), gTapes: $('g-tapes'), gear: $('gear'),
-      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovSmash: $('ov-smash'), ovStar: $('ov-star'), gLv: $('g-lv'),
+      homeScore: $('home-score'), hsLast: $('hs-last'), hsBest: $('hs-best'), home: $('home'), home2: $('home2'), restart: $('restart'), ovRk: document.querySelector('.ov-rk'), ovStar: $('ov-star'), gLv: $('g-lv'),
       gpops: $('gpops'), pops: [...$('gpops').children], police: $('police'), pause: $('pause'), paused: $('paused'), resume: $('resume'), over: $('over'), overTitle: $('over-title'), revive: $('revive'), live: $('g-live'),
-      ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovDist: $('ov-dist'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovNear: $('ov-near'), ovTapes: $('ov-tapes'),
+      ovScore: $('ov-score'), ovBest: $('ov-best'), ovBestL: $('ov-best-l'), ovSpeed: $('ov-speed'), ovCombo: $('ov-combo'), ovTapes: $('ov-tapes'),
+      energy: $('energy'), cellBar: $('g-cellbar'), cellNext: $('g-cellnext'), cellPlus: $('g-cellplus'),
+      chain: $('chain'), chN: $('ch-n'), chCap: $('ch-cap'), chPts: $('ch-pts'), chBar: $('ch-bar'), chHit: $('ch-hit'), chX: document.querySelector('.ch-x'),
+      rsCard: $('rs-card'), rsRun: $('rs-run'), rsSub: $('rs-sub'), rsGrade: $('rs-grade'), rsLetter: $('rs-letter'), rsRank: $('rs-rank'), rsBest: $('rs-best'), rsNext: $('rs-next'),
+      rsRows: [...$('rs-rows').children], rsStats: $('rs-stats'), rsTime: $('rs-time'), rsTake: $('rs-take'), rsNitro: $('rs-nitro'), ovBtns: document.querySelector('#over .ov-btns'),
     };
     this.best = 0; this.last = -1;      // best score (kept in this browser) and the last run's score, for the home screen
     try { this.best = +localStorage.getItem('mc86.best') || 0; } catch (_) { /* storage unavailable: best score lasts for this visit */ }
@@ -52,6 +64,7 @@ export class UI {
     E.home.addEventListener('click', () => this.home());
     E.home2.addEventListener('click', () => this.home());
     E.revive.addEventListener('click', () => this.revive());
+    E.over.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) this.rsSkip = this.rs; });      // a tap on the results skips the count
     E.play.addEventListener('click', () => { const on = this.app.tl.musicAt(this.app.now()).on; this.ev('music', { on: !on }); this.sfx('clunk'); });
     E.mute.addEventListener('click', () => { const m = !this.app.audio.muted; this.app.audio.setMuted(m); this.ev('mute', { on: m }); this.sfx('click'); E.mute.setAttribute('aria-pressed', String(m)); E.mute.setAttribute('aria-label', m ? 'Unmute' : 'Mute'); });
     E.auto.addEventListener('click', () => { const on = !this.app.tl.autoOn(this.app.now()); this.ev('auto', { on }); this.sfx('click'); });
@@ -187,14 +200,20 @@ export class UI {
     for (const e of evs) {
       const k = e.k;
       if (k === 'near') this.sfx('near');
-      else if (k === 'smash') this.sfx('smash', { pan: r2(pan(e.lane)), v: e.type >= 5 ? 1.05 : e.type === 3 ? 1 : 0.85 });
-      else if (k === 'wreck') this.sfx('wreck', { pan: r2(pan(e.lane)) });
+      else if (k === 'smash') {              // a link in the smash chain: the crunch, and its note a step higher each time; a milestone gets a chord
+        const tier = GAME.chainTier.indexOf(e.n) + 1;
+        this.sfx('smash', { pan: r2(pan(e.lane)), v: e.type >= 5 ? 1.05 : e.type === 3 ? 1 : 0.85, n: e.n, ...(e.type === 3 || e.type >= 5 ? { big: 1 } : {}), ...(tier ? { tier } : {}) });
+        this.buzz(tier ? [30, 30, 60] : 22);
+      }
+      else if (k === 'chainend') { if (e.n >= 2) this.sfx('bank', { n: e.n }); }
+      else if (k === 'outrun') this.sfx('outrun', { pan: e.who === 'ic' ? r2(e.side * 0.8) : 0 });
+      else if (k === 'wreck') { this.sfx('wreck', { pan: r2(pan(e.lane)) }); this.buzz(90); }
       else if (k === 'shake') this.sfx('chime');
-      else if (k === 'swipe') this.sfx('swipe', { pan: r2(Math.max(-1, Math.min(1, -e.dir * 0.8))) });
-      else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.el.live.textContent = (e.kind === 2 ? 'Busted.' : 'Crashed.') + ' Press R to rewind the tape, or H for the home screen.'; }
+      else if (k === 'swipe') { this.sfx('swipe', { pan: r2(Math.max(-1, Math.min(1, -e.dir * 0.8))) }); this.buzz(50); }
+      else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.buzz([140, 40, 80]); const sc = Math.floor(this.app.tl.stateAt(T).g.score); this.el.live.textContent = `${e.kind === 2 ? 'Busted.' : 'Crashed.'} Final score ${fmt(sc)}, grade ${GRADES[gradeOf(sc)][0]}. Press R to rewind the tape, or H for the home screen.`; }
       else if (k === 'gear') this.sfx('gear');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
-      else if (k === 'stumble' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); this.sfx('siren'); }
+      else if (k === 'stumble' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); else if (e.by === 'ram' || e.by === 'slam' || e.by === 'heli') { this.sfx('hit'); this.buzz(70); } this.sfx('siren'); }
       else if (k === 'block' || k === 'weave') this.sfx('siren');
       else if (k === 'icwarn') this.sfx('yelp');
       else if (k === 'cutin') this.sfx('horn');
@@ -202,11 +221,59 @@ export class UI {
       else if (k === 'level') { if (e.n) this.sfx('alert'); }
       else if (k === 'clear') this.sfx('chime');
       else if (k === 'strike') this.sfx('burst', { d: r2(e.d || 0.45), pan: r2(pan(e.lane)) });
-      else if (k === 'shove') this.sfx('smash', { pan: 0, v: 1.05 });
+      else if (k === 'shove') { this.sfx('fling', { pan: r2((e.ic ? e.dir : 0) * 0.8) }); this.sfx('smash', { pan: r2((e.ic ? e.dir : 0) * 0.6), v: 0.9, n: e.n, big: 1, ...(GAME.chainTier.indexOf(e.n) + 1 ? { tier: GAME.chainTier.indexOf(e.n) + 1 } : {}) }); this.buzz([40, 30, 70]); }
       else if (k === 'item') this.sfx('pickup');
       else if (k === 'tape' || k === 'full') this.sfx('chime');
       else if (k === 'revive') this.sfx('rewindlong');
     }
+  }
+
+  // a short buzz on phones that have one (Android; iOS has none), for the hits
+  buzz(p) { try { if (!this.app.reduced && navigator.vibrate) navigator.vibrate(p); } catch (_) { /* no vibration */ } }
+  // The results screen's sounds, as its parts arrive: a tick per line, the total landing, the grade's stamp, a fanfare for a new best.
+  // (live only, like announce: called with the picture's clock)
+  tally(T) {
+    const R = this.rs; if (!R || this.el.over.hidden) { this.rsS = -1; return; }
+    const u = this.rsSkip === R ? 99 : T - R.t0, at = [...R.rows.map((r, i) => [RS.row0 + i * RS.rowGap + 0.05, 'tally', { n: i }, r.pts > 0]), [RS.total, 'total', null, 1], [RS.grade, 'stamp', { g: R.g }, 1], [RS.best, 'fanfare', null, R.isNew]];
+    if (this.rsK !== R || this.rsS < 0) { this.rsK = R; this.rsS = 0; }
+    while (this.rsS < at.length && u >= at[this.rsS][0]) {
+      const [t, name, p, on] = at[this.rsS++];
+      if (on && (u - t < 0.25 || name === 'stamp' || name === 'fanfare')) this.sfx(name, p || undefined);        // (skipping the count leaves the stamp, and the fanfare)
+    }
+  }
+
+  // The results screen at u seconds after it opened: the panel comes up, the title slams, the lines count in one after another and the
+  // total runs up with them; then the total lands, the grade is stamped on, and the best score answers. All from the clock, no transitions.
+  results(u, T, reduced) {
+    const E = this.el, R = this.rs, C = this.cache, mv = reduced ? 0 : 1;
+    if (this.rsSkip === R) u = 99;
+    const key = R.t0.toFixed(3) + (u >= RS.done + 0.6 ? 'end' + (R.isNew ? Math.floor(T * 30) : '') : u.toFixed(3));
+    if (C.rsU === key) return; C.rsU = key;
+    const inK = smooth(u / 0.22);
+    E.over.style.opacity = inK.toFixed(3);
+    E.rsCard.style.transform = mv ? `translateY(${((1 - easeOutCubic(u / 0.3)) * 22).toFixed(1)}px)` : '';
+    E.overTitle.style.transform = mv ? `scale(${(1 + 0.4 * Math.exp(-u / 0.07)).toFixed(3)})` : '';
+    let sum = 0;
+    R.rows.forEach((r, i) => {
+      const t = RS.row0 + i * RS.rowGap, k = easeOutCubic((u - t) / RS.rowDur), a = sat((u - t) / 0.1), v = Math.round(r.pts * k);
+      sum += r.pts * k;
+      r.el.style.opacity = a.toFixed(2); r.el.style.transform = mv && k < 1 ? `translateX(${((1 - k) * 20).toFixed(1)}px)` : '';
+      if (r.shown !== v) { r.shown = v; r.out.textContent = '+' + fmt(v); }
+    });
+    // the total: it runs up with the lines, then lands (a punch and a glow)
+    const landed = u >= RS.total, tv = landed ? R.score : Math.min(R.score, Math.round(sum));
+    if (R.tv !== tv) { R.tv = tv; E.ovScore.textContent = fmt(tv); }
+    const lk = landed ? Math.exp(-(u - RS.total) / 0.12) : 0;
+    E.ovScore.style.setProperty('--k', lk.toFixed(2)); E.ovScore.style.transform = mv && lk > 0.01 ? `scale(${(1 + 0.22 * lk).toFixed(3)})` : '';
+    // the grade is stamped on: it comes down big and tilted, and rings as it lands; its name follows
+    const gu = u - RS.grade, gk = gu <= 0 ? 0 : Math.min(1, gu / 0.14);
+    E.rsGrade.style.opacity = gu > 0 ? 1 : 0;
+    E.rsGrade.style.transform = mv ? `scale(${(gu <= 0 ? 2.4 : 1 + 1.4 * (1 - gk) * (1 - gk) + 0.12 * ring(gu - 0.14, 34, 0.3)).toFixed(3)}) rotate(${(-8 - 14 * (1 - gk)).toFixed(1)}deg)` : 'rotate(-8deg)';
+    E.rsRank.style.opacity = sat((gu - 0.12) / 0.2).toFixed(2);
+    const bu = u - RS.best, blink = R.isNew && bu > 0 ? (bu < 0.9 ? (Math.floor(bu * 9) % 2 ? 1 : 0.35) : 0.82 + 0.18 * Math.sin(T * 6)) : 1;
+    E.rsBest.style.opacity = (sat(bu / 0.2) * blink).toFixed(2);
+    E.rsNext.style.opacity = sat((u - RS.best - 0.25) / 0.3).toFixed(2);
+    E.rsStats.style.opacity = sat((u - 0.5) / 0.4).toFixed(2);
   }
 
   turbo() {
@@ -299,7 +366,7 @@ export class UI {
     const E = this.el, C = this.cache, Gm = s.ui.g;
     const set = (k, v, fn) => { if (C[k] !== v) { C[k] = v; fn(v); } };
     const on = Gm && Gm.on && !Gm.free ? 1 : 0;
-    set('gOn', on, (v) => { E.ghud.style.visibility = v ? 'visible' : 'hidden'; });
+    set('gOn', on && !(Gm.over && Gm.overU >= GAME.overLock) ? 1 : 0, (v) => { E.ghud.style.visibility = v ? 'visible' : 'hidden'; });      // (the results screen has the score from there)
     set('gear', Gm && Gm.on ? Gm.gear : 0, (g) => { E.gear.textContent = g ? 'G' + g : ''; });
     // nitro: "+1 NITRO" rises from the button when a canister is taken aboard, and the button flashes gold; while a burst lasts
     // a gold panel over the controls says what it gives and how much of it is left, and the speedometer turns gold
@@ -322,11 +389,52 @@ export class UI {
       set('gScore', Gm.score, (v) => { E.gScore.textContent = v.toLocaleString('en-US'); });
       set('gBump', (Gm.bump || 0).toFixed(2), (v) => { E.gScore.style.transform = +v ? `scale(${(1 + 0.22 * v).toFixed(3)})` : ''; E.gScore.style.color = +v > 0.3 ? '#fff6c8' : ''; });   // points in a lump: the score jumps
       set('gMult', Gm.mult.toFixed(1), (v) => { E.gMult.textContent = '×' + v; });
-      set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
       set('gStars', Gm.star + (Gm.lives < 2 ? 'h' : ''), () => { E.gStars.dataset.n = Gm.star; E.gStars.dataset.hot = Gm.lives < 2 ? '1' : '0'; });
       set('gLv', Gm.level, (v) => { E.gLv.textContent = 'LV ' + v; E.gLv.dataset.hot = v >= 6 ? '2' : v >= 3 ? '1' : '0'; });
       set('gTapes', Gm.tapes, (v) => { E.gTapes.dataset.n = v; });
       set('gLives', Gm.over ? 0 : Gm.lives, (v) => { E.gLives.dataset.n = v; });
+    }
+    // a hit knocks the whole display: the HUD, the callouts and the drive bar jump with the camera (the `translate` property, so their own transforms stand)
+    { const j = on && s.ui.jolt ? s.ui.jolt : null, lim = (v) => Math.max(-16, Math.min(16, Math.round(v * innerHeight * 0.3))), jx = j ? lim(j[0]) : 0, jy = j ? lim(-j[1]) : 0;
+      set('jolt', jx + '|' + jy, () => { const v = jx || jy ? `${jx}px ${jy}px` : ''; for (const el of [E.ghud, E.gpops, E.drivebar, E.energy, E.chain]) el.style.translate = v; }); }
+    // energy: the cells picked up this run. Each one makes the number jump and glow; the bar under it fills towards the next spare tape
+    set('enOn', on && !Gm.over ? 1 : 0, (v) => { E.energy.style.visibility = v ? 'visible' : 'hidden'; });
+    set('enA', on && s.phase === 'cruise' ? smooth((s.ct - 1.25) / 0.4).toFixed(2) : '1', (v) => { E.energy.style.opacity = v; });      // (it comes in once the title has left that corner)
+    if (on) {
+      set('gCells', Gm.cells, (v) => { E.gCells.textContent = v; });
+      const ca = Gm.cellAge ?? 9, ck = s.reduced ? 0 : Math.exp(-ca / 0.12);
+      set('cellK', ck.toFixed(2), (v) => { E.energy.style.setProperty('--k', v); E.gCells.style.transform = +v > 0.01 ? `scale(${(1 + 0.3 * v).toFixed(3)})` : ''; });
+      set('cellP', ca < 0.5 ? ca.toFixed(2) : '', (v) => { E.cellPlus.style.opacity = v ? (1 - ca / 0.5).toFixed(2) : 0; if (v) E.cellPlus.style.transform = `translateY(${(-ca * 26).toFixed(1)}px)`; });
+      const full = Gm.tapes >= GAME.maxTapes, toGo = GAME.tapeEvery - (Gm.cells % GAME.tapeEvery), got = Gm.cells > 0 && Gm.cells % GAME.tapeEvery === 0 && ca < 1.6;
+      set('cellBar', (got ? 1 : Gm.tapeK).toFixed(3), (v) => { E.cellBar.style.transform = `scaleX(${v})`; });
+      set('cellNext', got ? 'got' : full ? 'full' : toGo, (v) => { E.cellNext.textContent = v === 'got' ? '+1 SPARE TAPE' : v === 'full' ? 'TAPES FULL' : `${v} TO A SPARE TAPE`; E.energy.dataset.tape = v === 'got' ? '1' : '0'; });
+    }
+    // the smash chain: the count slams in with every link, its points run up, the bar under it is the time left to add another. When the
+    // chain ends it is banked: the total flashes and goes up into the score.
+    {
+      const ch = on ? Gm.chain : null, bk = on && !ch && !Gm.over ? Gm.bank : null, hit = on ? Gm.hit : null;
+      set('chOn', ch || bk ? 1 : 0, (v) => { E.chain.style.visibility = v ? 'visible' : 'hidden'; });
+      if (ch || bk) {
+        const n = ch ? ch.n : bk.n, tier = ch ? ch.tier : -1, ha = ch && hit ? hit.age : 9, pk = s.reduced ? 0 : Math.exp(-ha / 0.09);
+        set('chN', n, (v) => { E.chN.textContent = v; });
+        set('chTier', (bk ? 'b' : '') + tier + (n > 1 ? 'c' : 's'), () => { E.chCap.textContent = bk ? 'CHAIN BANKED' : tier >= 0 ? CHAIN_NAME[tier] : n > 1 ? 'SMASH CHAIN' : 'SMASH'; E.chain.dataset.tier = String(tier + 1); E.chain.dataset.bank = bk ? '1' : '0'; });
+        set('chPts', ch ? ch.pts : bk.pts, (v) => { E.chPts.textContent = '+' + fmt(v); });
+        set('chBar', ch ? ch.left.toFixed(3) : '0', (v) => { E.chBar.style.transform = `scaleX(${v})`; });
+        // the punch: the number jumps (more the longer the chain), tilts, and glows; a banked chain rises towards the score and fades
+        const big = Math.min(1, (n - 1) / 9), up = bk ? bk.age : 0, a = bk ? Math.min(1, 1.4 - up / 1.2) * (1 - smooth((up - 1.1) / 0.5)) : 1;
+        set('chK', pk.toFixed(2) + '|' + (bk ? up.toFixed(2) : '') + '|' + n, () => {
+          E.chain.style.setProperty('--k', (bk ? Math.exp(-up / 0.2) : pk).toFixed(2));
+          E.chX.style.transform = `scale(${(1 + (0.45 + 0.35 * big) * pk + (bk ? 0.3 * Math.exp(-up / 0.12) : 0)).toFixed(3)}) rotate(${(-4 * pk).toFixed(2)}deg)`;
+          E.chain.style.opacity = a.toFixed(3);
+          E.chain.style.transform = `scale(${(0.86 + 0.14 * Math.min(1, n / 3) + 0.1 * big).toFixed(3)}) translateY(${bk ? (-34 * smooth((up - 0.5) / 1.1)).toFixed(1) : 0}px)`;
+        });
+        // what the last link paid, drifting down from the meter
+        const hv = ch && hit && hit.age < 0.7 ? hit : null;
+        set('chHit', hv ? hv.age.toFixed(2) + '|' + hv.pts : '', (v) => {
+          E.chHit.style.opacity = v ? Math.min(1, 1.5 - hv.age / 0.45).toFixed(2) : 0;
+          if (v) { E.chHit.textContent = (hv.pol ? 'TAKEDOWN +' : '+') + fmt(hv.pts); E.chHit.style.transform = `translateY(${(hv.age * 22).toFixed(1)}px) scale(${(1 + 0.4 * Math.exp(-hv.age / 0.08)).toFixed(3)})`; }
+        });
+      }
     }
     // callouts: the three most recent, newest on top; they rise and fade with their age
     set('popLow', on && s.phase === 'cruise' && s.ct < GAME.introT ? 1 : 0, (v) => E.gpops.classList.toggle('low', !!v));   // below the title while it leaves
@@ -356,22 +464,37 @@ export class UI {
     let l = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 1 : 0.12), r = s.reduced ? lvl * 0.5 : lvl * (ph < 0.5 ? 0.12 : 1);
     if (lvl && Gm.ic) { const fl = s.reduced ? 0.7 : (T * 6) % 1 < 0.5 ? 1 : 0.2; if (Gm.ic < 0) l = Math.max(l, fl); else r = Math.max(r, fl); }   // an interceptor on that shoulder: that corner flashes fast
     set('pol', lvl ? l.toFixed(2) + r.toFixed(2) : '', (v) => { E.police.style.visibility = v ? 'visible' : 'hidden'; if (v) { E.police.children[0].style.opacity = l; E.police.children[1].style.opacity = r; } });
-    // run over
+    // run over → the results screen. Its content is set once, when it opens; then every part arrives on its cue (see results())
     const show = on && Gm.over && Gm.overU >= GAME.overLock ? Gm.run * 10 + Gm.over : 0;
     set('over', show, (v) => {
       E.over.hidden = !v;
-      if (!v) return;
-      const S = Gm.stats, best = Math.max(this.best, Gm.score), isNew = Gm.score > this.best && Gm.score > 0;
-      this.last = Gm.score;
-      if (isNew) { this.best = Gm.score; try { localStorage.setItem('mc86.best', String(this.best)); } catch (_) { /* not stored */ } }
+      if (!v) { this.rs = null; return; }
+      const S = Gm.stats, P = S.pts, score = Gm.score, prev = this.best, isNew = score > prev && score > 0;
+      this.last = score;
+      if (isNew) { this.best = score; try { localStorage.setItem('mc86.best', String(this.best)); } catch (_) { /* not stored */ } }
+      E.over.dataset.kind = String(Gm.over);
       E.overTitle.textContent = Gm.over === 2 ? 'BUSTED' : 'WRECKED';
-      E.ovScore.textContent = Gm.score.toLocaleString('en-US'); E.ovBest.textContent = best.toLocaleString('en-US'); E.ovBestL.textContent = isNew ? 'NEW BEST' : 'BEST';
-      E.ovDist.textContent = (S.dist / 1000).toFixed(2) + ' KM'; E.ovSpeed.textContent = Math.round(S.vmax * GAME.mph) + ' MPH';
-      E.ovCombo.textContent = S.best; E.ovNear.textContent = S.near; E.ovSmash.textContent = S.smash + ' · ' + S.dodges; E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(5 - S.star) + ' LV' + S.level;
+      E.rsRun.textContent = 'RUN ' + String(Gm.run).padStart(2, '0');
+      const tm = Math.floor(S.time), mmss = `${Math.floor(tm / 60)}:${String(tm % 60).padStart(2, '0')}`;
+      E.rsSub.innerHTML = `<b>${'★'.repeat(S.star)}${'☆'.repeat(5 - S.star)}</b> · THREAT LV ${S.level}${S.lv0 ? ` · FROM LV ${S.lv0}` : ''}`;
+      // the score, line by line. Each line is rounded; the distance line takes up the difference, so the column adds up to the total exactly
+      const rows = RS_ROWS.map((k) => ({ k, pts: Math.round(P[k]) })), rest = rows.slice(1).reduce((a, r) => a + r.pts, 0);
+      rows[0].pts = Math.max(0, score - rest);
+      const what = { dist: (S.dist / 1000).toFixed(2) + ' KM', pass: '×' + S.passed, near: '×' + S.near, smash: S.smash ? `×${S.smash} · BEST CHAIN ×${S.chain}` : '×0', dodge: '×' + S.dodges, cells: '◆ ' + S.cells, draft: '' };
+      rows.forEach((r, i) => { const li = E.rsRows[i]; li.dataset.zero = r.pts > 0 || (r.k === 'cells' && S.cells) ? '0' : '1'; li.children[1].textContent = what[r.k]; r.el = li; r.out = li.children[2]; });
+      const g = gradeOf(score), G = GRADES[g], nx = GRADES[g + 1];
+      E.rsGrade.dataset.g = G[0]; E.rsLetter.textContent = G[0]; E.rsRank.textContent = G[2];
+      E.rsNext.textContent = nx ? `${fmt(nx[1] - score)} TO RANK ${nx[0]}` : 'TOP RANK';
+      E.ovBest.textContent = fmt(isNew ? score : prev); E.ovBestL.textContent = isNew ? (prev > 0 ? '★ NEW BEST · WAS ' + fmt(prev) : '★ NEW BEST') : 'BEST'; if (isNew) E.ovBest.textContent = ''; E.rsBest.dataset.new = isNew ? '1' : '0';
+      E.ovScore.dataset.v = fmt(score);
+      E.ovSpeed.innerHTML = Math.round(S.vmax * GAME.mph) + '<small>MPH</small>'; E.rsTime.textContent = mmss; E.ovCombo.textContent = '×' + S.chain; E.rsTake.textContent = S.takedown; E.rsNitro.textContent = S.bursts;
+      E.ovStar.textContent = '★'.repeat(S.star) + '☆'.repeat(5 - S.star);
       const can = Gm.tapes > 0;
       E.ovTapes.textContent = Gm.tapes === 1 ? '1 TAPE' : Gm.tapes + ' TAPES'; E.revive.disabled = !can; E.ovRk.hidden = !can;
+      this.rs = { key: v, t0: T - Gm.overU + GAME.overLock, rows, score, g, isNew };
       try { (can ? E.revive : E.home).focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ }
     });
+    if (show && this.rs) this.results(Gm.overU - GAME.overLock, T, s.reduced);
     const pz = Gm && Gm.on && Gm.paused && !Gm.over ? 1 : 0;
     set('paused', pz, (v) => { E.paused.hidden = !v; if (v) { try { E.resume.focus({ preventScroll: true }); } catch (_) { /* focus is a convenience */ } } });
     set('pauseBtn', Gm && Gm.on && !Gm.over && !Gm.paused && !Gm.rew ? 1 : 0, (v) => E.pause.classList.toggle('on', !!v));
