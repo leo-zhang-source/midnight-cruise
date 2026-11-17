@@ -76,7 +76,7 @@ export const GAME = {
   // nitro: charged by the energy cells you pick up. nitroCells of them fill one charge (more as the threat level rises, see nitroLv); up
   // to nitroMax charges are kept; a run starts with nitroStart of a charge; it does not charge while a burst is burning. One burst is
   // ×2 speed for 5.6 s and smashes traffic. (nitroFree: free cruise has no cells, a charge comes back after this many seconds)
-  nitroBoost: 1.0,  nitroTail: 0.55, nitroGrace: 1.0, nitroMax: 3, nitroCells: 50, nitroStart: 0.5, nitroFree: 7,
+  nitroBoost: 1.0,  nitroTail: 0.55, nitroGrace: 1.0, nitroMax: 3, nitroCells: 100, nitroStart: 0.3, nitroFree: 7,
   aheadT: 6.6, fairAhead: 6.8,                   // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police and the traffic plan on all of it
   ahead: 340, firstRow: 175, despawn: 30,        // spawn distance ahead of the car, first row of a run (reached about 6 s in), cull distance behind
   rowGap: [1.1, 0.85],                            // seconds between rows at the closing speed (first gear → top gear). A little more room than before: the traffic now moves about in it
@@ -102,7 +102,7 @@ export const GAME = {
   // starFloorLv[1] never fewer than two, then three, then four); the police attack sooner (intervals ÷ (1 + cadence × level), level counted
   // up to lvCap); a driver is given less time to see anything coming (react: seconds at level 0, the least it ever gets, lost per level);
   // more of the traffic comes in pairs and convoys; a nitro charge takes more cells (× (1 + nitroLv × level), at most × nitroLvMax)
-  lvEvery: 20, lvCap: 20, starFloorLv: [0, 4, 8, 14], cadence: 0.1, react: [0.72, 0.28, 0.034], nitroLv: 0.04, nitroLvMax: 1.6,
+  lvEvery: 20, lvCap: 20, starFloorLv: [0, 4, 8, 14], cadence: 0.1, react: [0.72, 0.28, 0.034], nitroLv: 0.1, nitroLvMax: 5,
   // The traffic is alive, and more so with every level.
   // sway: every car, van and taxi wanders across its lane: [lanes at level 0, more per level, at most] (a truck a third of that)
   // sigBlink, sigMove: a lane change is signalled, then steered: [seconds at level 0, the least, lost per level] — so they get more sudden
@@ -166,7 +166,7 @@ export const GAME = {
   // into us, or that we steer into, is thrown off the road (flingV lanes/s sideways, spinning) and is out of action for icOut seconds.
   polDrop: 16, icOutrun: 2.6, flingV: 6.5, flingReach: 0.45,
   tapesStart: 3,                                 // spare tapes: every run starts with three and gets no more; a tape rewinds the crash
-  overLock: 0.7, rewindSec: 3, reviveHold: 1.3,
+  overLock: 0.7, rewindSec: 3, reviveHold: 1.3, reviveLives: 1,     // a rewind puts you back as you were three seconds before the end, lives included (at least this many)
 };
 // Road layout (world units, x across): a three-lane highway. Lanes are `lane` wide (a car is ~2 wide, a truck ~2.8),
 // centred on −lane, 0, +lane. The grid cell equals the lane width, so grid lines fall on the lane edges and on the

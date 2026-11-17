@@ -96,7 +96,7 @@ const POP = {
   icwarn: (e) => [`INTERCEPTOR COMING UP ON YOUR ${e.side < 0 ? 'LEFT' : 'RIGHT'}`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
   mirror: () => ['CRUISER CUTTING YOU OFF', 'bad'], pincer: () => ['PINCER', 'bad'], dodge: (e) => [`DODGED +${e.pts}`, 'good'],
   charge: (e) => [e.l < 2 ? 'NITRO CHARGED · FIRE IT TO SHAKE THEM OFF' : `NITRO CHARGED ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
-  draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR SMASHED OFF THE ROAD' : 'POLICE KNOCKED BACK', 'hot'],
+  draft: () => ['SLIPSTREAM', 'info'], revive: (e) => [e.l < 2 ? 'REWOUND · ONE LIFE LEFT' : 'REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR SMASHED OFF THE ROAD' : 'POLICE KNOCKED BACK', 'hot'],
   outrun: (e) => [e.who === 'ic' ? 'INTERCEPTOR LEFT BEHIND' : 'GRAPPLER OUTRUN', 'good'],
 };
 function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
@@ -194,7 +194,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
       const c = Math.min(1, ((e.n || 1) - 1) / 9), tier = G.chainTier.includes(e.n) ? 1 : 0, big = e.type === T_TRUCK || e.type >= T_BLOCK ? 1 : 0;
       kick(e.dir || side(e.lane), 0.03 + 0.016 * c + 0.012 * big, age, 46); trauma(0.42 + 0.2 * c + 0.12 * big + 0.15 * tier, age, 0.13 + 0.05 * tier);
       fx.fov += (0.09 + 0.05 * c + 0.06 * tier) * Math.exp(-age / 0.08); fx.roll += (e.dir || 0) * -0.012 * (1 + c) * Math.exp(-age / 0.12);
-      glow(e.type >= T_BLOCK ? [1, 0.3, 0.3] : [1, 0.62, 0.15], (0.22 + 0.14 * c + 0.2 * tier) * Math.exp(-age / 0.08));
+      glow(e.type >= T_BLOCK ? [1, 0.3, 0.3] : [0.2, 0.75, 1.0], (0.22 + 0.14 * c + 0.2 * tier) * Math.exp(-age / 0.08));
       post.flash = Math.max(post.flash, (0.05 + 0.03 * c + 0.12 * tier) * Math.exp(-age / 0.045)); post.rgb = Math.max(post.rgb, 1 + (3 + 3 * c + 3 * tier) * Math.exp(-age / 0.13));
       if (tier) post.bloom += 0.5 * Math.exp(-age / 0.2);
     }

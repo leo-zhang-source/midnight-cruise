@@ -244,15 +244,15 @@ let crashT;
   const r = play(11, 300, { nitro: true });
   const t2 = new Timeline(); t2.load(r.ev);
   const ev = t2.gameEvents(0, C + 300), items = ev.filter((e) => e.k === 'charge'), ns = t2.nitros(C + 300);
-  ok('the energy charges the nitro, and each charge can be fired', items.length >= 4 && ns.length >= 1 && ns.length <= items.length && r.g.charges === items.length, `${items.length} charges, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
+  ok('the energy charges the nitro, and each charge can be fired', items.length >= 2 && ns.length >= 1 && ns.length <= items.length && r.g.charges === items.length, `${items.length} charges, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
   {
-    // a run that keeps its charges: every charge takes nitroCells cells at level 0 (the first one, half as many: a run starts half charged),
-    // more as the level rises; three are kept, and after that the cells charge nothing
-    const q = play(11, 200, {}), qe = q.tl.gameEvents(0, C + 200), ch = qe.filter((e) => e.k === 'charge'), cellsBy = (t) => qe.filter((e) => e.k === 'cell' && e.t <= t + 1e-9).length;
-    const need = ch.map((e, i) => cellsBy(e.t) - (i ? cellsBy(ch[i - 1].t) : 0)), lvAt = ch.map((e) => q.tl.stateAt(e.t).g.gt / GAME.lvEvery);
-    const want = ch.map((e, i) => GAME.nitroCells * (1 + GAME.nitroLv * lvAt[i]) * (i ? 1 : 1 - GAME.nitroStart));
-    ok('a charge takes nitroCells cells (the first one half: a run starts half charged), a few more as the level rises; three are kept', ch.length === GAME.nitroMax && need.every((n, i) => Math.abs(n - want[i]) <= 3) && q.g.nstock === GAME.nitroMax && q.g.nch === 0 && q.g.cells > cellsBy(ch[2].t) + 20,
-      `cells per charge ${need.join(', ')} (expected about ${want.map((w) => w.toFixed(0)).join(', ')}); ${q.g.cells} cells in all, stock ${q.g.nstock}`);
+    // a run that keeps its charges: a charge takes nitroCells cells at level 0 (the first one less: a run starts part charged), a tenth
+    // more with every level; three are kept, and after that the cells charge nothing
+    const q = play(11, 420, {}), qe = q.tl.gameEvents(0, C + 420), ch = qe.filter((e) => e.k === 'charge'), cellsBy = (t) => qe.filter((e) => e.k === 'cell' && e.t <= t + 1e-9).length;
+    const need = ch.map((e, i) => cellsBy(e.t) - (i ? cellsBy(ch[i - 1].t) : 0)), lvMid = ch.map((e, i) => ((i ? ch[i - 1].t : C) + e.t - 2 * C) / 2 / GAME.lvEvery);
+    const want = ch.map((e, i) => GAME.nitroCells * Math.min(GAME.nitroLvMax, 1 + GAME.nitroLv * lvMid[i]) * (i ? 1 : 1 - GAME.nitroStart));
+    ok('a charge takes nitroCells cells (the first one less: a run starts part charged), more with every level; three are kept', ch.length === GAME.nitroMax && need.every((n, i) => Math.abs(n - want[i]) <= Math.max(4, want[i] * 0.08)) && need[2] > need[1] && q.g.nstock === GAME.nitroMax && q.g.nch === 0 && q.g.cells > cellsBy(ch[2].t) + 20,
+      `cells per charge ${need.join(', ')} (expected about ${want.map((w) => w.toFixed(0)).join(', ')}), at ${ch.map((e) => Math.round(e.t - C) + ' s').join(', ')}; ${q.g.cells} cells in all, stock ${q.g.nstock}`);
     ok('no nitro canisters lie on the road any more', !('itm' in q.g) && !qe.some((e) => e.k === 'item'));
     // while a burst burns, cells are counted but charge nothing
     const b0 = ns[0], g0 = t2.stateAt(b0.p + 0.02).g, g1 = t2.stateAt(b0.I + 3.9).g;

@@ -538,21 +538,26 @@ function makeStyle(style, uniforms) {
       }`,
     fragmentShader: /* glsl */`
       precision highp float;
-      uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog; uniform sampler2D uInk;
+      uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog; uniform sampler2D uInk; uniform float uT;
       varying vec3 vN, vW, vC, vL; varying float vPart, vFade, vShade, vDis; varying vec4 vLi; varying vec2 vUv, vYaw;
       ${ENV_GLSL}
       float h31(vec3 p){ p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
       vec3 toCar(vec3 v){ return vec3(vYaw.x * v.x - vYaw.y * v.z, v.y, vYaw.y * v.x + vYaw.x * v.z); }
       void main(){
-        // a vehicle thrown off the road breaks up into points of light: the body is cut into small cells, each goes at its own moment,
-        // and the ones about to go burn white-gold first
-        float burn = 0.0;
+        // A vehicle thrown off the road de-rezzes: a lattice of cyan lines comes up over the body, it breaks into small voxels in glitching
+        // horizontal bands, from the road up, and each voxel shrinks and burns cyan or magenta before it goes.
+        float burn = 0.0, wire = 0.0, tone = 0.0;
         if (vDis > 0.001) {
-          vec3 g = vL * 11.0;
-          float e = h31(floor(g) + 3.7) * 0.86 + 0.14 * clamp(vL.y * 0.6, 0.0, 1.0) - vDis * 1.1;      // (it goes from the road up)
+          vec3 g = vL * 9.0, c = floor(g);
+          float band = h31(vec3(floor(vL.y * 7.0), floor(uT * 24.0), 1.3));                              // each band jumps ahead or lags, 24 times a second
+          float e = h31(c + 3.7) * 0.6 + band * 0.24 + 0.16 * clamp(vL.y * 0.6, 0.0, 1.0) - vDis * 1.1;
           if (e < 0.0) discard;
-          burn = smoothstep(0.26, 0.0, e);
-          if (length(fract(g) - 0.5) > 0.95 - 0.62 * burn) discard;                                     // a cell shrinks to a point before it goes
+          burn = smoothstep(0.24, 0.0, e);
+          vec3 q = abs(fract(g) - 0.5);
+          if (max(q.x, max(q.y, q.z)) > 0.5 - 0.3 * burn) discard;                                       // the voxel shrinks, staying square
+          vec3 l = abs(fract(vL * 2.25) - 0.5);
+          wire = smoothstep(0.42, 0.49, max(l.x, max(l.y, l.z))) * (1.0 - burn);                          // the lattice over what is still whole
+          tone = step(0.62, h31(c + 9.1));
         }
         vec3 N = normalize(vN), V = normalize(cameraPosition - vW), R = reflect(-V, N), E = env(R);
         float nv = max(dot(N, V), 0.0), fr = 0.04 + 0.96 * pow(1.0 - nv, 5.0), dist = length(vW - cameraPosition);
@@ -593,8 +598,13 @@ function makeStyle(style, uniforms) {
         // far away the vehicle comes out of the haze (no flicker), and the usual distance fog
         col = mix(cFog, col, vFade);
         col = mix(col, cFog, (1.0 - exp(-dist / 900.0)) * 0.6);
-        col = mix(col, vec3(1.5, 1.05, 0.7) + col, vDis * 0.75);                                         // the whole body heats up as it goes …
-        col = mix(col, vec3(3.0, 2.4, 1.5), burn * burn);                                                // … and each point burns white-gold last
+        if (vDis > 0.001) {
+          vec3 neon = mix(vec3(0.25, 1.9, 2.6), vec3(2.6, 0.35, 1.7), tone);                              // cyan, or one voxel in three magenta
+          col = mix(col, col * 0.35 + vec3(0.02, 0.1, 0.16), min(1.0, vDis * 1.6));                       // the body goes dark and cold …
+          col += vec3(0.2, 1.5, 2.1) * wire * min(1.0, vDis * 3.0);                                       // … under its lattice …
+          col = mix(col, neon, burn);                                                                     // … and each voxel burns as it goes
+          col += vec3(1.6) * burn * burn * burn;
+        }
         gl_FragColor = vec4(col, 1.0);
       }`,
   });

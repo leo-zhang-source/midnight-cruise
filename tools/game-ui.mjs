@@ -62,7 +62,7 @@ async function wreck(p, touch, once) {
   let s = await gs(p); ok('no game HUD before the drive starts', s.hud === 'hidden' && !s.panel && s.start === 'visible' && s.homeScore === null);
   await p.click('#start'); await p.waitForTimeout(500); await p.click('#skip'); await p.waitForTimeout(1100);
   s = await gs(p); ok('a run opens with the police on the bumper: lights on, one star, pursuit car close', s.on === 1 && s.hud === 'visible' && s.stars === '1' && s.pol === 1 && s.police === 'visible' && s.polDz > -8 && s.polDz < -5, JSON.stringify({ star: s.stars, pol: s.pol, dz: s.polDz, ct: s.ct }));
-  ok('a run starts with no nitro in stock and the next charge half full', s.nitro === 'false' && s.nitroN === '0' && s.nitroTxt === '50%', s.nitroTxt);
+  ok('a run starts with no nitro in stock and the next charge 30 % full', s.nitro === 'false' && s.nitroN === '0' && s.nitroTxt === '30%', s.nitroTxt);
   let st = await drive(p, 3200);
   s = await gs(p); ok('flooring it: the pursuit car drops back but keeps following', !s.over && s.pol === 0 && s.polDz < -15 && s.police === 'visible' && s.vel > 50, JSON.stringify({ dz: s.polDz, v: Math.round(s.vel) }));
   ok('traffic and cells on the road, gear shown, pause key shown', s.veh > 0 && s.cells > 0 && s.gearTxt === 'G1' && s.pauseBtn, JSON.stringify({ veh: s.veh, cells: s.cells, gear: s.gearTxt }));

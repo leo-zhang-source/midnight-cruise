@@ -317,7 +317,8 @@ const BODY = {
   leviathan: { tz: 6.1, ty: 1.48, tx: 0.86, w: 1.75, glow: [0.25, 0.9, 1.0] },
   orbit: { tz: 6.12, ty: 1.28, tx: 0.95, w: 1.75, glow: [0.6, 0.35, 1.0], paint: [[0.62, 0.56, 0.82], [0.5, 0.74, 0.72], [0.8, 0.8, 0.85]] },
 };
-const WHITE = [1, 1, 1], SPARK = [1, 0.62, 0.22], HOTW = [1, 0.9, 0.65];
+// particles are neon, not fire: sparks are cyan with white-hot ones among them, and what a de-rezzing body sheds is cyan and magenta
+const WHITE = [1, 1, 1], SPARK = [0.3, 0.92, 1.0], HOTW = [0.9, 0.97, 1.0], CYAN = [0.25, 0.95, 1.0], MAGENTA = [1.0, 0.22, 0.78];
 // A vehicle that is hit is thrown: it flies on, spinning, for THROW.t0 seconds, then breaks up into points of light over THROW.dur
 // (the interceptor, thrown sideways, a little later). The hop of a thrown body, t seconds after the blow:
 const THROW = { t0: 0.34, dur: 0.46 }, THROW_IC = { t0: 0.42, dur: 0.46 };
@@ -392,17 +393,34 @@ export class GameView {
       this.glow(px, py, pz, 0.08, 0, 0, vx / m * len, wy / m * len, vz / m * len, k % 3 ? SPARK : HOTW, 8, 4.4 * (1 - a / life) * f);
     }
   }
-  // A body breaking up into points of light. pose(t) → [x, y, z, heading] of the body t seconds after the blow. Between t0 and t0 + dur
-  // each point leaves the body from somewhere on it (the low ones first), carries a little of its motion on, rises, twinkles, and is
-  // left behind as we drive on. a: seconds since the blow · hw, hl: half the body's width and length
+  // A body de-rezzing. pose(t) → [x, y, z, heading] of the body t seconds after the blow. Between t0 and t0 + dur voxels leave it from
+  // all over (the low ones first): cyan, one in three magenta, a few white. They carry a little of its motion on, rise, and are left
+  // behind as we drive on — snapping from grid point to grid point and dropping out for a frame now and then, like a picture breaking
+  // up. Every third one draws a thin data trail; a few columns of light stand where it went; a pulse runs out over the road.
+  // a: seconds since the blow · hw, hl: half the body's width and length
   lightPoints(pose, a, t0, dur, seed, cA, cB, hw, hl, T, n = 46) {
+    const Q = 0.2, snap = (v) => Math.round(v / Q) * Q, tick = Math.floor(T * 30);
     for (let k = 0; k < n; k++) {
       const h1 = hash1(seed + k * 11.3 + 1), h2 = hash1(seed + k * 5.9 + 2), h3 = hash1(seed + k * 3.7 + 3), h4 = hash1(seed + k * 8.3 + 4), h5 = hash1(seed + k * 2.1 + 5);
       const born = t0 + dur * (0.8 * h1 + 0.2 * h4), t = a - born, life = 0.5 + 0.45 * h2; if (t < 0 || t > life) continue;
+      if (hash1(tick * 7.3 + k * 3.1 + seed) < 0.16) continue;                                         // (it drops out for a frame)
       const [x0, y0, z0, yaw] = pose(born), q = pose(born + 0.03), vx = (q[0] - x0) / 0.03, vz = (q[2] - z0) / 0.03, cs = Math.cos(yaw), sn = Math.sin(yaw);
       const lx = (h3 - 0.5) * 2 * hw, ly = 0.25 + 1.25 * h4, lz = (h5 - 0.5) * 2 * hl, u = t / life;
-      const x = x0 + cs * lx + sn * lz + (vx * 0.35 + (h3 - 0.5) * 2.4) * t, y = y0 + ly + (1.0 + 2.8 * h2) * t - 1.2 * t * t, z = z0 - sn * lx + cs * lz + vz * 0.35 * t + 30 * t * t;
-      this.sprite(x, y, z, 0.3 * (1 - 0.5 * u), k % 4 === 0 ? HOTW : k % 2 ? cA : cB, 3.6 * Math.pow(1 - u, 0.7) * Math.min(1, t / 0.04) * (0.7 + 0.3 * Math.sin(T * 34 + k * 2.4)));
+      const x = snap(x0 + cs * lx + sn * lz + (vx * 0.35 + (h3 - 0.5) * 2.4) * t), y = Math.max(0.1, snap(y0 + ly + (1.0 + 2.8 * h2) * t - 1.2 * t * t)), z = z0 - sn * lx + cs * lz + vz * 0.35 * t + 30 * t * t;
+      const col = k % 7 === 0 ? WHITE : k % 3 === 0 ? MAGENTA : CYAN, s = (0.12 + 0.16 * h2) * (1 - 0.55 * u), lum = Math.pow(1 - u, 0.6) * Math.min(1, t / 0.04);
+      this.box(x, y, z, s, s, s, col, 1, 1, 3.2 * lum);
+      this.sprite(x, y, z, s * 3.2, col, 0.9 * lum);                                                    // its glow
+      if (k % 3 === 1) { const len = (0.8 + 2.6 * h5) * (0.3 + 0.7 * u); this.glow(x, y, z - len / 2, 0.03, 0, 0, 0, 0, len / 2, col, 8, 2.2 * lum); }   // a data trail, ahead of it: where it has been
+    }
+    // columns of light where the body broke up, and the pulse over the road
+    const u0 = a - t0;
+    if (u0 > 0 && u0 < dur + 0.25) {
+      const [bx, , bz] = pose(t0 + Math.min(u0, dur) * 0.6), k = 1 - u0 / (dur + 0.25);
+      for (let i = 0; i < 5; i++) { const hx = hash1(seed + i * 4.7 + 9), hz = hash1(seed + i * 6.1 + 11), hh = 1.6 + 3.4 * hash1(seed + i * 2.9 + 13) * Math.min(1, u0 / 0.2);
+        if (hash1(tick * 3.7 + i + seed) < 0.3) continue;
+        this.glow(snap(bx + (hx - 0.5) * 2 * hw), hh / 2, bz + (hz - 0.5) * 2 * hl, 0.04, 0, 0, 0, hh / 2, 0, i % 2 ? CYAN : MAGENTA, 8, 1.6 * k); }
+      const R = 1.5 + 16 * Math.sqrt(u0);
+      this.glow(bx, 0.07, bz, R, 0, 0, 0, 0, R, CYAN, 11, 1.3 * k * k, 0, 0.035);
     }
   }
   // a police cruiser (the WARDEN) with its light bar flashing (dis: how far it has dissolved into light)
@@ -614,7 +632,7 @@ export class GameView {
           if (dis < 1) {
             this.cruiser(bx, bz, yaw, f, T * 3, 0.5, -d * Math.min(0.5, 2.2 * u) * Math.exp(-u * 1.2), 0.1 * Math.sin(u * 14), 1, by, dis);
             this.flingSparks(bx, by + 0.4, bz, u, d, 20.9, f * (1 - dis));
-            this.glow(bx, 0.05, bz, 3.4, 0, 0, 0, 0, 4.4, [1, 0.5, 0.2], 2, 0.9 * Math.exp(-u / 0.25) * f);
+            this.glow(bx, 0.05, bz, 3.4, 0, 0, 0, 0, 4.4, [0.2, 0.8, 1.0], 2, 0.9 * Math.exp(-u / 0.25) * f);
           }
           this.lightPoints(pose, u, THROW_IC.t0, THROW_IC.dur, 517.3, [1, 0.15, 0.2], [0.2, 0.4, 1], 1.05, 2.4, T, 56);
         } else {
@@ -670,8 +688,8 @@ export class GameView {
             if (b.type >= T_BLOCK) this.cruiser(fx, fz, yaw, 1, T * 3, id, roll, 0.1 * Math.sin(a * 14), 1, hop, dis);
             else this.veh.add(style, fx, hop, fz, yaw, 1, B.paint ? B.paint[(id >> 2) % B.paint.length] : WHITE, 1, 1 - dis, taxi ? 1 - dis : 0, taxi ? 1 - dis : 0, 1 - dis, roll, 0.1 * Math.sin(a * 14), dis);
             this.flingSparks(fx, hop, fz, a, d, b.seed, 1 - dis);
-            this.glow(fx, 0.05, fz, 3.2, 0, 0, 0, 0, long ? 8 : 4.2, [1, 0.5, 0.2], 2, 0.8 * Math.exp(-a / 0.3) * (1 - dis));
-            if (dis > 0.02) this.sprite(fx, hop + 0.8, fz, (long ? 5 : 3.2) * (0.6 + dis), HOTW, 1.5 * Math.sin(Math.PI * dis));       // it glows as it goes
+            this.glow(fx, 0.05, fz, 3.2, 0, 0, 0, 0, long ? 8 : 4.2, [0.2, 0.8, 1.0], 2, 0.8 * Math.exp(-a / 0.3) * (1 - dis));
+            if (dis > 0.02) this.sprite(fx, hop + 0.8, fz, (long ? 5 : 3.2) * (0.6 + dis), CYAN, 1.1 * Math.sin(Math.PI * dis));       // it glows as it goes
           }
           this.lightPoints(pose, a, THROW.t0, THROW.dur, b.seed, cA, cB, B.w, B.tz, T, long ? 70 : 46);
         }
@@ -688,8 +706,8 @@ export class GameView {
         this.sprite(b.x, 1.0, cz - b.dz, 3 + 10 * a, b.car ? P.neon : cA, Math.max(0, 1.8 - a * 5));
         sparks(b.x, 0.9, cz - b.dz, a, b.car ? 70 : Math.round(46 + 30 * ch), b.seed + 0.5, b.car ? 16 : 13 + 5 * ch, 18, b.car ? 0.85 : 0.65, b.car ? 1.5 : 1.15 + 0.5 * ch);
         const fl = Math.exp(-a / 0.12);                                                     // the flash lights the road around it, and a ring runs out over the grid
-        this.glow(b.x, 0.06, cz - b.dz, b.car ? 14 : 10, 0, 0, 0, 0, b.car ? 16 : 12, b.car ? [1, 0.7, 0.4] : [1, 0.5, 0.2], 2, 1.3 * fl);
-        this.sprite(b.x, 1.2, cz - b.dz, (b.car ? 9 : 6 + 4 * ch) * (0.4 + a), [1, 0.85, 0.6], (2.2 + 1.2 * ch) * Math.exp(-a / 0.07));       // the white-hot core of it
+        this.glow(b.x, 0.06, cz - b.dz, b.car ? 14 : 10, 0, 0, 0, 0, b.car ? 16 : 12, b.car ? [1, 0.7, 0.4] : [0.25, 0.8, 1.0], 2, 1.3 * fl);
+        this.sprite(b.x, 1.2, cz - b.dz, (b.car ? 9 : 6 + 4 * ch) * (0.4 + a), b.car ? [1, 0.85, 0.6] : [0.8, 0.96, 1.0], (2.2 + 1.2 * ch) * Math.exp(-a / 0.07));       // the white-hot core of it
         const R = 2 + (b.car ? 30 : 20 + 12 * ch) * Math.sqrt(a);
         this.glow(b.x, 0.07, cz - b.dz, R, 0, 0, 0, 0, R, b.car ? P.neon : cA, 11, 1.5 * (1 - a / life) * (1 - a / life), 0, 0.08);
       }

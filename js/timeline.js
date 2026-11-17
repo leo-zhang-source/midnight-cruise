@@ -245,12 +245,12 @@ export class Timeline {
     }
     st.xv = 0; st.yaw = 0; st.yawV = 0; st.camXv = 0;
     const g = st.g;
-    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.chain = 0; g.chainPts = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.lives = 2;
+    g.over = 0; g.inv = g.gt + GAME.reviveInv; g.combo = 0; g.chain = 0; g.chainPts = 0; g.pcl = 0; g.stG = 0; g.slow = 0; g.lives = Math.max(g.lives, GAME.reviveLives);      // (the lives are the ones you had then: a rewind does not heal)
     g.polM = P_TAIL; g.polZ = Math.min(g.polZ, -GAME.polFar + 2); g.drT = -1; g.drNext = g.gt + 4; g.ramNext = Math.max(g.ramNext, g.gt + 5);
     g.icM = 0; g.icZ = -60; g.icVx = 0; g.icNext = Math.max(g.icNext, g.gt + 6); g.aiNext = 0; g.atkGap = g.gt + 3; g.drWant = -1;
     st.over = 0; st.tapes--; st.rev++; st.hold = T + GAME.reviveHold; st.nOn = 0;
     this._endNitro(T);
-    this._gev.push({ t: T, k: 'revive' });
+    this._gev.push({ t: T, k: 'revive', l: g.lives });
   }
   // The simulation state at an earlier time T, computed on a scratch copy: the live simulation is not disturbed.
   // Used to play the last seconds backwards during a rewind.
@@ -409,7 +409,7 @@ export function phaseFrom(segs, T) {
 // charge earned from the energy and fired, the four presets and a music pause; then the home screen and
 // a second start, which opens with the intro again.
 const CANONICAL_10 = [
-  { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.25, dir: -1 }, { type: 'lane', t: 23.65, dir: 1 }, { type: 'lane', t: 26.05, dir: -1 }, { type: 'lane', t: 28.4, dir: 1 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 36.7, dir: -1 }, { type: 'turbo', t: 38.3 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 45.45, dir: 1 }, { type: 'lane', t: 47.1, dir: -1 }, { type: 'lane', t: 50.1, dir: 1 }, { type: 'lane', t: 52.35, dir: -1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 54.25, dir: 1 }, { type: 'lane', t: 55.7, dir: -1 }, { type: 'lane', t: 59.4, dir: 1 }, { type: 'lane', t: 62.65, dir: 1 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 64.75, dir: -1 }, { type: 'lane', t: 68.6, dir: -1 }, { type: 'music', t: 70, on: false }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 73, dir: 1 }, { type: 'lane', t: 74.15, dir: 1 }, { type: 'turbo', t: 75.95 },
+  { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.25, dir: -1 }, { type: 'lane', t: 23.65, dir: 1 }, { type: 'lane', t: 26.05, dir: -1 }, { type: 'lane', t: 28.4, dir: 1 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 36.7, dir: -1 }, { type: 'lane', t: 43, dir: 1 }, { type: 'lane', t: 43.75, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 49.65, dir: -1 }, { type: 'lane', t: 51.25, dir: -1 }, { type: 'lane', t: 52.15, dir: 1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 54, dir: -1 }, { type: 'lane', t: 55.25, dir: 1 }, { type: 'lane', t: 56.9, dir: -1 }, { type: 'lane', t: 58.35, dir: 1 }, { type: 'lane', t: 59.25, dir: -1 }, { type: 'lane', t: 61.05, dir: 1 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 65.5, dir: 1 }, { type: 'lane', t: 66.85, dir: -1 }, { type: 'turbo', t: 67.75 }, { type: 'music', t: 70, on: false }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 75.5, dir: -1 }, { type: 'lane', t: 78.7, dir: 1 },
   { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
 ];
 // (recorded when the opening was ten seconds long: everything after the START moves with its length)

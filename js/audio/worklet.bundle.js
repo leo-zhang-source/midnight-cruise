@@ -86,8 +86,8 @@
     nitroTail: 0.55,
     nitroGrace: 1,
     nitroMax: 3,
-    nitroCells: 50,
-    nitroStart: 0.5,
+    nitroCells: 100,
+    nitroStart: 0.3,
     nitroFree: 7,
     aheadT: 6.6,
     fairAhead: 6.8,
@@ -137,8 +137,8 @@
     starFloorLv: [0, 4, 8, 14],
     cadence: 0.1,
     react: [0.72, 0.28, 0.034],
-    nitroLv: 0.04,
-    nitroLvMax: 1.6,
+    nitroLv: 0.1,
+    nitroLvMax: 5,
     // The traffic is alive, and more so with every level.
     // sway: every car, van and taxi wanders across its lane: [lanes at level 0, more per level, at most] (a truck a third of that)
     // sigBlink, sigMove: a lane change is signalled, then steered: [seconds at level 0, the least, lost per level] — so they get more sudden
@@ -286,7 +286,9 @@
     // spare tapes: every run starts with three and gets no more; a tape rewinds the crash
     overLock: 0.7,
     rewindSec: 3,
-    reviveHold: 1.3
+    reviveHold: 1.3,
+    reviveLives: 1
+    // a rewind puts you back as you were three seconds before the end, lives included (at least this many)
   };
   var ROAD = { lane: 5, rail: 7.5, traffic: 5, trail: 10.9 };
   var LANE_FEEL = { w: 20, tauIn: 0.02, yawK: 46e-4, yawMax: 0.16, yawW: 19, yawZ: 0.36, pivot: 1.25, camK: 0.6, camW: 10 };
@@ -2479,7 +2481,7 @@
       g.pcl = 0;
       g.stG = 0;
       g.slow = 0;
-      g.lives = 2;
+      g.lives = Math.max(g.lives, GAME.reviveLives);
       g.polM = P_TAIL;
       g.polZ = Math.min(g.polZ, -GAME.polFar + 2);
       g.drT = -1;
@@ -2498,7 +2500,7 @@
       st.hold = T + GAME.reviveHold;
       st.nOn = 0;
       this._endNitro(T);
-      this._gev.push({ t: T, k: "revive" });
+      this._gev.push({ t: T, k: "revive", l: g.lives });
     }
     // The simulation state at an earlier time T, computed on a scratch copy: the live simulation is not disturbed.
     // Used to play the last seconds backwards during a rewind.
@@ -2738,25 +2740,27 @@
     { type: "lane", t: 28.4, dir: 1 },
     { type: "env", t: 34, preset: 1 },
     { type: "lane", t: 36.7, dir: -1 },
-    { type: "turbo", t: 38.3 },
+    { type: "lane", t: 43, dir: 1 },
+    { type: "lane", t: 43.75, dir: 1 },
     { type: "env", t: 44, preset: 2 },
-    { type: "lane", t: 45.45, dir: 1 },
-    { type: "lane", t: 47.1, dir: -1 },
-    { type: "lane", t: 50.1, dir: 1 },
-    { type: "lane", t: 52.35, dir: -1 },
+    { type: "lane", t: 49.65, dir: -1 },
+    { type: "lane", t: 51.25, dir: -1 },
+    { type: "lane", t: 52.15, dir: 1 },
     { type: "env", t: 54, preset: 3 },
-    { type: "lane", t: 54.25, dir: 1 },
-    { type: "lane", t: 55.7, dir: -1 },
-    { type: "lane", t: 59.4, dir: 1 },
-    { type: "lane", t: 62.65, dir: 1 },
+    { type: "lane", t: 54, dir: -1 },
+    { type: "lane", t: 55.25, dir: 1 },
+    { type: "lane", t: 56.9, dir: -1 },
+    { type: "lane", t: 58.35, dir: 1 },
+    { type: "lane", t: 59.25, dir: -1 },
+    { type: "lane", t: 61.05, dir: 1 },
     { type: "env", t: 64, preset: 0 },
-    { type: "lane", t: 64.75, dir: -1 },
-    { type: "lane", t: 68.6, dir: -1 },
+    { type: "lane", t: 65.5, dir: 1 },
+    { type: "lane", t: 66.85, dir: -1 },
+    { type: "turbo", t: 67.75 },
     { type: "music", t: 70, on: false },
     { type: "music", t: 73, on: true },
-    { type: "lane", t: 73, dir: 1 },
-    { type: "lane", t: 74.15, dir: 1 },
-    { type: "turbo", t: 75.95 },
+    { type: "lane", t: 75.5, dir: -1 },
+    { type: "lane", t: 78.7, dir: 1 },
     { type: "home", t: 80 },
     { type: "start", t: 83 }
   ];

@@ -19,6 +19,62 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 50: a balance pass, slower nitro, cyber particles
+
+You said the nitro charged too fast, that the game was too easy and a run could go on for ever, and asked for sci-fi, cyber-style particles.
+
+### 1. How balanced the game was: measured
+
+The bot reacts at once and never slips, so it only proves the road is passable. To measure how long a run lasts for a person I built a second driver (`tools/human.mjs`). It plans like the bot but sees a limited stretch of road, acts a fraction of a second after deciding, and now and then is late by much more. It fires the nitro to get a lost life back and spends its tapes. Four skill levels, 16 to 20 runs each, 15 minutes at most:
+
+| Driver | Hits a minute | Revision 49: run length | Why |
+|---|---|---|---|
+| Novice (0.42 s lag, late one time in ten) | 2.6 | 7:35 | |
+| Average (0.32 s, one in twenty) | 1.0 | never ended in 15 min | |
+| Skilled (0.25 s, one in fifty) | 0.3 | never ended | |
+| Expert (0.21 s, one in 125) | 0.1 | never ended | |
+
+- **The cause was recovery, not difficulty.** The nitro came 1.6 times a minute and every burst hands a lost life back, so even a driver who is hit once a minute was healed faster than he was hurt. Three tapes, each returning both lives, came on top.
+- **What does not help** (each tried in the model): shorter warnings, denser traffic, more cut-ins, more frequent attacks. The police only attack when the forecast leaves a way through, so asking for less warning makes them attack less often, not harder: hits from the grappler and the helicopter fell to a third. A skilled driver's hit rate stays near 0.3 a minute at any level.
+
+### 2. What changed
+
+- **Nitro charges half as fast, and slower as the run goes on.** 100 cells a charge (was 50), a tenth more with every threat level up to five times (was 4 % a level, up to 1.6 times), and a run starts 30 % charged (was 50 %). For a driver who takes most of the cells: a charge about every 50 s at first (was 25 s), every 1:40 three minutes in, every 2:30 after seven.
+- **A rewind no longer heals.** It puts you back as you were three seconds before the end, lives included, which is usually on your last life with the police on your tail. Before, every tape also returned both lives. The callout says REWOUND · ONE LIFE LEFT.
+
+| Driver | Before | Now |
+|---|---|---|
+| Novice | 7:35 | about 3:00 |
+| Average | never ended in 15 min | 8:00 (4:30 to 15:15) |
+| Skilled | never ended | not ended in 20 min |
+| Expert | never ended | not ended in 20 min |
+
+- **Still open: the strongest drivers.** A driver who slips only once in three minutes is hit 0.36 times a minute and still gets a charge 0.44 times a minute, so the model could not end his run in 20 minutes. Within the rule that every attack leaves a way through, I found nothing that raises his hit rate. Ending those runs needs a rule that is not about fairness, for example: past threat level 20 the nitro no longer gives the life back. I have not added one; say if you want it.
+- **These numbers are a model.** The lag and lapse rates are my assumptions, not measurements of you. The direction is reliable (recovery was outrunning mistakes); the minutes are estimates.
+
+### 3. Cyber-style particles
+
+- **A hit vehicle de-rezzes.** After it is thrown, a lattice of cyan lines comes up over the body, it goes dark, and it breaks into small square voxels in horizontal bands that jump 24 times a second, from the road up. Each voxel shrinks, staying square, and burns cyan (one in three magenta) before it goes.
+- **What it sheds** is voxels, not soft dots: cyan, magenta and a few white cubes that snap from grid point to grid point as they drift and drop out for a frame now and then, like a picture breaking up. Every third one draws a thin data trail; columns of light stand where the body was; a cyan pulse runs out over the road.
+- **Sparks are neon too:** cyan with white-hot ones among them, instead of orange, and the flash of a smash is cyan. Your own car's crash keeps its warm white.
+- The throw and its timing are unchanged (thrown for 0.34 s, gone by 0.8 s).
+
+### What was verified
+
+- **The balance model** (`tools/human.mjs`): the tables above, 12 to 20 runs per driver and setting, 15 to 20 minutes each.
+- **Simulation tests** (`tools/game-test.mjs`): 105 pass, with the charge test rewritten for the new cost (100 cells, a tenth more a level, 30 % at the start).
+- **Browser tests** (`tools/game-ui.mjs`): 62 pass; a run now opens at 30 % charge.
+- **Other suites:** `touch` 8, `auto-env-test` 7, `adapt-test` 5, `shake-check` 4, `smoke` on the three built pages, the iPhone 13 WebKit smoke test.
+- **Fairness soak:** 16 seeds × 300 s without nitro and 16 × 300 s firing every charge, no hits.
+- **Frames:** I looked at the de-rez frame by frame for a nitro smash and for the interceptor.
+- **The canonical demo run** was recorded again: clean, one charge earned and fired, a chain of 3.
+
+### Not verified
+
+- **`tools/interact.mjs` did not give a usable result this time.** This Mac's audio output device was not running during the session ("audio clock frozen"), and with it stalled the test's fixed waits land at different moments: the committed Revision 49 code passed 42 checks in one run, this revision failed 1 to 7 timing checks in others, and the browser sometimes did not close. I checked the page directly instead: in free mode it runs at 16.7 ms a frame, reaches the run 26 s after START with the throttle at 0.99, and closes normally. The test passed 44 of 44 on Revisions 48 and 49 when the audio device was running; it needs running again when it is.
+- **I have not played it or heard it.** The balance numbers are a model's.
+
+
 ## Revision 49: nitro charged by energy, three tapes, wind, vehicles that turn to light
 
 Five things were asked for.
