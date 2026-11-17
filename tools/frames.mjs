@@ -1,13 +1,13 @@
 // Development aid: capture frames at given scene times.
 //   node tools/frames.mjs <outDir> <WxH> <mode> <t1,t2,…> [crop=x,y,w,h] [query]
-//   mode: intro (START at 1.0; times are seconds into the intro) | item (the bot's drive; times are seconds before a canister is taken)
+//   mode: intro (START at 1.0; times are seconds into the intro) | item (the bot's drive; times are seconds before the energy fills a nitro charge)
 import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 const [out, size = '1280x720', mode = 'intro', list = '1', crop = '', query = ''] = process.argv.slice(2);
 const [w, h] = size.split('x').map(Number);
 mkdirSync(out, { recursive: true });
 let ev = [{ type: 'start', t: 1, seed: 1000 }], base = 1;
-if (mode === 'item') { const { play } = await import('./bot.mjs'); const r = play(1000, 260, { nitro: false }); ev = r.ev; base = r.tl.gameEvents(0, 1e9).find((e) => e.k === 'item').t; }
+if (mode === 'item') { const { play } = await import('./bot.mjs'); const r = play(1000, 260, { nitro: false }); ev = r.ev; base = r.tl.gameEvents(0, 1e9).find((e) => e.k === 'charge').t; }
 const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const p = await b.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
 const logs = [];

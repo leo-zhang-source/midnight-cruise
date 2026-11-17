@@ -27,7 +27,7 @@
   <div id="cine" aria-hidden="true"><i class="cb-t"></i><i class="cb-b"></i><p id="cine-cap"></p></div>
 
   <h1 class="sr-only">Midnight Cruise — 1986</h1>
-  <p class="sr-only" id="about">Midnight Cruise — 1986 is a single-player synthwave arcade police chase. The car accelerates automatically and has no brake. Press the left and right arrow keys or A and D, or click or tap the left and right halves of the road, to change lane. Collect nitro canisters and press the up arrow or the NITRO button to boost through traffic and restore a lost life. Every vehicle rammed in one boost adds a link to a smash chain, each link worth more than the last, and a boost leaves the police behind. You start with two lives; a hit costs one, and another hit before you recover ends the run. After a wreck or capture, spend a spare tape to rewind three seconds. Every run starts with one tape; collect 100 energy cells to earn another, up to three in reserve. Open Settings with O or the gear icon to adjust music, colours and the starting threat level, from 0 to 20. Energy cells are counted at the top left. When the run ends a results screen counts up the score and grades it. Your best score is saved in this browser when local storage is available.</p>
+  <p class="sr-only" id="about">Midnight Cruise — 1986 is a single-player synthwave arcade police chase. The car accelerates automatically and has no brake. Press the left and right arrow keys or A and D, or click or tap the left and right halves of the road, to change lane. The energy cells along the road charge the nitro: when a charge is full, press the up arrow or the NITRO button to boost through traffic and restore a lost life. Up to three charges are kept. Every vehicle rammed in one boost adds a link to a smash chain, each link worth more than the last, and a boost leaves the police behind. You start with two lives; a hit costs one, and another hit before you recover ends the run. After a wreck or capture, spend a spare tape to rewind three seconds. Every run starts with three tapes and gets no more. Open Settings with O or the gear icon to adjust music, colours and the starting threat level, from 0 to 20. Energy cells are counted at the top left. When the run ends a results screen counts up the score and grades it. Your best score is saved in this browser when local storage is available.</p>
 
   <!-- VCR on-screen display (crisp, above the tape image) -->
   <div id="osd" aria-hidden="true">
@@ -53,7 +53,7 @@
 
   <div id="hints" aria-hidden="true">
     <span class="h-key"><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M7 1 L2 5 L7 9 Z"/></svg></kbd><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M3 1 L8 5 L3 9 Z"/></svg></kbd><span class="k-only">CHANGE LANE</span><span class="t-only">TAP LEFT / RIGHT TO CHANGE LANE</span></span>
-    <span class="h-key"><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M1 7 L5 2 L9 7 Z"/></svg></kbd><kbd class="t-only">NITRO</kbd> <span>BOOST · NEEDS A CANISTER</span></span>
+    <span class="h-key"><kbd class="k-only"><svg viewBox="0 0 10 10"><path d="M1 7 L5 2 L9 7 Z"/></svg></kbd><kbd class="t-only">NITRO</kbd> <span>BOOST · ENERGY CHARGES IT</span></span>
   </div>
 
   <!-- game HUD: score and multiplier, wanted stars and threat level, lives, cells, spare tapes, and the police-on-your-tail notice -->
@@ -66,12 +66,12 @@
     </div>
     <div class="gh-tail" id="g-tail"><span id="g-tail-text">POLICE ON YOUR TAIL</span><i><b id="g-tail-bar"></b></i></div>
   </div>
-  <!-- energy cells picked up this run (and how near the next spare tape is); the smash chain while a nitro burst is ramming traffic -->
+  <!-- energy cells picked up this run (and how far they have charged the nitro); the smash chain while a nitro burst is ramming traffic -->
   <div id="energy" aria-hidden="true">
     <span class="en-cap"><i></i>ENERGY</span>
     <b class="en-n" id="g-cells">0</b>
     <span class="en-bar"><u id="g-cellbar"></u></span>
-    <span class="en-next" id="g-cellnext">SPARE TAPE AT 100</span>
+    <span class="en-next" id="g-cellnext">25 TO NITRO</span>
     <span class="en-plus" id="g-cellplus">+1</span>
   </div>
   <div id="chain" aria-hidden="true">
@@ -137,13 +137,13 @@
   <p class="sr-only" id="g-live" aria-live="polite"></p>
 
   <div id="drivebar" role="group" aria-label="Driving controls">
-    <!-- what nitro has just given you: a canister taken aboard, and the burst while it lasts -->
+    <!-- what nitro has just given you: a charge filled by the energy, and the burst while it lasts -->
     <div id="gain" aria-hidden="true"></div>
     <div id="buff" aria-hidden="true"><svg viewBox="0 0 24 14" aria-hidden="true"><path d="M1 1 L8 7 L1 13 H5 L12 7 L5 1 Z M11 1 L18 7 L11 13 H15 L22 7 L15 1 Z"/></svg><b>NITRO BOOST</b><span id="buff-x">×2 SPEED</span><span class="bf-s">SMASH THROUGH</span><i><u id="buff-bar"></u></i></div>
     <div id="speedo" aria-live="off"><div class="spd-row"><span id="spd">000</span><small>MPH</small><small class="gear" id="gear"></small></div><div class="spd-bar" id="spd-bar"></div></div>
     <button id="turbo" type="button" aria-describedby="turbo-state" data-n="0">
       <svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="45"/><circle class="ring-fg" id="turbo-ring" cx="50" cy="50" r="45"/></svg>
-      <span class="b-label">NITRO</span><span class="b-pips" aria-hidden="true"><i></i><i></i><i></i></span><span class="b-key" id="turbo-state">EMPTY</span>
+      <span class="b-label">NITRO</span><span class="b-pips" aria-hidden="true"><i></i><i></i><i></i></span><span class="b-key" id="turbo-state">STANDBY</span>
     </button>
   </div>
 

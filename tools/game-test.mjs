@@ -1,6 +1,6 @@
 // Unit tests for the game simulation (no browser).   node tools/game-test.mjs
 // Determinism, crash, home / start / restart, rewind (state and reverse playback), sideswipe and busted,
-// brake, nitro canisters, police stars, the grappler, helicopter fire, steering curves, the rolling roadblock,
+// brake, the nitro and its charge, police stars, the grappler, helicopter fire, steering curves, the rolling roadblock,
 // the weaving cruiser, pause, free mode, audio-thread parity.
 import { Timeline } from '../js/timeline.js';
 import { Synth } from '../js/audio/synth.js';
@@ -85,9 +85,11 @@ let crashT;
   st = tl.stateAt(overT + 1.0 + GAME.reviveHold + 0.3);
   ok('rewind: resumes about 3 s before the crash, invulnerable, road position restored', st.over === 0 && st.g.gd < gdCrash - 100 && Math.abs(st.g.gd - before.gd) < 90 && Math.abs(st.pos - before.pos) < 90 && st.g.inv > st.g.gt && st.vel > 40, `distance ${st.g.gd.toFixed(0)} (3 s before: ${before.gd.toFixed(0)}, crash: ${gdCrash.toFixed(0)}), ${st.vel.toFixed(0)} u/s`);
   ok('rewind: the score is the one from the restore point', Math.abs(st.g.score - before.score) < 700);
-  const st2 = tl.stateAt(overT + 30);
-  if (st2.over) { tl.add('revive', st2.overT + 1.0); ok('no tape left: a second rewind is refused', tl.stateAt(st2.overT + 2.5).over !== 0); }
-  else ok('no tape left: a second rewind is refused', true, 'skipped: still alive');
+  // three tapes: the second and third crash can be rewound too, the fourth cannot
+  { let n = 1, t = overT + 4, last = null;
+    for (let i = 0; i < 4000 && n < 4; i++, t += 0.25) { const q = tl.stateAt(t); if (q.over) { last = q.overT; tl.add('revive', q.overT + 1.0); n++; t = q.overT + 3; } }
+    const end = tl.stateAt(last + 2.5);
+    ok('three tapes: three rewinds are granted, the fourth is refused', n === 4 && end.over !== 0 && end.tapes === 0 && end.rev === 3, `${n - 1} rewinds, ${end.tapes} tapes left, over ${end.over}`); }
 }
 
 // ── sideswipe, the tail-close window, busted ──
@@ -107,7 +109,7 @@ let crashT;
   ok('sideswipe = a life lost: half a star of heat, combo reset, police on the tail', ev.includes('stumble:swipe') && st.g.lives === 1 && st.g.heat >= t2.stateAt(hit.T - 0.01).g.heat + GAME.heatSwipe - 0.05 && st.g.star === Math.floor(st.g.heat + 1e-9) && st.g.combo <= 3 && policeClose(st.g) && st.g.polZ > -9, `police ${(-st.g.polZ).toFixed(1)} behind`);
   // the police stay there for good … until a nitro burst shakes them off and gives the life back
   const t5 = new Timeline(); t5.load(base); t5.add('lane', hit.T, { dir: hit.dir });
-  const hold = t5.stateAt(hit.T + 1.0); t5._st.g.nstock = 1;      // hand it a canister (edit the live state)
+  const hold = t5.stateAt(hit.T + 1.0); t5._st.g.nstock = 1;      // hand it a nitro charge (edit the live state)
   ok('the police stay on the tail', hold.g.lives === 1 && policeClose(hold.g) && (() => { for (let T = hit.T + 1; T < hit.T + 14; T += 0.5) { const s = t2.stateAt(T); if (s.over) return true; if (!policeClose(s.g)) return false; } return true; })());
   t5.add('turbo', hit.T + 1.05);
   const freed = t5.stateAt(hit.T + 3.2), fev = kinds(t5, hit.T + 1, hit.T + 3.2);
@@ -234,15 +236,28 @@ let crashT;
   ok('the road speed rises steadily through the gears; the revs climb and fall back at each change', Math.max(...steps) < 0.25 && Math.min(...steps) > 0 && revs(g1, GAME.gears[2] - 0.01) > 0.99 && revs(g2, GAME.gears[2]) < 0.01, `at most ${Math.max(...steps).toFixed(2)} u/s per 10 units`);
 }
 
-// ── nitro canisters ──
+// ── nitro: charged by the energy cells ──
 {
   const tl = fresh(); tl.add('lane', C + 5, { dir: 1 });
   tl.add('turbo', C + 5.5);
-  ok('nitro is refused with no canister in stock', tl.turboAt(C + 6) === null && tl.turboReady(C + 6) === 0 && tl.stateAt(C + 6).g.nstock === 0);
-  const r = play(11, 300, { nitro: true, seek: true });   // canisters are 30 to 45 s apart in top gear (further later), and not every one can be reached
+  ok('nitro is refused with no charge in stock', tl.turboAt(C + 6) === null && tl.turboReady(C + 6) === 0 && tl.stateAt(C + 6).g.nstock === 0);
+  const r = play(11, 300, { nitro: true });
   const t2 = new Timeline(); t2.load(r.ev);
-  const ev = t2.gameEvents(0, C + 300), items = ev.filter((e) => e.k === 'item'), ns = t2.nitros(C + 300);
-  ok('canisters are picked up on the road and can be fired', items.length >= 2 && ns.length >= 1 && ns.length <= items.length, `${items.length} picked up, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
+  const ev = t2.gameEvents(0, C + 300), items = ev.filter((e) => e.k === 'charge'), ns = t2.nitros(C + 300);
+  ok('the energy charges the nitro, and each charge can be fired', items.length >= 4 && ns.length >= 1 && ns.length <= items.length && r.g.charges === items.length, `${items.length} charges, ${ns.length} fired, ${r.g.nstock} in stock, ${r.g.smash} smashed`);
+  {
+    // a run that keeps its charges: every charge takes nitroCells cells at level 0 (the first one, half as many: a run starts half charged),
+    // more as the level rises; three are kept, and after that the cells charge nothing
+    const q = play(11, 200, {}), qe = q.tl.gameEvents(0, C + 200), ch = qe.filter((e) => e.k === 'charge'), cellsBy = (t) => qe.filter((e) => e.k === 'cell' && e.t <= t + 1e-9).length;
+    const need = ch.map((e, i) => cellsBy(e.t) - (i ? cellsBy(ch[i - 1].t) : 0)), lvAt = ch.map((e) => q.tl.stateAt(e.t).g.gt / GAME.lvEvery);
+    const want = ch.map((e, i) => GAME.nitroCells * (1 + GAME.nitroLv * lvAt[i]) * (i ? 1 : 1 - GAME.nitroStart));
+    ok('a charge takes nitroCells cells (the first one half: a run starts half charged), a few more as the level rises; three are kept', ch.length === GAME.nitroMax && need.every((n, i) => Math.abs(n - want[i]) <= 3) && q.g.nstock === GAME.nitroMax && q.g.nch === 0 && q.g.cells > cellsBy(ch[2].t) + 20,
+      `cells per charge ${need.join(', ')} (expected about ${want.map((w) => w.toFixed(0)).join(', ')}); ${q.g.cells} cells in all, stock ${q.g.nstock}`);
+    ok('no nitro canisters lie on the road any more', !('itm' in q.g) && !qe.some((e) => e.k === 'item'));
+    // while a burst burns, cells are counted but charge nothing
+    const b0 = ns[0], g0 = t2.stateAt(b0.p + 0.02).g, g1 = t2.stateAt(b0.I + 3.9).g;
+    ok('while a burst burns the cells still count but charge nothing', g1.cells >= g0.cells && Math.abs(g1.nch - g0.nch) < 1e-9 && g1.nstock === g0.nstock, `${g1.cells - g0.cells} cells taken in the burst, charge ${g0.nch.toFixed(2)} → ${g1.nch.toFixed(2)}`);
+  }
   const n0 = ns[0], st = t2.stateAt(n0.I + 1.0), basev = t2.stateAt(n0.p - 0.1).vel;
   ok('nitro impact lands on the half-beat grid, 0.2–0.45 s after the press', n0.I - n0.p >= 0.2 - 1e-9 && n0.I - n0.p <= 0.45 + 1e-9 && Math.abs(((n0.I - C) / 0.25) - Math.round((n0.I - C) / 0.25)) < 1e-6, `wind-up ${(n0.I - n0.p).toFixed(3)} s`);
   ok('nitro boosts the speed to about 1.85× the cruising speed', st.vel > gameBase(st.g) * 1.65 && st.vel < gameBase(st.g) * 2.0, `${basev.toFixed(0)} → ${st.vel.toFixed(0)} u/s (cruising speed ${gameBase(st.g).toFixed(0)} by then)`);
@@ -250,7 +265,7 @@ let crashT;
   const t3 = fresh(); t3.add('lane', C + 5, { dir: 1 }); t3.stateAt(C + 6); t3._st.g.nstock = 2;
   t3.add('turbo', C + 6.1); t3.add('turbo', C + 6.4);
   const a = t3.stateAt(C + 7);
-  ok('one canister per burst, bursts cannot overlap', a.g.nstock === 1 && t3.nitros(C + 7).length === 1);
+  ok('one charge per burst, bursts cannot overlap', a.g.nstock === 1 && t3.nitros(C + 7).length === 1);
   ok('nitro smashes vehicles and raises the stars', r.g.smash > 0 || ns.length === 0, `${r.g.smash} smashed, max ${r.g.starMax}★`);
 }
 
@@ -259,7 +274,15 @@ let crashT;
   const r = play(5, 120);
   ok('gears engage with distance', r.g.gear >= 3 && r.st.vel > GAME.gears[r.g.gear] - 1, `gear ${r.g.gear + 1} at ${Math.round(r.g.gd)} units, ${r.st.vel.toFixed(0)} u/s`);
   ok('score, cells and overtakes accumulate', r.g.score > 10000 && r.g.cells > 50 && r.g.passed > 40, `score ${Math.round(r.g.score)}, cells ${r.g.cells}, passed ${r.g.passed}`);
-  ok('100 cells earn a spare tape (max 3)', r.st.tapes === Math.min(GAME.maxTapes, GAME.tapesStart + Math.floor(r.g.cells / GAME.tapeEvery)), `${r.st.tapes} tapes`);
+  ok('a run starts with three spare tapes and earns no more', GAME.tapesStart === 3 && r.st.tapes === 3 && r.g.cells > 100 && !r.tl.gameEvents(0, 1e9).some((e) => e.k === 'tape'), `${r.st.tapes} tapes after ${r.g.cells} cells`);
+  {
+    // … and the next run starts with three again, whatever was spent
+    const tl = fresh(), oT = tl.stateAt(C + 40).overT; tl.add('revive', oT + 1);
+    const spent = tl.stateAt(oT + 3).tapes; let o2 = null; for (let T = oT + 3; T < oT + 60 && !o2; T += 0.25) { const st = tl.stateAt(T); if (st.over) o2 = st.overT; }
+    tl.add('home', o2 + 1); tl.add('start', o2 + 2.5); tl.add('skip', o2 + 3.3);
+    const st = tl.stateAt(o2 + 5);
+    ok('a rewind spends one; the next run has three again', spent === 2 && st.run === 2 && st.tapes === 3 && tl.phaseAt(o2 + 5).phase === 'cruise', `${spent} left after the rewind, ${st.tapes} at the start of run ${st.run}`);
+  }
 }
 
 // ── pickups never sit under a vehicle: they slide to a clear lane (or the cells in the way fade out where they are) ──
@@ -276,7 +299,7 @@ let crashT;
   ok('pickups never overlap a vehicle (they move out of the way)', hits === 0 && slid > 0, `${hits} overlaps in ${frames} frames · ${slid} frames with a line of cells sliding across`);
 }
 
-// ── free mode (?free=1): no traffic, no police attacks, never over, a canister every 7 s ──
+// ── free mode (?free=1): no traffic, no police attacks, never over, a nitro charge every 7 s ──
 {
   const tl = fresh(7, { free: 1 });
   const st = tl.stateAt(C + 60);
@@ -429,8 +452,8 @@ let crashT;
     const sc = S.results, tl = load(sc.ev), g = tl.stateAt(sc.at[0] + 0.5).g, sum = g.pD + g.pP + g.pN + g.pS + g.pG + g.pC + g.pF;
     const all = tl.gameEvents(0, sc.at[0] + 0.5), n = (k) => all.filter((e) => e.k === k).length;
     ok('the score is the sum of its parts: distance, passes, close calls, smashes, dodges, pickups, slipstream', Math.abs(sum - g.score) < 1e-6 * Math.max(1, g.score) && g.pD > 0 && g.pS > 0, `${Math.round(g.score)} = ${[g.pD, g.pP, g.pN, g.pS, g.pG, g.pC, g.pF].map(Math.round).join(' + ')}`);
-    ok('the counts on the results screen match what happened', g.cells === n('cell') && g.cans === n('item') && g.bursts === n('nitro') && g.smash === n('smash') + all.filter((e) => e.k === 'shove' && e.ic).length && g.chainBest === Math.max(0, ...all.filter((e) => e.k === 'chainend').map((e) => e.n)),
-      `${g.cells} cells, ${g.cans} canisters, ${g.bursts} bursts, ${g.smash} smashed, best chain ×${g.chainBest}, ${g.takedown} police`);
+    ok('the counts on the results screen match what happened', g.cells === n('cell') && g.charges === n('charge') && g.bursts === n('nitro') && g.smash === n('smash') + all.filter((e) => e.k === 'shove' && e.ic).length && g.chainBest === Math.max(0, ...all.filter((e) => e.k === 'chainend').map((e) => e.n)),
+      `${g.cells} cells, ${g.charges} charges, ${g.bursts} bursts, ${g.smash} smashed, best chain ×${g.chainBest}, ${g.takedown} police`);
     ok('the run ends with its chain closed', g.chain === 0 && tl.stateAt(sc.at[0] + 0.5).over !== 0);
   }
 }

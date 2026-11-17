@@ -4,11 +4,11 @@ import { scenarios } from './juice.mjs';
 import { Timeline } from '../js/timeline.js';
 import { frameState } from '../js/director.js';
 const S = scenarios();
-const row = (name, ev, t, reduced = false) => {
+const row = (name, ev, t, reduced = false, win = 0.9) => {      // win: how long after the hit to look (up to the next hit)
   const tl = new Timeline(); tl.load(ev);
   const base = frameState(tl, t - 0.05, 1280, 720, { reduced });
   let sx = 0, sy = 0, roll = 0, hold = 0, last = null;
-  for (let u = 0.002; u < 0.9; u += 1 / 120) {
+  for (let u = 0.002; u < win; u += 1 / 120) {
     const s = frameState(tl, t + u, 1280, 720, { reduced });
     sx = Math.max(sx, Math.abs(s.cam.shiftX)); sy = Math.max(sy, Math.abs(s.cam.shift - base.cam.shift)); roll = Math.max(roll, Math.abs(s.cam.roll - base.cam.roll));
     if (last !== null && s.t - last < 0.004) hold += 1 / 120; last = s.t;
@@ -18,7 +18,7 @@ const row = (name, ev, t, reduced = false) => {
   return { sx, sy, roll, hold };
 };
 const R = {};
-R.smash1 = row('nitro smash, first link', S.chain.ev, S.chain.at[0]);
+R.smash1 = row('nitro smash, first link', S.chain.ev, S.chain.at[0], false, Math.min(0.9, S.chain.at[1] - S.chain.at[0] - 0.02));
 R.smashN = row(`nitro smash, link ${S.chain.n}`, S.chain.ev, S.chain.at[S.chain.at.length - 1]);
 R.fling = row('interceptor thrown off', S.fling.ev, S.fling.at[0]);
 R.hit = row(`first hit (${S.swipe.note.split(': ')[1]})`, S.swipe.ev, S.swipe.at[0]);

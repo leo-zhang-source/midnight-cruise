@@ -165,6 +165,16 @@ class Impact extends Voice {
     return t < 2.2;
   }
 }
+class Whoosh extends Voice { // a rush of air sweeping across: the launch of a run, the nitro stinger, a close call
+  constructor(s, o, v) { super(s, o); this.v = v; this.rl = new RNG(s.seed()); this.rr = new RNG(s.seed()); this.bl = new SVF(); this.br = new SVF(); }
+  tick(B, i, t) {
+    if ((this.n & 15) === 0) { const c = 300 + 4200 * exp(-t / 0.3); this.bl.set(c, 1.4); this.br.set(c * 0.9, 1.4); }
+    const a = Math.min(1, t / 0.02) * exp(-t / 0.4) * 0.5 * this.v;
+    const p = Math.min(1, t / 0.8) * 2 - 1;
+    B.fxL[i] += this.bl.bp(this.rl.next()) * a * panL(p); B.fxR[i] += this.br.bp(this.rr.next()) * a * panR(p);
+    return t < 1.6;
+  }
+}
 class Riser extends Voice {
   constructor(s, o, d, v = 1) { super(s, o); this.d = d; this.v = v; this.rl = new RNG(s.seed()); this.rr = new RNG(s.seed()); this.bl = new SVF(); this.br = new SVF(); this.saw = new Saw(); this.lp = new SVF(); this.lp.set(3500, 0.8); }
   tick(B, i, t) {
@@ -366,6 +376,49 @@ class Blip extends Voice { // generic UI tone: freq sweep f0→f1, decay
     const y = sin(TAU * this.ph) * exp(-u / this.dur) * Math.min(1, u / 0.001) * this.amp;
     B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r;
     return u < this.dur * 7;
+  }
+}
+// Picking up an energy cell. Five soft designs (k = 'a' … 'e'; the game uses 'c', felt, the one the player chose); none of them is a note in a scale: each sounds the same
+// every time, give or take a hair of pitch and level so a line of cells does not rattle like a machine.
+//   a · droplet: a sine that rises as it starts, like a drop into water          b · glass: two high partials, a fingernail on a glass
+//   c · felt: a low, round thump, a felt mallet on wood                          d · breath: a puff of filtered air, no pitch at all
+//   e · glow: a slow swell of two tones a fifth apart; a run of cells blends into one shimmer
+export const CELL_SOUNDS = { a: 'DROPLET', b: 'GLASS', c: 'FELT', d: 'BREATH', e: 'GLOW' };
+class Cell extends Voice {
+  constructor(s, o, k = 'a', pan = 0) {
+    super(s, o); this.k = k; const R = this.rn = new RNG(s.seed());
+    this.dt = 1 + 0.015 * R.next(); this.g = 1 + 0.12 * R.next(); this.l = panL(pan); this.r = panR(pan); this.p1 = 0; this.p2 = 0;
+    if (k === 'c') { this.f = new SVF(); this.f.set(900, 0.7); }
+    if (k === 'd') { this.f = new SVF(); this.f.set(2300 * this.dt, 1.3); this.f2 = new SVF(); this.f2.set(5200, 0.8); }
+  }
+  tick(B, i, t) {
+    let y = 0, len = 0.4;
+    switch (this.k) {
+      case 'b': {                                     // glass
+        this.p1 += 2093 * this.dt / SR; this.p2 += 3371 * this.dt / SR;
+        y = (sin(TAU * this.p1) * exp(-t / 0.05) + sin(TAU * this.p2) * 0.5 * exp(-t / 0.028)) * Math.min(1, t / 0.0015) * 0.026; len = 0.35; break;
+      }
+      case 'c': {                                     // felt
+        this.p1 += (330 + 70 * exp(-t / 0.012)) * this.dt / SR;
+        y = (sin(TAU * this.p1) * exp(-t / 0.06) * Math.min(1, t / 0.003) + this.f.lp(this.rn.next()) * exp(-t / 0.006) * 0.35) * 0.125; len = 0.4; break;
+      }
+      case 'd': {                                     // breath
+        const n = this.rn.next(), e = Math.min(1, t / 0.012) * exp(-t / 0.07);
+        y = (this.f.bp(n) + this.f2.bp(n) * 0.25) * e * 0.12; len = 0.45; break;
+      }
+      case 'e': {                                     // glow
+        this.p1 += 659.3 * this.dt / SR; this.p2 += 988.9 * this.dt / SR;
+        const e = (1 - exp(-t / 0.022)) * exp(-t / 0.17);
+        y = (sin(TAU * this.p1) + sin(TAU * this.p2) * 0.6) * e * 0.026; len = 0.9; break;
+      }
+      default: {                                      // droplet
+        this.p1 += (760 - 250 * exp(-t / 0.014)) * this.dt / SR;
+        y = sin(TAU * this.p1) * exp(-t / 0.065) * Math.min(1, t / 0.003) * 0.055; len = 0.4;
+      }
+    }
+    y *= this.g;
+    B.sfxL[i] += y * this.l; B.sfxR[i] += y * this.r;
+    return t < len;
   }
 }
 class Click extends Voice { // mechanical button: noise tick + body thump
@@ -617,7 +670,7 @@ export class Synth {
     // ambience
     this.sirG = 0; this.sirP = 0; this.sirW = 0;   // police siren: level, oscillator phase, wail phase
     this.heliG = 0; this.heliP = 0; this.heliF = new SVF(); this.heliR = new RNG(91);   // helicopter rotor: level, blade phase, noise
-    this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)]; this.engF = 60; this.engLp = new SVF(); 
+    this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)]; this.engF = 60; this.engLp = new SVF(); this.windL = new SVF(); this.windR = new SVF(); this.wr = [new RNG(77), new RNG(78)];
     this.levels = { music: 0, peak: 0 };
     this.smp = {};
   }
@@ -656,7 +709,7 @@ export class Synth {
       case 'impact': v = new Impact(s, o, n.v); break;
       case 'riser': v = new Riser(s, o, n.d, n.v ?? 1); break;
       case 'flyby': v = new Flyby(s, o, n.v ?? 1, n.pan || 0, n.f || 1); break;
-      case 'whoosh': return;                                                     // (no whooshes: no wind noise of any kind)
+      case 'whoosh': v = new Whoosh(s, o, n.v ?? 1); break;
       case 'bass': v = new Bass(s, o, n.n, n.v, n.d); break;
       case 'pad': v = new Pad(s, o, n.notes, n.d, n.v, n.slow); break;
       case 'stab': v = new Stab(s, o, n.notes, n.d, n.v); break;
@@ -686,7 +739,7 @@ export class Synth {
       case 'horn': v = new Horn(s, o); break;
       case 'yelp': v = new Blip(s, o, 1250, 900, 0.09, 0.05, 0.5); for (let k = 1; k < 8; k++) this.voices.push(new Blip(s, o, k % 2 ? 900 : 1250, k % 2 ? 1250 : 900, 0.09, 0.05, k % 2 ? -0.5 : 0.5, k * 0.13)); break;   // the interceptor's siren: a fast yelp
       case 'alert': v = new Blip(s, o, 392, 388, 0.13, 0.08); this.voices.push(new Blip(s, o, 392, 388, 0.13, 0.08, 0, 0.2), new Blip(s, o, 523, 518, 0.3, 0.085, 0, 0.4), new Blip(s, o, 196, 194, 0.5, 0.07, 0, 0.4), new Sub(s, o, 0.4)); if (S.crash_f) play('crash_f', { gain: 0.26, rev: 0.08 }); this.duck(o, 0.2, 0.15); break;   // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
-      case 'near': v = new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2); this.voices.push(new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;   // a close call: two rising blips (no whoosh)
+      case 'near': v = new Whoosh(s, o, 0.45); this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07)); break;   // a close call: a rush of air and two rising blips
       case 'smash': {                                                            // a vehicle rammed in a nitro burst
         v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0); this.duck(o, 0.32, 0.12);
         // … and every link of a smash chain rings a step higher up the scale (A minor pentatonic, from A4), so a run of them climbs
@@ -714,6 +767,7 @@ export class Synth {
       }
       case 'outrun': { const pn = n.pan || 0; v = new Blip(s, o, 1100, 640, 0.22, 0.045, pn); this.voices.push(new Blip(s, o, 900, 520, 0.3, 0.035, pn, 0.2)); break; }   // left behind: its siren drops away
       case 'hit': v = new Crunch(s, o, 1.0, n.pan || 0, 0); this.voices.push(new Sub(s, o, 0.5), new Impact(s, o, 0.4)); this.duck(o, 0.45, 0.2); break;   // rammed, slammed or shot: the blow itself
+      case 'cell': v = new Cell(s, o, n.k || 'c', n.pan || 0); break;                // an energy cell picked up
       // the results screen: a tick as each line is counted, the total landing, the grade stamped on it, a fanfare for a new best
       case 'tally': { const f = 523.25 * Math.pow(2, (n.n || 0) * 2 / 12); v = new Click(s, o, 0.35); this.voices.push(new Blip(s, o, f, f * 1.003, 0.05, 0.045, ((n.n || 0) % 2 ? 0.3 : -0.3))); break; }
       case 'total': v = new Impact(s, o, 0.45); this.voices.push(new Sub(s, o, 0.45)); [220, 329.6, 440, 659.3].forEach((f, i) => this.voices.push(new Blip(s, o, f, f * 1.002, 0.45, 0.05, i % 2 ? 0.35 : -0.35, i * 0.012))); break;
@@ -842,7 +896,7 @@ export class Synth {
     // music transport
     const mus = tl.musicAt(T);
     const active = ph.phase !== 'idle' && ph.phase !== 'home';
-    // ambience (the engine), follows speed
+    // ambience (engine + road wind), follows speed
     const vel = Math.abs(this._st.vel), thr = this._st.thr;
     const ambG = active ? 1 : 0;
     // On a run the engine works through its gears: its note climbs with the revs and falls back at each change (a short glide, so
@@ -859,7 +913,12 @@ export class Synth {
     } else this.engF = ef;
     const cm = ph.phase === 'ign' ? cineMix(ph.it) : null;   // … and its sirens and helicopter
     this.engLp.set(ec, 0.9);
-    // (no road wind: the player asked for no wind noise, Revision 38)
+    // the road wind: band-passed noise, louder and brighter the faster we go. Up to 112 u/s (the top speed the car had when this sound was
+    // made) it is as it was; the car goes twice as fast now, four times in a nitro burst, so above that it grows more slowly and stays
+    // lower in pitch, or the end of a run would be hiss
+    const wv = Math.min(vel, 112), wx = Math.min(Math.max(0, vel - 112), 360);
+    this.windL.set(250 + wv * 22 + wx * 5, 0.7); this.windR.set(280 + wv * 24 + wx * 5.5, 0.7);
+    const wg = 0.0009 * Math.pow(wv, 1.1) * (1 + 0.55 * wx / 360) * ambG;
     const whF = 700 + vel * 8, whG = ph.phase === 'cruise' ? 0.007 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;   // and at speed a turbo whine
     // the police siren, behind us for the whole run: distant while they hang back, loud and fast when they are on the tail
     {
@@ -958,7 +1017,8 @@ export class Synth {
       const eo = Math.sin(this.whP * TAU) * whG + this.engLp.lp(this.eng[0].run(ef) + this.eng[1].run(ef * 1.01) + this.eng[2].run(ef * 0.5) * 0.7) * eg;
       // the music ducks under a big hit
       { const tg = gf < this.duckUntil ? this.duckDepth : 0; this.duckE += (tg - this.duckE) * (tg > this.duckE ? 0.0026 : 0.00006); if (gf >= this.duckUntil && this.duckE < 1e-4) this.duckDepth = 0; const dg = 1 - this.duckE; mL *= dg; mR *= dg; }
-      let xL = this.hpL.hp(mL + B.fxL[i] + eo), xR = this.hpR.hp(mR + B.fxR[i] + eo);
+      const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
+      let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
       // glue compressor (stereo linked, gentle)
       const pk = Math.max(Math.abs(xL), Math.abs(xR));
       const lv = 20 * Math.log10(pk + 1e-9), over = lv + 9;

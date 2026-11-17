@@ -18,7 +18,7 @@ const shots = [];
 const clean = r.ev;
 const upTo = (t) => clean.filter((e) => e.t <= t);
 shots.push(['intro_0_5', clean, 1.9 + 0.5], ['intro_1_2', clean, 1.9 + 1.2], ['intro_2_0', clean, 1.9 + 2.0], ['intro_2_6', clean, 1.9 + 2.6]);
-const item = first('item'); if (item) shots.push(['canister', clean, item.t - 0.7]);
+const item = first('charge'); if (item) shots.push(['charge', clean, item.t + 0.25]);
 const rw = first('ramwarn'); if (rw) shots.push(['grappler', clean, rw.t + 0.8], ['grappler_miss', clean, rw.t + 1.3]);
 shots.push(['traffic_a', clean, 12], ['traffic_b', clean, 21.5], ['traffic_c', clean, 27]);
 const lk = first('lock'); if (lk) shots.push(['heli_search', clean, lk.t - 1.5], ['heli_lock', clean, lk.t + 0.8], ['heli_fire', clean, lk.t + 1.4]);

@@ -135,7 +135,7 @@ export class Timeline {
     return null;
   }
   nitros(T) { if (this._T < T) this.stateAt(T); return this._nitros; }
-  // 1 when a nitro canister can be fired now
+  // 1 when a nitro charge can be fired now
   turboReady(T) {
     if (this.phaseAt(T).phase !== 'cruise') return 0;
     const st = this.stateAt(T);
@@ -208,7 +208,7 @@ export class Timeline {
   _newRun(st, T, seg) {
     const { opts: o, diffs } = this._derive();
     st.run++; st.segC = seg.C; st.runT = T;
-    st.over = 0; st.overT = 0; st.rev = 0; st.hold = 0; st.paused = 0; st.nOn = 0; st.lane = 0;
+    st.over = 0; st.overT = 0; st.rev = 0; st.hold = 0; st.paused = 0; st.nOn = 0; st.lane = 0; st.tapes = GAME.tapesStart;      // (every run starts with its three spare tapes)
     let lv0 = 0; for (const d of diffs) if (d.t <= T) lv0 = d.lv;
     st.g = freshGame(runSeed(o.seed, st.run), o.free, lv0);
     this._endNitro(T);
@@ -335,7 +335,6 @@ export class Timeline {
       for (const o of out) {
         o.t = T; this._gev.push(o);
         if (o.k === 'swipe') { st.lane = o.back; st.xv = o.dir * GAME.swipeKick; }
-        else if (o.k === 'tape') st.tapes = Math.min(GAME.maxTapes, st.tapes + 1);
       }
       if (g.over) { st.over = g.over; st.overT = T; this._endNitro(T); this._gev.push({ t: T, k: 'over', kind: g.over }); }
     }
@@ -407,10 +406,10 @@ export function phaseFrom(segs, T) {
 
 // Canonical interaction script used for inspection renders, replays and the audio reference: the full intro, then
 // a clean drive recorded from tools/bot.mjs (`node tools/bot.mjs --script 68.95 --late`, default seed) with a nitro
-// canister picked up and fired, the four presets and a music pause; then the home screen and
+// charge earned from the energy and fired, the four presets and a music pause; then the home screen and
 // a second start, which opens with the intro again.
 const CANONICAL_10 = [
-  { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.25, dir: -1 }, { type: 'lane', t: 23.1, dir: 1 }, { type: 'lane', t: 26.1, dir: -1 }, { type: 'lane', t: 28, dir: 1 }, { type: 'lane', t: 28.95, dir: 1 }, { type: 'lane', t: 30, dir: -1 }, { type: 'turbo', t: 30.2 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 37.5, dir: -1 }, { type: 'lane', t: 43.75, dir: 1 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 44.7, dir: -1 }, { type: 'lane', t: 46.9, dir: 1 }, { type: 'lane', t: 48.05, dir: -1 }, { type: 'lane', t: 51.45, dir: 1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 55.05, dir: -1 }, { type: 'lane', t: 56.1, dir: 1 }, { type: 'lane', t: 57.85, dir: -1 }, { type: 'lane', t: 59.2, dir: 1 }, { type: 'lane', t: 61.6, dir: 1 }, { type: 'lane', t: 62.6, dir: -1 }, { type: 'env', t: 64, preset: 0 }, { type: 'turbo', t: 67.05 }, { type: 'music', t: 70, on: false }, { type: 'lane', t: 72.55, dir: 1 }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 74.75, dir: -1 }, { type: 'lane', t: 77.9, dir: -1 }, { type: 'lane', t: 78.85, dir: 1 },
+  { type: 'start', t: 1 }, { type: 'lane', t: 17.55, dir: -1 }, { type: 'lane', t: 20.95, dir: 1 }, { type: 'lane', t: 22.25, dir: -1 }, { type: 'lane', t: 23.65, dir: 1 }, { type: 'lane', t: 26.05, dir: -1 }, { type: 'lane', t: 28.4, dir: 1 }, { type: 'env', t: 34, preset: 1 }, { type: 'lane', t: 36.7, dir: -1 }, { type: 'turbo', t: 38.3 }, { type: 'env', t: 44, preset: 2 }, { type: 'lane', t: 45.45, dir: 1 }, { type: 'lane', t: 47.1, dir: -1 }, { type: 'lane', t: 50.1, dir: 1 }, { type: 'lane', t: 52.35, dir: -1 }, { type: 'env', t: 54, preset: 3 }, { type: 'lane', t: 54.25, dir: 1 }, { type: 'lane', t: 55.7, dir: -1 }, { type: 'lane', t: 59.4, dir: 1 }, { type: 'lane', t: 62.65, dir: 1 }, { type: 'env', t: 64, preset: 0 }, { type: 'lane', t: 64.75, dir: -1 }, { type: 'lane', t: 68.6, dir: -1 }, { type: 'music', t: 70, on: false }, { type: 'music', t: 73, on: true }, { type: 'lane', t: 73, dir: 1 }, { type: 'lane', t: 74.15, dir: 1 }, { type: 'turbo', t: 75.95 },
   { type: 'home', t: 80.0 }, { type: 'start', t: 83.0 },
 ];
 // (recorded when the opening was ten seconds long: everything after the START moves with its length)

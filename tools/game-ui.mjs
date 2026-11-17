@@ -27,7 +27,7 @@ const gs = (p) => p.evaluate(() => {
     police: vis('police'), paused: !el('paused').hidden, pauseBtn: el('pause').classList.contains('on'), start: vis('start-wrap'), replay: !!el('replay'), homeScore: el('home-score').hidden ? null : el('hs-last').textContent, osd: el('osd-text').textContent };
 });
 // the simulation state, as plain data for the planner
-const sim = (p) => p.evaluate(() => { const st = MC.tl.stateAt(MC.tl.frontier()), g = st.g; return { ...st, g: { ...g, veh: Array.from(g.veh), cel: Array.from(g.cel), itm: Array.from(g.itm) } }; });
+const sim = (p) => p.evaluate(() => { const st = MC.tl.stateAt(MC.tl.frontier()), g = st.g; return { ...st, g: { ...g, veh: Array.from(g.veh), cel: Array.from(g.cel) } }; });
 const steer = (p, d, touch) => (touch ? p.evaluate((d) => MC.tl.add('lane', MC.tl.frontier(), { dir: d }), d) : p.keyboard.press(d > 0 ? 'ArrowRight' : 'ArrowLeft'));
 // drive cleanly for `ms` (or until `until(st)` says stop); returns the last state
 async function drive(p, ms, { until, touch } = {}) {
@@ -62,18 +62,19 @@ async function wreck(p, touch, once) {
   let s = await gs(p); ok('no game HUD before the drive starts', s.hud === 'hidden' && !s.panel && s.start === 'visible' && s.homeScore === null);
   await p.click('#start'); await p.waitForTimeout(500); await p.click('#skip'); await p.waitForTimeout(1100);
   s = await gs(p); ok('a run opens with the police on the bumper: lights on, one star, pursuit car close', s.on === 1 && s.hud === 'visible' && s.stars === '1' && s.pol === 1 && s.police === 'visible' && s.polDz > -8 && s.polDz < -5, JSON.stringify({ star: s.stars, pol: s.pol, dz: s.polDz, ct: s.ct }));
-  ok('nitro is empty at the start of a run', s.nitro === 'false' && s.nitroN === '0' && s.nitroTxt === 'EMPTY');
+  ok('a run starts with no nitro in stock and the next charge half full', s.nitro === 'false' && s.nitroN === '0' && s.nitroTxt === '50%', s.nitroTxt);
   let st = await drive(p, 3200);
   s = await gs(p); ok('flooring it: the pursuit car drops back but keeps following', !s.over && s.pol === 0 && s.polDz < -15 && s.police === 'visible' && s.vel > 50, JSON.stringify({ dz: s.polDz, v: Math.round(s.vel) }));
   ok('traffic and cells on the road, gear shown, pause key shown', s.veh > 0 && s.cells > 0 && s.gearTxt === 'G1' && s.pauseBtn, JSON.stringify({ veh: s.veh, cells: s.cells, gear: s.gearTxt }));
   // no brake: Space does nothing while driving, and there is no BRAKE key
   const v1 = (await gs(p)).vel; await p.keyboard.down('Space'); st = await drive(p, 900); s = await gs(p); await p.keyboard.up('Space');
   ok('there is no brake: holding Space does not slow the car, no BRAKE key on screen', s.vel >= v1 - 0.5 && !s.over && !(await p.$('#brake')), `v=${Math.round(v1)} → ${Math.round(s.vel)}`);
-  // cells are taken in silence (the coin sound is off), and so is traffic going by
+  // every cell plays the soft pickup sound (one per cell, the chosen design); traffic going by plays nothing
   const sfx = async (re) => p.evaluate((src) => MC.events().filter((e) => e.type === 'sfx' && new RegExp(src).test(e.name)).length, re);
   let cells = (await gs(p)).cellsN; for (let i = 0; i < 8 && cells < 6; i++) { await drive(p, 1000); cells = (await gs(p)).cellsN; }
-  ok('taking cells makes no sound', cells >= 6 && (await sfx('^(cell|coin)$')) === 0, `${cells} cells taken`);
-  ok('… and traffic going by makes no whoosh either', (await sfx('^pass')) === 0);
+  { const n = await sfx('^cell$'), kinds = await p.evaluate(() => [...new Set(MC.events().filter((e) => e.type === 'sfx' && e.name === 'cell').map((e) => e.p && e.p.k))].join(''));
+    ok('taking a cell plays the soft pickup sound: once per cell, in the chosen design', cells >= 6 && n >= cells - 1 && n <= cells + 3 && kinds === 'c', `${cells} cells taken, ${n} sounds, design ${kinds}`); }
+  ok('traffic going by makes no pass-by sound', (await sfx('^pass')) === 0);
   // crash → EJECT panel → rewind
   await wreck(p);
   s = await gs(p); ok('driving into traffic until the run ends: the panel (WRECKED by a vehicle, BUSTED if the police got there first) with the score, REWIND focused', (s.over === 1 || s.over === 2) && s.panel && s.title === (s.over === 1 ? 'WRECKED' : 'BUSTED') && s.ovScore === s.hudScore && s.ovScore !== '0' && s.focus === 'revive' && !s.pauseBtn, `score ${s.ovScore} (HUD ${s.hudScore}), over ${s.over}, panel ${s.panel}, title ${s.title}, focus ${s.focus}`);
@@ -83,11 +84,12 @@ async function wreck(p, touch, once) {
   const posCrash = await p.evaluate(() => MC.state().road.pos);
   await p.keyboard.press('KeyR'); await p.waitForTimeout(450);
   s = await gs(p); const mid = await p.evaluate(() => ({ pos: MC.state().road.pos, vel: MC.state().road.vel }));
-  ok('R rewinds with the spare tape: panel hides, tape spent, REW on screen', s.over === 0 && !s.panel && s.tapes === 0 && s.rew === 1 && s.osd === 'REW');
+  ok('R rewinds with a spare tape: panel hides, one of the three tapes spent, REW on screen', s.over === 0 && !s.panel && s.tapes === 2 && s.rew === 1 && s.osd === 'REW', `${s.tapes} tapes left`);
   ok('the picture runs backwards during the rewind', mid.vel < -20 && mid.pos < posCrash, `road ${posCrash.toFixed(0)} → ${mid.pos.toFixed(0)}, v=${mid.vel.toFixed(0)}`);
   await p.waitForTimeout(1000);
   st = await drive(p, 3000);
   s = await gs(p); ok('after the rewind the run carries on', s.over === 0 && s.phase === 'cruise' && s.rew === 0, `score ${s.score}`);
+  await p.evaluate(() => { const tl = MC.tl; tl._st.tapes = 0; tl._prev.tapes = 0; for (const c of tl._ck) c.st.tapes = 0; });      // (the other two tapes are taken away, to reach the end of them)
   await wreck(p);
   s = await gs(p); ok('second crash: no tape left, REWIND disabled, HOME focused', s.over >= 1 && s.panel && s.reviveOff && s.focus === 'home', JSON.stringify({ over: s.over, tapes: s.tapes, focus: s.focus }));
   await p.keyboard.press('KeyR'); await p.waitForTimeout(300);
@@ -98,7 +100,7 @@ async function wreck(p, touch, once) {
   await p.keyboard.press('Enter'); await p.waitForTimeout(900);
   s = await gs(p); ok('START from home → the intro plays again', s.phase === 'ign' && s.hud === 'hidden', s.phase);
   await p.keyboard.press('KeyS'); await p.waitForTimeout(900);
-  s = await gs(p); ok('S skips it → run 2, score reset, police on the bumper again', s.phase === 'cruise' && s.over === 0 && s.run === 2 && s.score < 300 && s.pol === 1 && s.tapes === 0, `run ${s.run}, score ${s.score}, ct ${s.ct.toFixed(2)}`);
+  s = await gs(p); ok('S skips it → run 2, score reset, police on the bumper again', s.phase === 'cruise' && s.over === 0 && s.run === 2 && s.score < 300 && s.pol === 1 && s.tapes === 3, `run ${s.run}, score ${s.score}, ${s.tapes} tapes, ct ${s.ct.toFixed(2)}`);
   st = await drive(p, 3500);
   // pause menu
   await p.keyboard.press('KeyP'); await p.waitForTimeout(300);
@@ -139,14 +141,14 @@ async function wreck(p, touch, once) {
   s = await gs(p); ok('START from the home screen rewinds the tape to the intro', s.phase === 'rewind' && s.hud === 'hidden' && !s.panel);
   await p.context().close();
 }
-// ── nitro stock (deterministic: the canonical script picks up two canisters and fires them) ──
+// ── nitro stock (deterministic: in the canonical script the energy fills two charges and both are fired) ──
 {
   const tl = new Timeline(); tl.load(CANONICAL);
-  const gev = tl.gameEvents(0, 96), item = gev.find((e) => e.k === 'item'), fire = gev.find((e) => e.k === 'nitro' && e.t > item.t);
+  const gev = tl.gameEvents(0, 96), item = gev.find((e) => e.k === 'charge'), fire = gev.find((e) => e.k === 'nitro' && e.t > item.t);
   const p = await open({ viewport: { width: 1280, height: 720 } }, `script=canonical&capture=1&w=1280&h=720&t=${(item.t + 0.6).toFixed(2)}&tier=0`);
-  let s = await gs(p); ok('a picked-up canister is stored: NITRO shows one pip and READY', fire.t - item.t > 1 && s.nstock === 1 && s.nitroN === '1' && s.nitro === 'true' && s.nitroTxt === 'READY · ↑', JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, picked: +item.t.toFixed(2), fired: +fire.t.toFixed(2) }));
+  let s = await gs(p); ok('a charge filled by the energy is stored: NITRO shows one pip and READY', fire.t - item.t > 1 && s.nstock === 1 && s.nitroN === '1' && s.nitro === 'true' && s.nitroTxt === 'READY · ↑', JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, picked: +item.t.toFixed(2), fired: +fire.t.toFixed(2) }));
   await p.evaluate((T) => MC.seek(T), fire.t + 1.1); await p.waitForTimeout(100);
-  s = await gs(p); ok('firing it spends the canister: BOOST, stock back to 0, speed up', s.nstock === 0 && s.nitroN === '0' && s.nitroTxt === 'BOOST' && s.vel > 80, JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, v: Math.round(s.vel) }));
+  s = await gs(p); ok('firing it spends the charge: BOOST, stock back to 0, speed up', s.nstock === 0 && s.nitroN === '0' && s.nitroTxt === 'BOOST' && s.vel > 80, JSON.stringify({ n: s.nitroN, txt: s.nitroTxt, v: Math.round(s.vel) }));
   await p.evaluate(() => MC.seek(97.5)); await p.waitForTimeout(100);
   s = await gs(p); ok('canonical script ends on the home screen', s.phase === 'home' && s.start === 'visible');
   await p.context().close();
@@ -196,7 +198,7 @@ async function wreck(p, touch, once) {
     if (name === 'desktop') ok('the title screen: the neon CRUISE is lit', d.neon > 0.8, `power ${d.neon.toFixed(2)}`);
     const sc = S.chain, last = sc.at[sc.at.length - 1];
     d = await at(p, sc.ev, last + 0.3);
-    ok(`${name}: the energy counter is on screen and shows the cells picked up`, d.energy && +d.cells === d.simCells && d.simCells > 0 && d.eBox.l >= 0 && d.eBox.r <= d.W && clear(d.eBox, d.hBox) && clear(d.eBox, d.kBox), `${d.cells} (${d.next})`);
+    ok(`${name}: the energy counter is on screen and shows the cells picked up, with the nitro's charge under it`, d.energy && +d.cells === d.simCells && d.simCells > 0 && /TO NITRO|NITRO (FULL|BURNING|CHARGED)/.test(d.next) && d.eBox.l >= 0 && d.eBox.r <= d.W && clear(d.eBox, d.hBox) && clear(d.eBox, d.kBox), `${d.cells} (${d.next})`);
     ok(`${name}: the smash chain shows its links, its points and the time left; clear of the score, the keys and the energy counter`, d.chain && +d.chN === sc.n && d.simChain.n === sc.n && d.chPts === d.simChain.pts && /scaleX\(0\.[0-9]+\)/.test(d.chBar) && d.cBox.r <= d.W + 1 && clear(d.cBox, d.hBox) && clear(d.cBox, d.kBox) && clear(d.cBox, d.eBox), `×${d.chN} ${d.chCap} +${d.chPts}`);
     d = await at(p, sc.ev, sc.end + 0.4);
     ok(`${name}: when the chain ends it is banked, then goes`, d.chain && d.bank === '1' && d.chCap === 'CHAIN BANKED' && +d.chN === sc.n && !(await at(p, sc.ev, sc.end + 2.2)).chain);

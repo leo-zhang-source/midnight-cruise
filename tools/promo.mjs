@@ -25,7 +25,7 @@ for (const [lv, preset] of [[0, 0], [6, 1], [10, 2], [14, 3]]) {
   all('block').slice(0, 2).forEach((e, i) => shots.push([`${tag}_block${i}`, r.ev, e.t + 0.4]));
   all('smash').slice(0, 2).forEach((e, i) => shots.push([`${tag}_smash${i}`, r.ev, e.t + 0.05]));
   all('ictell').slice(0, 1).forEach((e) => shots.push([`${tag}_ic`, r.ev, e.t + 0.6]));
-  all('item').slice(0, 1).forEach((e) => shots.push([`${tag}_canister`, r.ev, e.t - 0.8]));
+  all('charge').slice(0, 1).forEach((e) => shots.push([`${tag}_charge`, r.ev, e.t + 0.25]));
   for (const t of [30, 60, 90, 120]) shots.push([`${tag}_cruise${t}`, r.ev, C + t]);
 }
 const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
@@ -37,7 +37,7 @@ await p.waitForFunction(() => window.__ready === true, null, { timeout: 60000 })
 const hide = ['#skip', '#corner', ...(process.env.PROMO_HIDE ? process.env.PROMO_HIDE.split(',') : [])].map((q) => 'body.promo-clean ' + q).join(', ');   // PROMO_HIDE=#osd,#drivebar for a cover
 await p.addStyleTag({ content: hide + ' { visibility: hidden !important; }' });
 for (const [name, ev, T] of shots.filter((s) => !only || only.has(s[0]))) {
-  await p.evaluate(([ev, T, clean]) => { document.body.classList.toggle('promo-clean', clean); MC.load(ev); MC.seek(T); }, [ev, T, name.startsWith('open_')]);
+  await p.evaluate(([ev, T, clean]) => { document.body.classList.toggle('promo-clean', clean); MC.load(ev); MC.seek(T); }, [ev, T, name.startsWith('open_') || !!process.env.PROMO_CLEAN]);
   await p.waitForTimeout(150);
   await p.screenshot({ path: `${out}/${name}.png` });
 }

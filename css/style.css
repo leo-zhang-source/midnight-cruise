@@ -302,7 +302,7 @@ body.touch .ov-keys { display: none; }
 #turbo[data-gain="1"] { box-shadow: 0 0 0 3px #ffc93c, 0 5px 0 #02060a, 0 0 34px rgba(255, 190, 40, .95), inset 0 0 18px rgba(255, 201, 60, .5); }
 #speedo[data-boost="1"] { box-shadow: 0 0 0 2px #ffc93c, 0 0 22px rgba(255, 190, 40, .6); } #speedo[data-boost="1"] #spd { color: #ffd75a; text-shadow: 0 0 12px rgba(255, 200, 60, .9); }
 
-/* ── energy: the cells picked up this run, top left; a bar fills towards the next spare tape ── */
+/* ── energy: the cells picked up this run, top left; the bar under the number is the nitro's charge ── */
 #energy { position: fixed; left: var(--gutter); top: calc(max(24px, 5vh) + var(--u) * 4.6); display: grid; grid-template-columns: auto 1fr; align-items: end; column-gap: calc(var(--u) * .6); row-gap: 4px; visibility: hidden; pointer-events: none; white-space: nowrap; --k: 0;
   padding: calc(var(--u) * .55) calc(var(--u) * .9) calc(var(--u) * .6) calc(var(--u) * .8); border-radius: 4px 10px 10px 4px; background: linear-gradient(90deg, rgba(8, 3, 20, .78), rgba(8, 3, 20, .5)); box-shadow: inset 3px 0 0 var(--acid), 0 0 0 1px rgba(184, 255, 46, calc(.16 + .5 * var(--k))), 0 0 calc(18px * var(--k)) rgba(184, 255, 46, .5); }
 .en-cap { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .55em; font-weight: 700; font-size: calc(var(--u) * .92); letter-spacing: .26em; color: #dfffa0; text-shadow: 0 0 8px rgba(0, 0, 0, .9); }
@@ -313,7 +313,7 @@ body.touch .ov-keys { display: none; }
 .en-bar { grid-column: 1 / -1; display: block; width: calc(var(--u) * 10.5); height: 5px; border-radius: 2px; background: rgba(184, 255, 46, .16); box-shadow: 0 0 0 1px rgba(5, 2, 15, .5); overflow: hidden; }
 .en-bar u { display: block; height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, #6fd400, var(--acid) 70%, #f4ffd0); box-shadow: 0 0 8px rgba(184, 255, 46, .8); }
 .en-next { grid-column: 1 / -1; font-family: "VT323", monospace; font-size: calc(var(--u) * 1.22); line-height: 1; letter-spacing: .08em; color: var(--dim); text-shadow: 0 0 6px rgba(0, 0, 0, .9); }
-#energy[data-tape="1"] .en-next { color: var(--cyan); text-shadow: 0 0 8px rgba(62, 244, 255, .8); }
+#energy[data-full="1"] .en-next { color: #ffd75a; text-shadow: 0 0 8px rgba(255, 200, 60, .85); } #energy[data-full="1"] .en-bar u { background: linear-gradient(90deg, #ffb81f, #fff3c0); box-shadow: 0 0 10px #ffc93c; }
 
 /* ── the smash chain, top right: the links so far, what they have paid, and the time left to add another ── */
 #chain { position: fixed; right: var(--gutter); top: calc(max(24px, 5vh) + var(--u) * 5.2); display: grid; justify-items: end; row-gap: 2px; visibility: hidden; pointer-events: none; white-space: nowrap; text-align: right; transform-origin: 100% 30%; --k: 0; }

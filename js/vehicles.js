@@ -515,8 +515,8 @@ function makeStyle(style, uniforms) {
     uniforms,
     vertexShader: /* glsl */`
       uniform float uSpin;
-      attribute float aPart, aShade; attribute vec2 aHub, aUv, aR; attribute vec3 aP, aC, aCol; attribute vec4 aS, aL;   // aS: heading, scale, fade, – · aL: tail, roof left, roof right, brake · aR: roll, pitch
-      varying vec3 vN, vW, vC, vL; varying float vPart, vFade, vShade; varying vec4 vLi; varying vec2 vUv, vYaw;
+      attribute float aPart, aShade; attribute vec2 aHub, aUv, aR; attribute vec3 aP, aC, aCol; attribute vec4 aS, aL;   // aS: heading, scale, fade, how far it has dissolved into light · aL: tail, roof left, roof right, brake · aR: roll, pitch
+      varying vec3 vN, vW, vC, vL; varying float vPart, vFade, vShade, vDis; varying vec4 vLi; varying vec2 vUv, vYaw;
       ${ROAD_GLSL}
       vec3 lean(vec3 q){                                                   // roll about the vehicle's long axis, then pitch about the axle line
         float cr = cos(aR.x), sr = sin(aR.x), cp = cos(aR.y), sp = sin(aR.y);
@@ -532,18 +532,28 @@ function makeStyle(style, uniforms) {
         } else { p = lean(p - vec3(0.0, 0.4, 0.0)) + vec3(0.0, 0.4, 0.0); n = lean(n); }   // … the body moves on its springs
         float c = cos(aS.x), s = sin(aS.x);
         mat3 R = mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
-        vec3 w = bend(aP + R * (p * aS.y)); vW = w; vN = R * n; vPart = aPart; vFade = aS.z; vLi = aL; vShade = aShade; vUv = aUv; vYaw = vec2(c, s);
+        vec3 w = bend(aP + R * (p * aS.y)); vW = w; vN = R * n; vPart = aPart; vFade = aS.z; vDis = aS.w; vLi = aL; vShade = aShade; vUv = aUv; vYaw = vec2(c, s);
         vC = aPart > 8.5 && aPart < 9.5 ? aC * aCol : aCol;
         gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
       }`,
     fragmentShader: /* glsl */`
       precision highp float;
       uniform vec3 cSky, cTop, cHor, cSun, cGrid, cFog; uniform sampler2D uInk;
-      varying vec3 vN, vW, vC, vL; varying float vPart, vFade, vShade; varying vec4 vLi; varying vec2 vUv, vYaw;
+      varying vec3 vN, vW, vC, vL; varying float vPart, vFade, vShade, vDis; varying vec4 vLi; varying vec2 vUv, vYaw;
       ${ENV_GLSL}
       float h31(vec3 p){ p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
       vec3 toCar(vec3 v){ return vec3(vYaw.x * v.x - vYaw.y * v.z, v.y, vYaw.y * v.x + vYaw.x * v.z); }
       void main(){
+        // a vehicle thrown off the road breaks up into points of light: the body is cut into small cells, each goes at its own moment,
+        // and the ones about to go burn white-gold first
+        float burn = 0.0;
+        if (vDis > 0.001) {
+          vec3 g = vL * 11.0;
+          float e = h31(floor(g) + 3.7) * 0.86 + 0.14 * clamp(vL.y * 0.6, 0.0, 1.0) - vDis * 1.1;      // (it goes from the road up)
+          if (e < 0.0) discard;
+          burn = smoothstep(0.26, 0.0, e);
+          if (length(fract(g) - 0.5) > 0.95 - 0.62 * burn) discard;                                     // a cell shrinks to a point before it goes
+        }
         vec3 N = normalize(vN), V = normalize(cameraPosition - vW), R = reflect(-V, N), E = env(R);
         float nv = max(dot(N, V), 0.0), fr = 0.04 + 0.96 * pow(1.0 - nv, 5.0), dist = length(vW - cameraPosition);
         float far = mix(1.0, 0.4, smoothstep(60.0, 200.0, dist)), p = vPart;
@@ -583,6 +593,8 @@ function makeStyle(style, uniforms) {
         // far away the vehicle comes out of the haze (no flicker), and the usual distance fog
         col = mix(cFog, col, vFade);
         col = mix(col, cFog, (1.0 - exp(-dist / 900.0)) * 0.6);
+        col = mix(col, vec3(1.5, 1.05, 0.7) + col, vDis * 0.75);                                         // the whole body heats up as it goes …
+        col = mix(col, vec3(3.0, 2.4, 1.5), burn * burn);                                                // … and each point burns white-gold last
         gl_FragColor = vec4(col, 1.0);
       }`,
   });
@@ -606,9 +618,10 @@ export class Vehicles {
   }
   // style: one of VEHICLE_STYLES · col: body colour (monolith, nomad, orbit) · tail / roofL / roofR: light levels · brake: 0..1
   // roll: the body leans (+ = its roof towards −x) · pitch: + = nose up
-  add(style, x, y, z, yaw, scale, col, fade = 1, tail = 1, roofL = 0, roofR = 0, brake = 0, roll = 0, pitch = 0) {
+  // dis: 0 = whole … 1 = dissolved into light
+  add(style, x, y, z, yaw, scale, col, fade = 1, tail = 1, roofL = 0, roofR = 0, brake = 0, roll = 0, pitch = 0, dis = 0) {
     const d = this.m[style].userData, i = d.n; if (i >= MAX) return; d.n++;
-    d.A.aP.array.set([x, y, z], i * 3); d.A.aS.array.set([yaw, scale, fade, 0], i * 4);
+    d.A.aP.array.set([x, y, z], i * 3); d.A.aS.array.set([yaw, scale, fade, dis], i * 4);
     d.A.aC.array.set(col, i * 3); d.A.aL.array.set([tail, roofL, roofR, brake], i * 4); d.A.aR.array.set([roll, pitch], i * 2);
   }
   end() {

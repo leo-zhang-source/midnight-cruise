@@ -20,7 +20,7 @@ Turn signals, brake lights and attack warnings give you a moment to react. A tax
 
 ## A way through the roadblock
 
-Nitro gives you a brief burst towards double speed, enough to smash through vehicles, shake off the pursuit car and recover a lost life. You can carry up to three canisters. Using one early can help build your score; keeping one in reserve gives you an escape when the road closes in.
+Nitro gives you a brief burst towards double speed, enough to smash through vehicles, shake off the pursuit car and recover a lost life. The energy cells you collect along the road charge it, and you can hold up to three charges. Using one early can help build your score; keeping one in reserve gives you an escape when the road closes in.
 
 Start at **LV 0** while you learn the traffic and attack patterns, or choose a starting threat level up to **LV 20** for a faster, more demanding run.
 
@@ -28,7 +28,7 @@ Start at **LV 0** while you learn the traffic and attack patterns, or choose a s
 
 ## Rewind the last three seconds
 
-After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with one tape. Collect 100 energy cells to earn another, up to three in reserve.
+After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with three tapes.
 
 ## An eighties night drive
 
@@ -43,7 +43,7 @@ Click **Run game** on itch.io, then **START DRIVE**. The car handles acceleratio
 | Action | Keyboard | Mouse / touch |
 |---|---|---|
 | Change lane | `←` / `→` or `A` / `D` | Click or tap the left / right half of the road |
-| Fire nitro | `↑` (`W` or `T` also work) | **NITRO**, when you have a canister |
+| Fire nitro | `↑` (`W` or `T` also work) | **NITRO**, once the energy has charged it |
 | Pause / resume | `P` | Pause / **RESUME** |
 | Settings | `O` | Gear icon |
 | Skip the opening | `S` | **SKIP INTRO** |

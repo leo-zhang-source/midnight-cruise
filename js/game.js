@@ -9,7 +9,6 @@ import { FS_STEP, threatGrid, markCells, copyGrid, widen, wayThrough, searcher }
 
 export const NV = 64, VF = 11;     // vehicle pool: [type, lane, z, v, halfLen, flags, a, b, id, signal time, move time]
 export const NC = 40, CF = 10;     // cell lines:   [count, x (lanes), z0, spacing, takenMask, lane it is going to, sideways speed, cells fading out since, which, where]
-export const NI = 4, IF = 6;       // nitro canisters: [active, x (lanes), z, lane it is going to, sideways speed, faded out at]
 export const PICK_FADE = 0.3;       // a pickup with no lane left to go to fades out over this long (the cells of a line that are in the way)
 // T_BLOCK: a cruiser of a rolling roadblock · T_WEAVE: a cruiser weaving between the middle lane and one side
 export const T_CAR = 1, T_VAN = 2, T_TRUCK = 3, T_TAXI = 4, T_BLOCK = 5, T_WEAVE = 6;
@@ -76,15 +75,15 @@ export function freshGame(seed = 1986, free = 0, lv0 = 0) {
   const d0 = startDist(lv0);
   return {
     seed, free: free ? 1 : 0, lv0, d0, rs: seed | 0, gt: 0, gd: 0,
-    veh: new Float64Array(NV * VF), cel: new Float64Array(NC * CF), itm: new Float64Array(NI * IF), nid: 1,
-    genU: GAME.firstRow, genI: 0, path: 0, lastPat: 0, mid: 0, itmNext: GAME.nitroFirst,
+    veh: new Float64Array(NV * VF), cel: new Float64Array(NC * CF), nid: 1,
+    genU: GAME.firstRow, genI: 0, path: 0, lastPat: 0, mid: 0,
     vt: GAME.trafficK * baseAt(d0), tr: 0,                                         // the traffic's speed now, and how far it has carried the rows
     score: 0, cells: 0, combo: 0, best: 0, near: 0, smash: 0, passed: 0, vmax: 0, starMax: 1, gear: gearAtDist(d0),
-    nstock: free ? 1 : 0, nfree: 0,
-    // the smash chain (links so far, when the last one was made, what it has paid), the best one, police units knocked off, canisters
-    // picked up, nitro bursts fired, when the pursuit car was last shoved; and where the points came from: distance, passes, close calls,
+    nstock: free ? 1 : 0, nfree: 0, nch: free ? 0 : GAME.nitroStart,                 // nitro charges in stock, and how far the next one is charged (0..1)
+    // the smash chain (links so far, when the last one was made, what it has paid), the best one, police units knocked off, nitro
+    // charges earned, nitro bursts fired, when the pursuit car was last shoved; and where the points came from: distance, passes, close calls,
     // smashes, dodges, pickups, slipstream (they add up to the score)
-    chain: 0, chainT: -1e9, chainPts: 0, chainBest: 0, takedown: 0, cans: 0, bursts: 0, shT: -1e9,
+    chain: 0, chainT: -1e9, chainPts: 0, chainBest: 0, takedown: 0, charges: 0, bursts: 0, shT: -1e9,
     pD: 0, pP: 0, pN: 0, pS: 0, pG: 0, pC: 0, pF: 0,
     lvN: lv0, aiNext: 0, atkGap: 0, bias: 0, dodges: 0, gapWant: 0, flowNext: 6, cutNext: 12, flowN: 0, cuts: 0,   // … the traffic's next lane change, how many so far, how many aimed at us                                 // threat level reached · the police's next decision, earliest next attack · which way this driver dodges (−1 left … +1 right)
     heat: 1, heatGt: -1e9, star: 1, nUse: 0, wd0: 0,                                 // nitro bursts since the heat was last cleared, and the road position where it was
@@ -99,7 +98,9 @@ export function freshGame(seed = 1986, free = 0, lv0 = 0) {
     inv: 0, draft: 0, draftEv: -1e9, goEv: 0, blkEv: -1e9, over: 0,
   };
 }
-export function copyGame(g) { const c = { ...g }; c.veh = g.veh.slice(); c.cel = g.cel.slice(); c.itm = g.itm.slice(); return c; }
+export function copyGame(g) { const c = { ...g }; c.veh = g.veh.slice(); c.cel = g.cel.slice(); return c; }
+// how many energy cells fill one nitro charge at threat level lv
+export const nitroNeed = (lv) => GAME.nitroCells * Math.min(GAME.nitroLvMax, 1 + GAME.nitroLv * Math.max(0, lv));
 export const gameMult = (g) => (1 + Math.min(g.combo, GAME.comboCap) * GAME.comboStep) * (1 + GAME.starBonus * (g.star - 1));
 // The road speed at run distance d. The car accelerates all the way: through the gears (GAME.gears[i] is the speed at which
 // gear i engages, at GAME.gearAt[i]) and, in top gear, on towards its top speed.
@@ -210,16 +211,11 @@ function cellLine(g, lane, u0, n, sp) {
     return;
   }
 }
-function canister(g, lane, u) {
-  const itm = g.itm;
-  for (let i = 0; i < NI; i++) { const o = i * IF; if (itm[o]) continue; itm[o] = 1; itm[o + 1] = lane; itm[o + 2] = u + g.tr; itm[o + 3] = lane; itm[o + 4] = 0; itm[o + 5] = 0; return; }
-}
-
-// Pickups never sit under a vehicle. They ride with the traffic, but the cars in each lane go at their own speed, wander and change
+// Energy cells never sit under a vehicle. They ride with the traffic, but the cars in each lane go at their own speed, wander and change
 // lanes, so each pickup watches the next PICK_H seconds of the traffic around it: if a vehicle is coming over it, it slides across to a
 // lane that stays clear (one next to it, or the far one if the middle is clear too), and if there is none it fades out.
 const PICK_H = 0.9, PICK_DT = 0.1, PICK_GAP = 0.6, PICK_SIDE = 0.25, PICK_W = 16;
-const CELL_R = 0.45, CAN_R = 1.0;
+const CELL_R = 0.45;
 // Does any vehicle come within reach of [zA, zB] in lane `lane` over the next PICK_H seconds? (z as the pickups see it: they move at g.vt)
 function laneTaken(g, lane, zA, zB, r, lv, H = PICK_H) {
   const veh = g.veh, L = ROAD.lane, gt = g.gt;
@@ -359,11 +355,6 @@ function genRow(g) {
   }
   cellLine(g, f, u - 12, 5, 6);            // cells mark the open lane
   const next = u + len + room + w * tg * (0.9 + 0.3 * rnd(g));
-  // a nitro canister now and then, half-way to the next row, one lane off the straight route when there is room
-  if (u >= g.itmNext) {
-    g.itmNext = u + (G.nitroEvery[0] + rnd(g) * (G.nitroEvery[1] - G.nitroEvery[0])) * Math.min(G.nitroLvMax, 1 + G.nitroLv * lv);
-    canister(g, f === 0 ? side() : (rnd(g) < 0.5 ? f : 0), (u + len * 0.5 + next) * 0.5);
-  }
   g.path = f;
   g.genU = next;
 }
@@ -428,7 +419,7 @@ function laneWin(g, l, vel, t0, t1) {
 
 // inp: { dt, x (car lateral position), lane (target lane), vel, nitro (smashing through) }
 // out: receives events { k, … }: gear, near, smash, wreck, swipe{back,dir}, crash, bust, stumble{by}, shake, star, block, weave, ramwarn, ram,
-//      lock, strike, tail, draft, cell, tape, item, full, smash{n,pts,dir}, shove{ic,n,pts,dir}, chainend{n,pts}, outrun{who}
+//      lock, strike, tail, draft, cell, charge{n,l}, full, smash{n,pts,dir}, shove{ic,n,pts,dir}, chainend{n,pts}, outrun{who}
 export function stepGame(g, inp, out) {
   const DT = inp.dt, G = GAME, L = ROAD.lane;
   g.gt += DT; g.gd += inp.vel * DT;
@@ -436,7 +427,7 @@ export function stepGame(g, inp, out) {
   let gear = g.gear; while (gear < 5 && g.d0 + gd >= G.gearAt[gear + 1]) gear++;
   if (gear !== g.gear) { g.gear = gear; out.push({ k: 'gear', n: gear + 1 }); }
   if (gt > G.introT && inp.vel > g.vmax) g.vmax = inp.vel;
-  if (g.free) {                                              // free cruise: no traffic, no police, a canister every few seconds
+  if (g.free) {                                              // free cruise: no traffic, no police, a nitro charge every few seconds
     if (g.nstock < 1) { g.nfree += DT; if (g.nfree >= G.nitroFree) { g.nstock = 1; g.nfree = 0; out.push({ k: 'full' }); } }
     g.score += inp.vel * DT * G.ptsDist;
     return;
@@ -553,7 +544,7 @@ export function stepGame(g, inp, out) {
         } else if (g.lives > 1) {
           // first life: we plough through it, lose speed, and the police are on us
           veh[o] = 0; g.inv = gt + G.hitInv; g.slow = gt + G.ramSlow; addHeat(g, G.heatSwipe);
-          out.push({ k: 'wreck', lane: veh[o + 1], dz, type }); stumble(g, out, 'crash');
+          out.push({ k: 'wreck', lane: veh[o + 1], dz, type, dir: px < vx - 0.05 ? 1 : px > vx + 0.05 ? -1 : (veh[o + 8] & 1 ? 1 : -1), id: veh[o + 8] }); stumble(g, out, 'crash');
           continue;
         } else {
           g.over = 1; out.push({ k: 'crash', type, lane: veh[o + 1] });
@@ -584,7 +575,7 @@ export function stepGame(g, inp, out) {
     if (gt - g.draftEv > 2.5) { g.draftEv = gt; out.push({ k: 'draft' }); }
   }
 
-  // ── cells and nitro canisters ──
+  // ── energy cells: points, and the charge of the nitro ──
   const cel = g.cel, me = px / L, hz = gd + aheadFor(g) - 40;
   for (let i = 0; i < NC; i++) {
     const o = i * CF, n = cel[o]; if (!n) continue;
@@ -611,20 +602,10 @@ export function stepGame(g, inp, out) {
     if (cel[o + 4] & bit) continue;
     cel[o + 4] |= bit; g.cells++; g.score += G.ptsCell * mult; g.pC += G.ptsCell * mult;
     out.push({ k: 'cell' });
-    if (g.cells % G.tapeEvery === 0) out.push({ k: 'tape' });
-  }
-  const itm = g.itm;
-  for (let i = 0; i < NI; i++) {
-    const o = i * IF; if (!itm[o]) continue;
-    itm[o + 2] += g.vt * DT;
-    const dz = itm[o + 2] - gd;
-    if (dz < -8 || (itm[o + 5] && gt - itm[o + 5] > PICK_FADE)) { itm[o] = 0; continue; }
-    if (itm[o + 5]) continue;
-    if (keepClear(g, itm, o + 1, o + 3, o + 4, itm[o + 2], itm[o + 2], CAN_R, lv, me, itm[o + 2] > hz, DT)) { if (itm[o + 2] > hz || laneTaken(g, itm[o + 3], itm[o + 2], itm[o + 2], CAN_R, lv, 0)) itm[o] = 0; else itm[o + 5] = gt; continue; }
-    if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
-      itm[o] = 0; g.cans++;
-      if (g.nstock < G.nitroMax) g.nstock++; else { g.score += 500 * mult; g.pC += 500 * mult; }
-      out.push({ k: 'item', n: g.nstock, l: g.lives });
+    // every cell charges the nitro a little (not while a burst is burning, and not once the stock is full)
+    if (!inp.nitro && g.nstock < G.nitroMax) {
+      g.nch += 1 / nitroNeed(lv);
+      if (g.nch >= 1 - 1e-9) { g.nstock++; g.charges++; g.nch = g.nstock < G.nitroMax ? Math.max(0, g.nch - 1) : 0; out.push({ k: 'charge', n: g.nstock, l: g.lives }); }
     }
   }
 
@@ -772,7 +753,7 @@ export function stepGame(g, inp, out) {
     const u = gt - g.icT, m0 = g.icM, a = g.icA;
     if (g.icM === I_FLUNG) {
       // thrown off the road: it slews away sideways, hangs level for a moment, then it is gone behind us
-      g.icX += g.icVx * DT; g.icVx *= Math.exp(-DT / 0.35); g.icZ += (5 - 55 * u * u) * DT;
+      g.icX += g.icVx * DT; g.icVx *= Math.exp(-DT / 0.35); g.icZ += (6 - 40 * u * u) * DT;
       if (g.icZ <= G.icZ0 - 2) { g.icM = I_OFF; g.icZ = -60; g.icVx = 0; }
     } else if (g.icM === I_COME) {
       g.icZ = Math.min(G.icZp, g.icZ + G.icV * DT);

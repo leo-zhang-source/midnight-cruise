@@ -2,13 +2,13 @@
 //  · vehicles — faceted bodies after the vehicle studies, instanced (js/vehicles.js): traffic, taxis, the police
 //  · helicopter — one lofted body with blurred rotor discs (js/heli.js), from three stars
 //  · solids   — instanced neon-edged boxes: trailers, pylons, gantries, debris
-//  · glows    — instanced additive quads: lights, energy cells, nitro canisters, the grappler's net,
+//  · glows    — instanced additive quads: lights, energy cells, the grappler's net,
 //               the grappler and searchlight warnings, beams, tracer fire
 //  · scenery  — the megastructure city on the horizon, overhead sign gantries, a big billboard now and then, and the
 //               highway's own furniture: reflector posts, roadside signs
 // Everything is rebuilt each frame from the frame state: no hidden state, so seeking and replays stay exact.
 import * as THREE from '../vendor/three.module.min.js';
-import { ROAD } from './cue.js';
+import { GAME, ROAD } from './cue.js';
 import { T_VAN, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE } from './game.js';
 import { Vehicles } from './vehicles.js';
 import { Heli, HELI } from './heli.js';
@@ -167,81 +167,6 @@ function makeGlows() {
   return m;
 }
 
-// A nitro pickup: a pressure bottle (painted steel, a label band, chrome hoops, a brass valve with its handwheel). One mesh per
-// pickup on the road; it hovers, leans and turns, lit from below by its own gold light.
-const GOLD = [1.0, 0.74, 0.22];
-function bottleLabel() {
-  return canvasTexture(512, 128, (g) => {
-    g.fillStyle = '#f4f0e6'; g.fillRect(0, 0, 512, 128);
-    g.fillStyle = '#ffb81f'; g.fillRect(0, 0, 512, 14); g.fillRect(0, 114, 512, 14);
-    g.fillStyle = '#0b1f6b'; g.font = 'italic 700 78px "Chakra Petch", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('NITRO', 256, 66);
-    g.fillStyle = '#e8203a'; for (const x of [22, 52, 438, 468]) { g.beginPath(); g.moveTo(x, 34); g.lineTo(x + 22, 64); g.lineTo(x, 94); g.lineTo(x + 14, 94); g.lineTo(x + 36, 64); g.lineTo(x + 14, 34); g.fill(); }
-  });
-}
-function makeBottle(label) {
-  const parts = [];
-  const add = (geo, k, m) => { if (m) geo.applyMatrix4(m); const g = geo.index ? geo.toNonIndexed() : geo; parts.push([g, k]); };
-  const M = new THREE.Matrix4(), at = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
-  const prof = [[0.0, 0.0], [0.19, 0.0], [0.245, 0.025], [0.26, 0.09], [0.26, 0.84], [0.25, 0.92], [0.215, 1.0], [0.16, 1.06], [0.105, 1.1], [0.085, 1.13], [0.085, 1.19], [0.0, 1.19]];
-  add(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 32), 0);
-  for (const y of [0.17, 0.8]) add(new THREE.CylinderGeometry(0.268, 0.268, 0.035, 32, 1, true), 1, at(0, y, 0));     // hoops
-  add(new THREE.CylinderGeometry(0.06, 0.075, 0.13, 16), 2, at(0, 1.25, 0));                                         // valve body
-  add(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 12), 2, M.clone().makeRotationZ(Math.PI / 2).premultiply(at(0.1, 1.25, 0)));   // outlet
-  add(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 8), 1, at(0, 1.35, 0));                                            // stem
-  add(new THREE.TorusGeometry(0.105, 0.028, 8, 20), 3, M.clone().makeRotationX(Math.PI / 2).premultiply(at(0, 1.4, 0)));   // handwheel
-  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.2, 0.02, 0.03), 3, M.clone().makeRotationY(i * Math.PI / 3).premultiply(at(0, 1.4, 0)));
-  let n = 0; for (const [g] of parts) n += g.attributes.position.count;
-  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), kk = new Float32Array(n); let o = 0;
-  for (const [g, k] of parts) { g.computeVertexNormals && !g.attributes.normal && g.computeVertexNormals(); pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); kk.fill(k, o, o + g.attributes.position.count); o += g.attributes.position.count; }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('aK', new THREE.BufferAttribute(kk, 1));
-  const mat = new THREE.ShaderMaterial({
-    side: THREE.DoubleSide,
-    uniforms: { ...ROAD_U, uP: { value: new THREE.Vector3() }, uYaw: { value: 0 }, uTilt: { value: 0 }, uS: { value: 1 }, uFade: { value: 1 }, map: { value: label },
-      cSky: { value: new THREE.Vector3() }, cHor: { value: new THREE.Vector3() }, cGold: { value: new THREE.Vector3(...GOLD) } },
-    vertexShader: /* glsl */`
-      attribute float aK; uniform vec3 uP; uniform float uYaw, uTilt, uS;
-      varying vec3 vN, vW, vO; varying float vK;
-      ${ROAD_GLSL}
-      void main(){
-        vec3 p = position - vec3(0.0, 0.7, 0.0), n = normal;                        // it turns about its middle
-        float ct = cos(uTilt), st = sin(uTilt);
-        p = vec3(p.x * ct - p.y * st, p.x * st + p.y * ct, p.z); n = vec3(n.x * ct - n.y * st, n.x * st + n.y * ct, n.z);
-        float cy = cos(uYaw), sy = sin(uYaw);
-        p = vec3(p.x * cy + p.z * sy, p.y, -p.x * sy + p.z * cy); n = vec3(n.x * cy + n.z * sy, n.y, -n.x * sy + n.z * cy);
-        vec3 w = bend(uP + p * uS); vW = w; vN = n; vO = position; vK = aK;
-        gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
-      }`,
-    fragmentShader: /* glsl */`
-      precision highp float;
-      uniform vec3 cSky, cHor, cGold; uniform float uFade; uniform sampler2D map;
-      varying vec3 vN, vW, vO; varying float vK;
-      ${HASH}
-      void main(){
-        if (uFade < 0.995 && h21(gl_FragCoord.xy) > uFade) discard;
-        vec3 v = normalize(cameraPosition - vW), n = normalize(vN); if (dot(n, v) < 0.0) n = -n;
-        vec3 r = reflect(-v, n);
-        float fr = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-        vec3 key = normalize(vec3(-0.45, 0.65, 0.6));
-        float dif = max(dot(n, key), 0.0), spec = pow(max(dot(r, key), 0.0), 60.0), band = pow(max(1.0 - abs(r.y - 0.12) * 2.2, 0.0), 6.0);
-        // what it mirrors: the dark sky, the glow of the horizon, a strip of light, and its own gold light from the road below
-        vec3 env = mix(cHor * 1.3, cSky * 0.45, smoothstep(-0.05, 0.55, r.y)) + vec3(0.9, 0.95, 1.0) * band * 0.9 + cGold * 2.2 * smoothstep(-0.15, -0.85, r.y);
-        vec3 col;
-        if (vK < 0.5) {                                      // painted steel, with the label round its middle
-          vec3 base = vec3(0.03, 0.17, 0.8); float lab = 0.0;
-          if (vO.y > 0.33 && vO.y < 0.67) { float u = atan(vO.x, vO.z) / 6.2831853 + 0.5; vec4 t = texture2D(map, vec2(fract(u * 2.0), (vO.y - 0.33) / 0.34)); base = t.rgb; lab = 1.0; }
-          col = base * (0.24 + 0.9 * dif + lab * 0.12) + env * (0.1 + 0.55 * fr) * (1.0 - 0.6 * lab) + spec * 1.4;
-        } else if (vK < 1.5) col = env * (0.8 + 0.2 * fr) + spec * 2.0 + 0.04;                                   // chrome
-        else if (vK < 2.5) col = vec3(0.95, 0.7, 0.3) * (0.25 + 0.6 * dif) + env * vec3(1.0, 0.8, 0.45) * 0.55 + spec * 1.6;   // brass
-        else col = vec3(0.9, 0.08, 0.1) * (0.3 + 0.8 * dif) + env * 0.15 + spec;                                  // the red handwheel
-        col += cGold * (0.4 * smoothstep(0.55, -0.7, n.y) + 0.5 * fr);                                            // gold light from below, and round its edge
-        gl_FragColor = vec4(col * exp(-length(cameraPosition - vW) / 750.0), 1.0);
-      }`,
-  });
-  const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.visible = false; m.renderOrder = 4;
-  return m;
-}
 
 // The city the road leads to: megastructure towers left and right of the sun's valley, lit windows, neon bands, beacons.
 function makeSkyline() {
@@ -393,13 +318,16 @@ const BODY = {
   orbit: { tz: 6.12, ty: 1.28, tx: 0.95, w: 1.75, glow: [0.6, 0.35, 1.0], paint: [[0.62, 0.56, 0.82], [0.5, 0.74, 0.72], [0.8, 0.8, 0.85]] },
 };
 const WHITE = [1, 1, 1], SPARK = [1, 0.62, 0.22], HOTW = [1, 0.9, 0.65];
+// A vehicle that is hit is thrown: it flies on, spinning, for THROW.t0 seconds, then breaks up into points of light over THROW.dur
+// (the interceptor, thrown sideways, a little later). The hop of a thrown body, t seconds after the blow:
+const THROW = { t0: 0.34, dur: 0.46 }, THROW_IC = { t0: 0.42, dur: 0.46 };
+const hopAt = (t, h = 6) => Math.max(0, h * t - 10 * t * t) + Math.max(0, 2 * (t - 0.62) - 8 * (t - 0.62) * (t - 0.62));
 
 export class GameView {
   constructor() {
     this.solids = makeSolids(); this.glows = makeGlows(); this.skyline = makeSkyline(); this.veh = new Vehicles(); this.heli = new Heli(this.veh.u);
     this.group = new THREE.Group(); this.group.add(this.skyline, this.solids, this.veh.group, this.heli.group, this.glows);
     this.nb = 0; this.ng = 0;
-    { const label = bottleLabel(); this.bottles = [0, 1, 2, 3, 4, 5].map(() => { const m = makeBottle(label); this.group.add(m); return m; }); }
     this.ads = ADS.map(adTexture);
     this.boards = BB.map(() => { const m = makePanel(21.3, 9, this.ads[0]); this.group.add(m); return m; });
     const gt = gantryTexture();
@@ -453,22 +381,6 @@ export class GameView {
       this.sprite(lx, ly, lz, 3.2 * k * (h.glare ? Math.sqrt(h.glare) : 1), c, 1.7 * f * (h.glare || 1));
     }
   }
-  // a nitro pickup: the bottle hovers over a seal of gold light turning on the road, leaning and spinning, in a shaft of
-  // light with rays turning behind it and sparks rising round it
-  nitro(x, z, k, T, seed = 0) {
-    const i = this.nbt; if (i >= this.bottles.length || k <= 0.004) return; this.nbt++;
-    const m = this.bottles[i], u = m.material.uniforms, bob = Math.sin(T * 2.2 + seed) * 0.1, y = 1.75 + bob;
-    m.visible = true; u.uP.value.set(x, y, z); u.uYaw.value = T * Math.PI + seed;                       // one turn every two seconds
-    u.uTilt.value = 0.26; u.uS.value = 1.35; u.uFade.value = k;
-    this.glow(x, 0.05, z, 2.0, 0, 0, 0, 0, 2.0, GOLD, 12, 1.7 * k);                                  // the seal on the road
-    this.glow(x, 0.04, z, 2.7, 0, 0, 0, 0, 2.7, GOLD, 0, 0.5 * k);
-    this.glow(x, y, z + 0.6, 2.7, 0, 0, 0, 2.7, 0, GOLD, 13, 0.42 * k);                               // rays behind it
-    this.glow(x, 6, z + 0.7, 0.8, 0, 0, 0, 6, 0, GOLD, 8, 0.5 * k);                                    // the shaft of light
-    for (let j = 0; j < 7; j++) {                                                                     // sparks climbing round it
-      const h = (T * 0.35 + j / 7 + seed) % 1, a = T * 0.9 + j * 2.4 + seed, r = 0.6 + 0.25 * Math.sin(j * 1.7);
-      this.glow(x + Math.cos(a) * r, 0.4 + h * 2.8, z - 0.3 + Math.sin(a) * r * 0.4, 0.28, 0, 0, 0, 0.28, 0, [1.0, 0.9, 0.55], 14, 1.5 * k * Math.sin(Math.PI * h), j * 0.37 + seed);
-    }
-  }
   // a body thrown along the road sheds sparks: a fan from where it scrapes, streaming back from it (u: seconds since it was hit; dir: the way it goes)
   flingSparks(x, y, z, u, dir, seed, f = 1) {
     const tick = Math.floor(u * 40);
@@ -480,18 +392,31 @@ export class GameView {
       this.glow(px, py, pz, 0.08, 0, 0, vx / m * len, wy / m * len, vz / m * len, k % 3 ? SPARK : HOTW, 8, 4.4 * (1 - a / life) * f);
     }
   }
-  // a police cruiser (the WARDEN) with its light bar flashing
-  cruiser(x, z, yaw, fade, T, phase = 0, roll = 0, pitch = 0, brake = 0, y = 0) {
+  // A body breaking up into points of light. pose(t) → [x, y, z, heading] of the body t seconds after the blow. Between t0 and t0 + dur
+  // each point leaves the body from somewhere on it (the low ones first), carries a little of its motion on, rises, twinkles, and is
+  // left behind as we drive on. a: seconds since the blow · hw, hl: half the body's width and length
+  lightPoints(pose, a, t0, dur, seed, cA, cB, hw, hl, T, n = 46) {
+    for (let k = 0; k < n; k++) {
+      const h1 = hash1(seed + k * 11.3 + 1), h2 = hash1(seed + k * 5.9 + 2), h3 = hash1(seed + k * 3.7 + 3), h4 = hash1(seed + k * 8.3 + 4), h5 = hash1(seed + k * 2.1 + 5);
+      const born = t0 + dur * (0.8 * h1 + 0.2 * h4), t = a - born, life = 0.5 + 0.45 * h2; if (t < 0 || t > life) continue;
+      const [x0, y0, z0, yaw] = pose(born), q = pose(born + 0.03), vx = (q[0] - x0) / 0.03, vz = (q[2] - z0) / 0.03, cs = Math.cos(yaw), sn = Math.sin(yaw);
+      const lx = (h3 - 0.5) * 2 * hw, ly = 0.25 + 1.25 * h4, lz = (h5 - 0.5) * 2 * hl, u = t / life;
+      const x = x0 + cs * lx + sn * lz + (vx * 0.35 + (h3 - 0.5) * 2.4) * t, y = y0 + ly + (1.0 + 2.8 * h2) * t - 1.2 * t * t, z = z0 - sn * lx + cs * lz + vz * 0.35 * t + 30 * t * t;
+      this.sprite(x, y, z, 0.3 * (1 - 0.5 * u), k % 4 === 0 ? HOTW : k % 2 ? cA : cB, 3.6 * Math.pow(1 - u, 0.7) * Math.min(1, t / 0.04) * (0.7 + 0.3 * Math.sin(T * 34 + k * 2.4)));
+    }
+  }
+  // a police cruiser (the WARDEN) with its light bar flashing (dis: how far it has dissolved into light)
+  cruiser(x, z, yaw, fade, T, phase = 0, roll = 0, pitch = 0, brake = 0, y = 0, dis = 0) {
     const on = Math.floor(T * 5 + phase) % 2 === 0, cs = Math.cos(yaw), sn = Math.sin(yaw);
-    this.veh.add('warden', x, y, z, yaw, 1, WHITE, fade, 0.7, on ? 1 : 0.06, on ? 0.06 : 1, brake, roll, pitch);
+    this.veh.add('warden', x, y, z, yaw, 1, WHITE, fade, 0.7, on ? 1 : 0.06, on ? 0.06 : 1, brake, roll, pitch, dis);
+    fade *= 1 - dis;
     this.sprite(x - 0.5 * cs - 0.3 * sn, y + 1.72, z + 0.5 * sn - 0.3 * cs, 1.25, [1, 0.1, 0.2], (on ? 1.1 : 0.08) * fade); this.sprite(x + 0.5 * cs - 0.3 * sn, y + 1.72, z - 0.5 * sn - 0.3 * cs, 1.25, [0.15, 0.4, 1], (on ? 0.08 : 1.1) * fade);
     this.glow(x, 0.04, z, 3.2, 0, 0, 0, 0, 4.2, on ? [1, 0.1, 0.2] : [0.15, 0.4, 1], 2, 0.4 * fade);
     if (brake) this.sprite(x + sn * 2.6, 0.93, z + cs * 2.6, 1.5, RED, 0.75 * fade);
   }
 
   update(s) {
-    this.nb = 0; this.ng = 0; this.nbt = 0;
-    for (const m of this.bottles) { m.visible = false; m.material.uniforms.cSky.value.set(...s.pal.skyTop); m.material.uniforms.cHor.value.set(...s.pal.horizon); }
+    this.nb = 0; this.ng = 0;
     const P = s.pal, T = s.T, G = s.game, L = ROAD.lane, R = ROAD.rail;
     const edge = P.gridAlt, edge2 = P.post2;
     this.veh.begin(P, T); this.heli.group.visible = false;
@@ -599,10 +524,9 @@ export class GameView {
           else if (v.type === T_BLOCK && v.dz > 12) this.glow(x, 3.0, z, 0.8, 0, 0, 0, 0.8, 0, c, 5, 1.2 * f);                              // a rolling roadblock: a sign over each cruiser
         }
       }
-      // ── energy cells and nitro canisters ──
+      // ── energy cells ──
       const bob = Math.sin(T * 5.0) * 0.08;
       for (const c of G.cells) this.glow(c.x, 0.95 + bob, cz - c.dz, 0.36, 0, 0, 0, 0.5, 0, CELL, 4, 1.9 * c.fade);
-      for (const c of G.items) this.nitro(c.x, cz - c.dz, c.fade, T, c.id * 1.7);     // (seed: which pickup it is, so each keeps its own steady turn)
       // ── the police ──
       const pol = G.pol;
       if (pol) {
@@ -682,11 +606,17 @@ export class GameView {
       if (ic && ic.fade > 0.01) {
         const x = ic.x, z = cz - ic.dz, f = ic.fade, c = [1.0, 0.14, 0.16];
         if (ic.flung >= 0) {
-          // thrown off the road by a nitro burst: it spins away sideways, hops as it crosses the rail, and showers sparks all the way
-          const u = ic.flung, d = ic.fdir, hop = Math.max(0, 5.2 * u - 9 * u * u) + Math.max(0, 1.6 * (u - 0.62) - 6 * (u - 0.62) * (u - 0.62));
-          this.cruiser(x, z, d * (0.5 + 9.5 * u - 2.6 * u * u), f, T * 3, 0.5, -d * Math.min(0.5, 2.2 * u) * Math.exp(-u * 1.2), 0.1 * Math.sin(u * 14), 1, hop);
-          this.flingSparks(x, hop + 0.4, z, u, d, ic.flung * 7.3 + 3, f);
-          this.glow(x, 0.05, z, 3.4, 0, 0, 0, 0, 4.4, [1, 0.5, 0.2], 2, 0.9 * Math.exp(-u / 0.25) * f);
+          // thrown off the road by a nitro burst: it spins away sideways, hops as it crosses the rail, showering sparks — then breaks up
+          // into points of light. (Its path so far, worked back from where the simulation has it now.)
+          const u = ic.flung, d = ic.fdir, V = GAME.flingV * 0.35 * L, sx = (t) => d * V * (1 - Math.exp(-t / 0.35)), sz = (t) => 6 * t - (40 / 3) * t * t * t;
+          const x0 = x - sx(u), dz0 = ic.dz - sz(u), pose = (t) => [x0 + sx(t), hopAt(t, 5.2), cz - (dz0 + sz(t)), d * (0.5 + 9.5 * t - 2.6 * t * t)];
+          const dis = smooth((u - THROW_IC.t0) / THROW_IC.dur), [bx, by, bz, yaw] = pose(u);
+          if (dis < 1) {
+            this.cruiser(bx, bz, yaw, f, T * 3, 0.5, -d * Math.min(0.5, 2.2 * u) * Math.exp(-u * 1.2), 0.1 * Math.sin(u * 14), 1, by, dis);
+            this.flingSparks(bx, by + 0.4, bz, u, d, 20.9, f * (1 - dis));
+            this.glow(bx, 0.05, bz, 3.4, 0, 0, 0, 0, 4.4, [1, 0.5, 0.2], 2, 0.9 * Math.exp(-u / 0.25) * f);
+          }
+          this.lightPoints(pose, u, THROW_IC.t0, THROW_IC.dur, 517.3, [1, 0.15, 0.2], [0.2, 0.4, 1], 1.05, 2.4, T, 56);
         } else {
           const yaw = -Math.atan2(ic.vx, Math.max(40, Math.abs(s.road.vel))) * 1.3;
           this.cruiser(x, z, yaw, f, T * 1.8, 0.5, Math.max(-0.12, Math.min(0.12, ic.ax * 0.004)), 0, ic.leaving);
@@ -728,32 +658,31 @@ export class GameView {
           continue;
         }
         const ch = Math.min(1, Math.max(0, (b.n || 1) - 1) / 9);                // how far up the smash chain this one was: the higher, the bigger the burst
-        if (b.kind === 'smash' && b.dir) {
-          // rammed in a nitro burst: it is not just gone — the blow carries it on ahead of us and off to the side, spinning, its lamps still
-          // lit, shedding sparks; then it drops away behind
-          const d = b.dir, long = b.type === T_TRUCK, k = long ? 0.45 : 1, fa = 1 - smooth((a - 0.8) / 0.4);
-          const fx = b.x + d * (long ? 8 : 14) * (1 - Math.exp(-a / 0.5)), fz = cz - (b.dz0 + 30 * a - 42 * a * a);
-          const hop = long ? 0 : Math.max(0, 6 * a - 10 * a * a) + Math.max(0, 2 * (a - 0.62) - 8 * (a - 0.62) * (a - 0.62));
-          const yaw = d * (0.35 + 10 * a - 3 * a * a) * k, roll = long ? 0 : -d * Math.min(0.5, 2.5 * a) * Math.exp(-a * 1.2), id = b.id | 0;
-          if (fa > 0.01) {
-            if (b.type >= T_BLOCK) this.cruiser(fx, fz, yaw, fa, T * 3, id, roll, 0.1 * Math.sin(a * 14), 1, hop);
-            else {
-              const taxi = b.type === T_TAXI, style = taxi ? 'firefly' : b.type === T_VAN ? (id % 2 ? 'mule' : 'relay') : long ? (id % 3 === 0 ? 'orbit' : 'leviathan') : (id % 2 ? 'nomad' : 'monolith'), B = BODY[style];
-              this.veh.add(style, fx, hop, fz, yaw, 1, B.paint ? B.paint[(id >> 2) % B.paint.length] : WHITE, fa, 1, taxi ? 1 : 0, taxi ? 1 : 0, 1, roll, 0.1 * Math.sin(a * 14));
-            }
-            this.flingSparks(fx, hop, fz, a, d, b.seed, fa);
-            this.glow(fx, 0.05, fz, 3.2, 0, 0, 0, 0, long ? 8 : 4.2, [1, 0.5, 0.2], 2, 0.8 * Math.exp(-a / 0.3) * fa);
-          }
-        }
-        const n = b.car ? 44 : Math.round(28 + 22 * ch), life = b.car ? 1.3 : 0.8;
-        if (a >= life) continue;
         const cA = b.car ? P.neon : b.type === T_TAXI ? [1, 0.82, 0.12] : b.type >= T_BLOCK ? [1, 0.15, 0.2] : edge, cB = b.car ? P.gridAlt : b.type >= T_BLOCK ? [0.2, 0.4, 1] : edge2;
+        if (b.dir) {
+          // A vehicle we hit (rammed in a nitro burst, or ploughed through) is thrown: the blow carries it on ahead of us and off to the
+          // side, spinning, its lamps still lit, shedding sparks. Then it breaks up into points of light, which stream away behind us.
+          const d = b.dir, long = b.type === T_TRUCK, k = long ? 0.45 : 1, id = b.id | 0;
+          const pose = (t) => [b.x + d * (long ? 8 : 14) * (1 - Math.exp(-t / 0.5)), long ? 0 : hopAt(t), cz - (b.dz0 + 30 * t - 32 * t * t), d * (0.35 + 10 * t - 3 * t * t) * k];
+          const dis = smooth((a - THROW.t0) / THROW.dur), [fx, hop, fz, yaw] = pose(a), roll = long ? 0 : -d * Math.min(0.5, 2.5 * a) * Math.exp(-a * 1.2);
+          const taxi = b.type === T_TAXI, style = b.type >= T_BLOCK ? 'warden' : taxi ? 'firefly' : b.type === T_VAN ? (id % 2 ? 'mule' : 'relay') : long ? (id % 3 === 0 ? 'orbit' : 'leviathan') : (id % 2 ? 'nomad' : 'monolith'), B = BODY[style];
+          if (dis < 1) {
+            if (b.type >= T_BLOCK) this.cruiser(fx, fz, yaw, 1, T * 3, id, roll, 0.1 * Math.sin(a * 14), 1, hop, dis);
+            else this.veh.add(style, fx, hop, fz, yaw, 1, B.paint ? B.paint[(id >> 2) % B.paint.length] : WHITE, 1, 1 - dis, taxi ? 1 - dis : 0, taxi ? 1 - dis : 0, 1 - dis, roll, 0.1 * Math.sin(a * 14), dis);
+            this.flingSparks(fx, hop, fz, a, d, b.seed, 1 - dis);
+            this.glow(fx, 0.05, fz, 3.2, 0, 0, 0, 0, long ? 8 : 4.2, [1, 0.5, 0.2], 2, 0.8 * Math.exp(-a / 0.3) * (1 - dis));
+            if (dis > 0.02) this.sprite(fx, hop + 0.8, fz, (long ? 5 : 3.2) * (0.6 + dis), HOTW, 1.5 * Math.sin(Math.PI * dis));       // it glows as it goes
+          }
+          this.lightPoints(pose, a, THROW.t0, THROW.dur, b.seed, cA, cB, B.w, B.tz, T, long ? 70 : 46);
+        }
+        const n = b.car ? 44 : 0, life = b.car ? 1.3 : 0.8;                       // (only our own car shatters into shards)
+        if (a >= life) continue;
         for (let k = 0; k < n; k++) {
           const h1 = hash1(b.seed + k * 13.1), h2 = hash1(b.seed + k * 7.7 + 3), h3 = hash1(b.seed + k * 3.3 + 9);
           const ang = h1 * Math.PI * 2, sp = 5 + 13 * h2;
           const x = b.x + Math.cos(ang) * sp * a * 0.7, y = 0.8 + (2 + 7 * h3) * a - 9 * a * a, z = cz - b.dz + Math.sin(ang) * sp * a * 0.5;
           if (y < 0.05) continue;
-          const sz = (0.3 + 0.55 * h3) * (1 - a / life) * (b.car ? 1.2 : 1);
+          const sz = (0.3 + 0.55 * h3) * (1 - a / life) * 1.2;
           this.box(x, y, z, sz, sz, sz * (1 + 2 * h2), k % 2 ? cA : cB, 1, 1 - a / life, 2.4);
         }
         this.sprite(b.x, 1.0, cz - b.dz, 3 + 10 * a, b.car ? P.neon : cA, Math.max(0, 1.8 - a * 5));

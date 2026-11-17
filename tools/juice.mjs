@@ -11,7 +11,7 @@ const upTo = (ev, t) => ev.filter((e) => e.t <= t);
 
 export function scenarios(want = null) {
   const out = {}, need = (k) => !want || want.includes(k);
-  // a smash chain: the bot fires nitro as it gets it and holds its lane through the burst
+  // a smash chain: the bot fires the nitro as the energy charges it and holds its lane through the burst
   if (need('chain') || need('results')) {
     let best = null;
     for (const [seed, lv] of [[2024, 8], [77, 10], [5, 12], [2031, 6]]) {
@@ -28,7 +28,7 @@ export function scenarios(want = null) {
   // the interceptor swerves in while a nitro burst is on: thrown off the road
   if (need('fling') || need('outrun')) {
     for (const [seed, lv] of [[11, 14], [23, 14], [42, 15], [7, 16], [99, 14], [1234, 15]]) {
-      const r = play(seed, 110, { seek: true, lv });           // no nitro: canisters are kept
+      const r = play(seed, 110, { lv });                       // no nitro fired: the charges are kept
       const g = r.tl.gameEvents(0, 1e9);
       for (const tell of g.filter((e) => e.k === 'ictell')) {
         if (out.fling) break;
@@ -71,7 +71,7 @@ if (process.argv[1].endsWith('juice.mjs')) {
   const [w, h] = size.split('x').map(Number), want = names ? names.split(',') : null;
   mkdirSync(out, { recursive: true });
   const S = scenarios(want && want.filter((n) => n !== 'idle'));
-  const offs = { chain: [-0.05, 0.02, 0.06, 0.12, 0.2, 0.32, 0.5], fling: [-0.3, 0.02, 0.07, 0.14, 0.25, 0.4, 0.6, 0.9, 1.3], outrun: [-0.2, 0.1, 0.4, 0.8, 1.3], crash: [-0.1, 0.03, 0.08, 0.16, 0.3, 0.5], swipe: [-0.1, 0.03, 0.08, 0.16, 0.3, 0.5], results: [0.75, 1.2, 1.8, 2.6, 3.6, 5.0, 7.0] };
+  const offs = { chain: [-0.05, 0.03, 0.12, 0.24, 0.36, 0.46, 0.56, 0.68, 0.85, 1.1], fling: [-0.3, 0.03, 0.12, 0.25, 0.4, 0.5, 0.6, 0.72, 0.9, 1.2], outrun: [-0.2, 0.1, 0.4, 0.8, 1.3], crash: [-0.1, 0.03, 0.08, 0.16, 0.3, 0.5], swipe: [-0.1, 0.03, 0.12, 0.25, 0.38, 0.5, 0.62, 0.8], results: [0.75, 1.2, 1.8, 2.6, 3.6, 5.0, 7.0] };
   const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: +dprArg, ...(w < 700 || h < 500 ? { isMobile: true, hasTouch: true } : {}) });
   const p = await ctx.newPage(); const logs = [];

@@ -68,7 +68,7 @@ await p.click('#turbo', { force: true }); await p.keyboard.press('KeyT'); await 
 const nT = await p.evaluate(() => MC.tl.nitros(MC.state().T).length);
 ok('no overlapping nitro', nT === 1, `bursts=${nT}`);
 const rdy = await p.evaluate(() => document.getElementById('turbo').dataset.ready);
-ok('nitro shows it is not ready once the canister is spent', rdy === 'false' && (await p.getAttribute('#turbo', 'data-n')) === '0');
+ok('nitro shows it is not ready once the charge is spent', rdy === 'false' && (await p.getAttribute('#turbo', 'data-n')) === '0');
 const boost = await p.evaluate(async () => { const v0 = MC.state().road.vel; await new Promise((r) => setTimeout(r, 900)); return { v0, v1: MC.state().road.vel }; });
 ok('nitro boosts the speed', boost.v1 > boost.v0 * 1.5, `${boost.v0.toFixed(0)} → ${boost.v1.toFixed(0)} u/s`);
 ok('free mode hides the game HUD and never ends the run', await p.evaluate(() => getComputedStyle(document.getElementById('ghud')).visibility === 'hidden' && !MC.state().ui.g.over));

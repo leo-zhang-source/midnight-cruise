@@ -38,6 +38,9 @@ export class UI {
     // the level a run starts at (settings · DIFFICULTY), remembered in this browser; the start event carries it
     let lv0 = 0; try { lv0 = +localStorage.getItem('mc86.lv') || 0; } catch (_) { /* not stored */ }
     app.startLv = Math.max(0, Math.min(GAME.lvCap, lv0 | 0));
+    // the sound of an energy cell being picked up: 'c' (felt), chosen by the player from five designs (a … e, see js/audio/synth.js);
+    // ?cell=b tries another, ?cell=off none
+    { const q = new URLSearchParams(location.search).get('cell'); app.cellSound = q === 'off' ? '' : q && 'abcde'.includes(q[0]) ? q[0] : 'c'; }
     this.el.diff.max = String(GAME.lvCap); this.el.diff.value = String(app.startLv); this.diffRead(app.startLv);
     this.el.lcdMeter.innerHTML = '<i></i>'.repeat(8);
     this.meterBars = [...this.el.lcdMeter.children];
@@ -122,7 +125,7 @@ export class UI {
     const release = () => { this.pause(true, true); };
     addEventListener('blur', release);
     document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
-    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Nitro when you carry a canister'; document.body.classList.add('touch'); }
+    if (matchMedia('(pointer: coarse)').matches) { $('start-note').textContent = 'Sound on · Tap left / right to change lane · Energy charges the nitro'; document.body.classList.add('touch'); }
   }
 
   // the difficulty readout: the level, what it is called, and the wanted stars a run at that level never drops below
@@ -206,12 +209,14 @@ export class UI {
         this.buzz(tier ? [30, 30, 60] : 22);
       }
       else if (k === 'chainend') { if (e.n >= 2) this.sfx('bank', { n: e.n }); }
+      else if (k === 'cell') { if (this.app.cellSound) { this.cellFlip = !this.cellFlip; this.sfx('cell', { k: this.app.cellSound, pan: this.cellFlip ? 0.18 : -0.18 }); } }
       else if (k === 'outrun') this.sfx('outrun', { pan: e.who === 'ic' ? r2(e.side * 0.8) : 0 });
       else if (k === 'wreck') { this.sfx('wreck', { pan: r2(pan(e.lane)) }); this.buzz(90); }
       else if (k === 'shake') this.sfx('chime');
       else if (k === 'swipe') { this.sfx('swipe', { pan: r2(Math.max(-1, Math.min(1, -e.dir * 0.8))) }); this.buzz(50); }
       else if (k === 'over') { this.sfx(e.kind === 2 ? 'bust' : 'crashfx'); this.buzz([140, 40, 80]); const sc = Math.floor(this.app.tl.stateAt(T).g.score); this.el.live.textContent = `${e.kind === 2 ? 'Busted.' : 'Crashed.'} Final score ${fmt(sc)}, grade ${GRADES[gradeOf(sc)][0]}. Press R to rewind the tape, or H for the home screen.`; }
       else if (k === 'gear') this.sfx('gear');
+      else if (k === 'go') this.sfx('whoosh');
       else if (k === 'star') { if (e.up) this.sfx('siren'); }
       else if (k === 'stumble' || k === 'run') { if (e.by === 'hook') this.sfx('hook'); else if (e.by === 'ram' || e.by === 'slam' || e.by === 'heli') { this.sfx('hit'); this.buzz(70); } this.sfx('siren'); }
       else if (k === 'block' || k === 'weave') this.sfx('siren');
@@ -222,8 +227,8 @@ export class UI {
       else if (k === 'clear') this.sfx('chime');
       else if (k === 'strike') this.sfx('burst', { d: r2(e.d || 0.45), pan: r2(pan(e.lane)) });
       else if (k === 'shove') { this.sfx('fling', { pan: r2((e.ic ? e.dir : 0) * 0.8) }); this.sfx('smash', { pan: r2((e.ic ? e.dir : 0) * 0.6), v: 0.9, n: e.n, big: 1, ...(GAME.chainTier.indexOf(e.n) + 1 ? { tier: GAME.chainTier.indexOf(e.n) + 1 } : {}) }); this.buzz([40, 30, 70]); }
-      else if (k === 'item') this.sfx('pickup');
-      else if (k === 'tape' || k === 'full') this.sfx('chime');
+      else if (k === 'charge') this.sfx('pickup');
+      else if (k === 'full') this.sfx('chime');
       else if (k === 'revive') this.sfx('rewindlong');
     }
   }
@@ -308,14 +313,15 @@ export class UI {
     const bars = U.bars || 0;
     set('bars', bars.toFixed(3), () => { E.cine.style.visibility = bars > 0.004 ? 'visible' : 'hidden'; E.cine.style.setProperty('--k', bars.toFixed(3)); });
     set('cap', U.cap || '', (v) => { E.cineCap.textContent = v; });
-    // drive controls: the nitro button shows how many canisters are aboard
+    // drive controls: the nitro button's ring fills as the energy charges it; its pips are the charges in stock
     const ca = U.controls;
     set('ctrl', ca.toFixed(3), () => { E.drivebar.style.opacity = ca; E.drivebar.style.visibility = ca > 0.01 ? 'visible' : 'hidden'; E.drivebar.style.transform = `translateY(${(1 - ca) * 28}px)`; E.drivebar.style.pointerEvents = ca > 0.6 ? 'auto' : 'none'; });
     const active = s.phase === 'cruise', Gq = U.g;
     const stock = active && Gq && Gq.on ? Gq.nstock : 0, ready = active && U.ready >= 1;
     const boosting = active && Gq && Gq.on && this.app.tl.turboAt(T) ? 1 : 0;
-    set('trb', stock, (n) => { E.turboRing.style.strokeDashoffset = CIRC * (1 - Math.min(1, n / GAME.nitroMax)); E.turbo.dataset.n = n; });
-    set('trbR', `${ready}|${boosting}|${stock}|${active}`, () => { E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = boosting ? 'BOOST' : ready ? 'READY · ↑' : stock ? 'WAIT' : active ? 'EMPTY' : 'STANDBY'; });
+    const chg = active && Gq && Gq.on ? (Gq.free ? Math.min(1, stock) : Gq.charge ?? 0) : 0, pct = Math.min(99, Math.floor(chg * 100));
+    set('trb', stock + '|' + chg.toFixed(3), () => { E.turboRing.style.strokeDashoffset = CIRC * (1 - Math.min(1, chg)); E.turbo.dataset.n = stock; });
+    set('trbR', `${ready}|${boosting}|${stock}|${active}|${stock ? '' : pct}`, () => { E.turbo.dataset.ready = String(ready); E.turbo.setAttribute('aria-disabled', ready ? 'false' : 'true'); E.turboState.textContent = boosting ? 'BOOST' : ready ? 'READY · ↑' : stock ? 'WAIT' : active ? (Gq && Gq.on && !Gq.free ? pct + '%' : 'CHARGING') : 'STANDBY'; });
     set('trbF', this.fireT !== undefined && T - this.fireT < 0.18 ? 'true' : 'false', (v) => { E.turbo.dataset.fire = v; });
     // speedometer (MPH from the simulated road speed) and the control hints
     const mph = Math.round(Math.abs(s.road.vel) * GAME.mph);
@@ -368,7 +374,7 @@ export class UI {
     const on = Gm && Gm.on && !Gm.free ? 1 : 0;
     set('gOn', on && !(Gm.over && Gm.overU >= GAME.overLock) ? 1 : 0, (v) => { E.ghud.style.visibility = v ? 'visible' : 'hidden'; });      // (the results screen has the score from there)
     set('gear', Gm && Gm.on ? Gm.gear : 0, (g) => { E.gear.textContent = g ? 'G' + g : ''; });
-    // nitro: "+1 NITRO" rises from the button when a canister is taken aboard, and the button flashes gold; while a burst lasts
+    // nitro: "+1 NITRO" rises from the button when the energy has filled a charge, and the button flashes gold; while a burst lasts
     // a gold panel over the controls says what it gives and how much of it is left, and the speedometer turns gold
     const gn = Gm && Gm.on ? Gm.gain : null;
     set('gain', gn ? gn.age.toFixed(2) + '|' + gn.n : '', () => {
@@ -405,9 +411,10 @@ export class UI {
       const ca = Gm.cellAge ?? 9, ck = s.reduced ? 0 : Math.exp(-ca / 0.12);
       set('cellK', ck.toFixed(2), (v) => { E.energy.style.setProperty('--k', v); E.gCells.style.transform = +v > 0.01 ? `scale(${(1 + 0.3 * v).toFixed(3)})` : ''; });
       set('cellP', ca < 0.5 ? ca.toFixed(2) : '', (v) => { E.cellPlus.style.opacity = v ? (1 - ca / 0.5).toFixed(2) : 0; if (v) E.cellPlus.style.transform = `translateY(${(-ca * 26).toFixed(1)}px)`; });
-      const full = Gm.tapes >= GAME.maxTapes, toGo = GAME.tapeEvery - (Gm.cells % GAME.tapeEvery), got = Gm.cells > 0 && Gm.cells % GAME.tapeEvery === 0 && ca < 1.6;
-      set('cellBar', (got ? 1 : Gm.tapeK).toFixed(3), (v) => { E.cellBar.style.transform = `scaleX(${v})`; });
-      set('cellNext', got ? 'got' : full ? 'full' : toGo, (v) => { E.cellNext.textContent = v === 'got' ? '+1 SPARE TAPE' : v === 'full' ? 'TAPES FULL' : `${v} TO A SPARE TAPE`; E.energy.dataset.tape = v === 'got' ? '1' : '0'; });
+      // the bar under it is the nitro's charge: how many more cells fill the next one
+      const got = Gm.gain && Gm.gain.age < 1.6;
+      set('cellBar', (got ? 1 : Gm.charge).toFixed(3), (v) => { E.cellBar.style.transform = `scaleX(${v})`; });
+      set('cellNext', got ? 'got' : Gm.full ? 'full' : Gm.burning ? 'burn' : Gm.toGo, (v) => { E.cellNext.textContent = v === 'got' ? 'NITRO CHARGED' : v === 'full' ? 'NITRO FULL' : v === 'burn' ? 'NITRO BURNING' : `${v} TO NITRO`; E.energy.dataset.full = v === 'got' ? '1' : '0'; });
     }
     // the smash chain: the count slams in with every link, its points run up, the bar under it is the time left to add another. When the
     // chain ends it is banked: the total flashes and goes up into the score.
@@ -455,7 +462,7 @@ export class UI {
     const hint = on && !Gm.over && Gm.hint > 0.01 ? Gm.hint : 0, tail = hint > 0 ? hint : on && !Gm.over && Gm.close > 0.001 ? Gm.close : 0;
     set('tailText', hint > 0 ? 1 : 0, (v) => { E.gTailText.textContent = v ? 'NITRO SHAKES THEM OFF' : 'POLICE ON YOUR TAIL'; E.gTail.dataset.hint = v; });
     set('tailA', (hint > 0 ? hint : 1).toFixed(2), (v) => { E.gTail.style.opacity = v; });
-    set('trbS', on && !Gm.over && Gm.lives < 2 && Gm.nstock > 0 ? '1' : '0', (v) => { E.turbo.dataset.shake = v; });       // a canister in stock on the last life: the nitro button wears a pink ring
+    set('trbS', on && !Gm.over && Gm.lives < 2 && Gm.nstock > 0 ? '1' : '0', (v) => { E.turbo.dataset.shake = v; });       // a charge in stock on the last life: the nitro button wears a pink ring
     set('tail', tail.toFixed(3), () => { E.gTail.style.visibility = tail > 0 ? 'visible' : 'hidden'; E.gTailBar.style.transform = `scaleX(${(hint > 0 ? 0 : tail).toFixed(3)})`; });
     // police lights at the bottom corners, alternating red and blue: faint while they hang back, strong on the tail
     // (steady when motion is reduced)

@@ -1,12 +1,11 @@
 // A simple driving bot for the game simulation (no browser). It proves that the generated traffic is always
 // passable at each gear's base speed, measures how a run unfolds, and can print the event list of a clean run.
 //   node tools/bot.mjs                 fairness soak: several seeds, 4 minutes each (add --secs 300 --seeds 16)
-//   node tools/bot.mjs --nitro         also fire nitro canisters as they are picked up
+//   node tools/bot.mjs --nitro         also fire the nitro as the energy charges it
 //   node tools/bot.mjs --lv 8          start every run at threat level 8 (the starting level in the settings)
 //   node tools/bot.mjs --script 68.95  print the events of a clean run (used for the canonical script)
 import { Timeline } from '../js/timeline.js';
 import { ROAD, TURBO, GAME, IGNITION } from '../js/cue.js';
-import { NI, IF } from '../js/game.js';
 import { FS_STEP, threatGrid, searcher } from '../js/foresight.js';
 
 const args = process.argv.slice(2);
@@ -58,13 +57,12 @@ export function play(seed, seconds, opt = {}) {
   for (let T = C + 0.05; T < end; T += STEP) {
     const st = tl.stateAt(T);
     if (st.over) { stats.over = st.over; stats.overT = T - C; break; }
-    if (st.g.nstock > 0) { if (gotT < 0) gotT = T; } else gotT = -1;                       // opt.nitroHold: carry a canister this long before firing it
+    if (st.g.nstock > 0) { if (gotT < 0) gotT = T; } else gotT = -1;                       // opt.nitroHold: hold a nitro charge this long before firing it
     if (opt.nitro && st.g.nstock > 0 && T - gotT >= (opt.nitroHold || 0) && T > nextNitro && (!opt.nitroAfter || T > opt.nitroAfter)) { add('turbo', T); nextNitro = T + 6; }
     if (opt.idle && T >= opt.idle[0] && T < opt.idle[1]) continue;      // opt.idle: hands off the wheel for a while (to take a hit on purpose)
     const tb = tl.turboAt(T);
     if ((tb && tb.u < TURBO.sustain - 0.3) || T - last < 0.28) continue;   // smash through during the strong part of a nitro burst
     let want, wantK;
-    if (opt.seek) for (let i = 0; i < NI; i++) { const o = i * IF, dz = st.g.itm[o + 2] - st.g.gd; if (st.g.itm[o] === 1 && !st.g.itm[o + 5] && dz > 12 && dz < 260) { want = st.g.itm[o + 3]; wantK = Math.ceil((dz + 3) / Math.max(1, st.vel - st.g.vt) / STEP); } }
     const safe = tb ? Math.max(0, TURBO.sustain + TURBO.recover * GAME.nitroTail + GAME.nitroGrace - tb.u - 0.15) : 0;   // coming out of a burst: plan for where it ends
     const r = plan(st, safe ? { ...opt, safe, wantK } : { ...opt, wantK }, want);
     if (r.reach < r.K) stats.noRoute++;

@@ -79,15 +79,16 @@
     // the car has weight: it gains at most `accel` u/s² (more off the line, far more in a nitro burst) and, when a hit slows it, sheds at most `brake` u/s²
     coast: 0.55,
     // off the throttle (paused, or pulling away after a rewind) the car is at 55 % of its speed
-    // nitro: canisters picked up on the road, up to three in stock; one burst is ×2 speed for 5.6 s and smashes traffic
+    // nitro: charged by the energy cells you pick up. nitroCells of them fill one charge (more as the threat level rises, see nitroLv); up
+    // to nitroMax charges are kept; a run starts with nitroStart of a charge; it does not charge while a burst is burning. One burst is
+    // ×2 speed for 5.6 s and smashes traffic. (nitroFree: free cruise has no cells, a charge comes back after this many seconds)
     nitroBoost: 1,
     nitroTail: 0.55,
     nitroGrace: 1,
     nitroMax: 3,
-    nitroFirst: 480,
-    nitroEvery: [1800, 2700],
+    nitroCells: 50,
+    nitroStart: 0.5,
     nitroFree: 7,
-    // (distances measured against the traffic: the first after about 15 s, then one every 30 to 45 s in top gear)
     aheadT: 6.6,
     fairAhead: 6.8,
     // traffic is laid out 6.6 s of closing ahead (at least `ahead`); the police and the traffic plan on all of it
@@ -130,7 +131,7 @@
     // The threat level rises by one every lvEvery seconds of a run and never comes down. With it: the stars have a floor (from level
     // starFloorLv[1] never fewer than two, then three, then four); the police attack sooner (intervals ÷ (1 + cadence × level), level counted
     // up to lvCap); a driver is given less time to see anything coming (react: seconds at level 0, the least it ever gets, lost per level);
-    // more of the traffic comes in pairs and convoys; nitro canisters are further apart (× (1 + nitroLv × level), at most × nitroLvMax)
+    // more of the traffic comes in pairs and convoys; a nitro charge takes more cells (× (1 + nitroLv × level), at most × nitroLvMax)
     lvEvery: 20,
     lvCap: 20,
     starFloorLv: [0, 4, 8, 14],
@@ -281,10 +282,8 @@
     icOutrun: 2.6,
     flingV: 6.5,
     flingReach: 0.45,
-    tapeEvery: 100,
-    tapesStart: 1,
-    maxTapes: 3,
-    // spare tapes: one per 100 cells; a tape rewinds the crash
+    tapesStart: 3,
+    // spare tapes: every run starts with three and gets no more; a tape rewinds the crash
     overLock: 0.7,
     rewindSec: 3,
     reviveHold: 1.3
@@ -639,6 +638,7 @@
     if (sec === "L" && b >= 28 && cycle % 2 === 1) phrase(emit, HOOK_B, b - 28, 4, 0, 0.7);
   }
   function turboNotes(chordName, emitAt) {
+    emitAt(0, { i: "whoosh", v: 1 });
     emitAt(0, { i: "crash", v: 1 });
     emitAt(0, { i: "sub", v: 1 });
     emitAt(0, { i: "impact", v: 0.9 });
@@ -786,8 +786,6 @@
   var VF = 11;
   var NC = 40;
   var CF = 10;
-  var NI = 4;
-  var IF = 6;
   var PICK_FADE = 0.3;
   var T_CAR = 1;
   var T_VAN = 2;
@@ -894,14 +892,12 @@
       gd: 0,
       veh: new Float64Array(NV * VF),
       cel: new Float64Array(NC * CF),
-      itm: new Float64Array(NI * IF),
       nid: 1,
       genU: GAME.firstRow,
       genI: 0,
       path: 0,
       lastPat: 0,
       mid: 0,
-      itmNext: GAME.nitroFirst,
       vt: GAME.trafficK * baseAt(d0),
       tr: 0,
       // the traffic's speed now, and how far it has carried the rows
@@ -917,15 +913,17 @@
       gear: gearAtDist(d0),
       nstock: free ? 1 : 0,
       nfree: 0,
-      // the smash chain (links so far, when the last one was made, what it has paid), the best one, police units knocked off, canisters
-      // picked up, nitro bursts fired, when the pursuit car was last shoved; and where the points came from: distance, passes, close calls,
+      nch: free ? 0 : GAME.nitroStart,
+      // nitro charges in stock, and how far the next one is charged (0..1)
+      // the smash chain (links so far, when the last one was made, what it has paid), the best one, police units knocked off, nitro
+      // charges earned, nitro bursts fired, when the pursuit car was last shoved; and where the points came from: distance, passes, close calls,
       // smashes, dodges, pickups, slipstream (they add up to the score)
       chain: 0,
       chainT: -1e9,
       chainPts: 0,
       chainBest: 0,
       takedown: 0,
-      cans: 0,
+      charges: 0,
       bursts: 0,
       shT: -1e9,
       pD: 0,
@@ -1015,9 +1013,9 @@
     const c = { ...g };
     c.veh = g.veh.slice();
     c.cel = g.cel.slice();
-    c.itm = g.itm.slice();
     return c;
   }
+  var nitroNeed = (lv) => GAME.nitroCells * Math.min(GAME.nitroLvMax, 1 + GAME.nitroLv * Math.max(0, lv));
   var gameMult = (g) => (1 + Math.min(g.combo, GAME.comboCap) * GAME.comboStep) * (1 + GAME.starBonus * (g.star - 1));
   var baseAt = (d) => {
     const A = GAME.gearAt, V = GAME.gears;
@@ -1147,27 +1145,12 @@
       return;
     }
   }
-  function canister(g, lane, u) {
-    const itm = g.itm;
-    for (let i = 0; i < NI; i++) {
-      const o = i * IF;
-      if (itm[o]) continue;
-      itm[o] = 1;
-      itm[o + 1] = lane;
-      itm[o + 2] = u + g.tr;
-      itm[o + 3] = lane;
-      itm[o + 4] = 0;
-      itm[o + 5] = 0;
-      return;
-    }
-  }
   var PICK_H = 0.9;
   var PICK_DT = 0.1;
   var PICK_GAP = 0.6;
   var PICK_SIDE = 0.25;
   var PICK_W = 16;
   var CELL_R = 0.45;
-  var CAN_R = 1;
   function laneTaken(g, lane, zA, zB, r, lv, H = PICK_H) {
     const veh = g.veh, L = ROAD.lane, gt = g.gt;
     for (let i = 0; i < NV; i++) {
@@ -1352,10 +1335,6 @@
     }
     cellLine(g, f, u - 12, 5, 6);
     const next = u + len + room + w * tg * (0.9 + 0.3 * rnd(g));
-    if (u >= g.itmNext) {
-      g.itmNext = u + (G.nitroEvery[0] + rnd(g) * (G.nitroEvery[1] - G.nitroEvery[0])) * Math.min(G.nitroLvMax, 1 + G.nitroLv * lv);
-      canister(g, f === 0 ? side() : rnd(g) < 0.5 ? f : 0, (u + len * 0.5 + next) * 0.5);
-    }
     g.path = f;
     g.genU = next;
   }
@@ -1617,7 +1596,7 @@
             g.inv = gt + G.hitInv;
             g.slow = gt + G.ramSlow;
             addHeat(g, G.heatSwipe);
-            out.push({ k: "wreck", lane: veh[o + 1], dz, type });
+            out.push({ k: "wreck", lane: veh[o + 1], dz, type, dir: px < vx - 0.05 ? 1 : px > vx + 0.05 ? -1 : veh[o + 8] & 1 ? 1 : -1, id: veh[o + 8] });
             stumble(g, out, "crash");
             continue;
           } else {
@@ -1708,33 +1687,14 @@
       g.score += G.ptsCell * mult;
       g.pC += G.ptsCell * mult;
       out.push({ k: "cell" });
-      if (g.cells % G.tapeEvery === 0) out.push({ k: "tape" });
-    }
-    const itm = g.itm;
-    for (let i = 0; i < NI; i++) {
-      const o = i * IF;
-      if (!itm[o]) continue;
-      itm[o + 2] += g.vt * DT2;
-      const dz = itm[o + 2] - gd;
-      if (dz < -8 || itm[o + 5] && gt - itm[o + 5] > PICK_FADE) {
-        itm[o] = 0;
-        continue;
-      }
-      if (itm[o + 5]) continue;
-      if (keepClear(g, itm, o + 1, o + 3, o + 4, itm[o + 2], itm[o + 2], CAN_R, lv, me, itm[o + 2] > hz, DT2)) {
-        if (itm[o + 2] > hz || laneTaken(g, itm[o + 3], itm[o + 2], itm[o + 2], CAN_R, lv, 0)) itm[o] = 0;
-        else itm[o + 5] = gt;
-        continue;
-      }
-      if (Math.abs(dz) < 2.6 && Math.abs(px - itm[o + 1] * L) < 2.1) {
-        itm[o] = 0;
-        g.cans++;
-        if (g.nstock < G.nitroMax) g.nstock++;
-        else {
-          g.score += 500 * mult;
-          g.pC += 500 * mult;
+      if (!inp.nitro && g.nstock < G.nitroMax) {
+        g.nch += 1 / nitroNeed(lv);
+        if (g.nch >= 1 - 1e-9) {
+          g.nstock++;
+          g.charges++;
+          g.nch = g.nstock < G.nitroMax ? Math.max(0, g.nch - 1) : 0;
+          out.push({ k: "charge", n: g.nstock, l: g.lives });
         }
-        out.push({ k: "item", n: g.nstock, l: g.lives });
       }
     }
     const lvN = Math.floor(lv);
@@ -1966,7 +1926,7 @@
       if (g.icM === I_FLUNG) {
         g.icX += g.icVx * DT2;
         g.icVx *= Math.exp(-DT2 / 0.35);
-        g.icZ += (5 - 55 * u * u) * DT2;
+        g.icZ += (6 - 40 * u * u) * DT2;
         if (g.icZ <= G.icZ0 - 2) {
           g.icM = I_OFF;
           g.icZ = -60;
@@ -2357,7 +2317,7 @@
       if (this._T < T) this.stateAt(T);
       return this._nitros;
     }
-    // 1 when a nitro canister can be fired now
+    // 1 when a nitro charge can be fired now
     turboReady(T) {
       if (this.phaseAt(T).phase !== "cruise") return 0;
       const st = this.stateAt(T);
@@ -2463,6 +2423,7 @@
       st.paused = 0;
       st.nOn = 0;
       st.lane = 0;
+      st.tapes = GAME.tapesStart;
       let lv0 = 0;
       for (const d of diffs) if (d.t <= T) lv0 = d.lv;
       st.g = freshGame(runSeed(o.seed, st.run), o.free, lv0);
@@ -2661,7 +2622,7 @@
           if (o.k === "swipe") {
             st.lane = o.back;
             st.xv = o.dir * GAME.swipeKick;
-          } else if (o.k === "tape") st.tapes = Math.min(GAME.maxTapes, st.tapes + 1);
+          }
         }
         if (g.over) {
           st.over = g.over;
@@ -2772,35 +2733,30 @@
     { type: "lane", t: 17.55, dir: -1 },
     { type: "lane", t: 20.95, dir: 1 },
     { type: "lane", t: 22.25, dir: -1 },
-    { type: "lane", t: 23.1, dir: 1 },
-    { type: "lane", t: 26.1, dir: -1 },
-    { type: "lane", t: 28, dir: 1 },
-    { type: "lane", t: 28.95, dir: 1 },
-    { type: "lane", t: 30, dir: -1 },
-    { type: "turbo", t: 30.2 },
+    { type: "lane", t: 23.65, dir: 1 },
+    { type: "lane", t: 26.05, dir: -1 },
+    { type: "lane", t: 28.4, dir: 1 },
     { type: "env", t: 34, preset: 1 },
-    { type: "lane", t: 37.5, dir: -1 },
-    { type: "lane", t: 43.75, dir: 1 },
+    { type: "lane", t: 36.7, dir: -1 },
+    { type: "turbo", t: 38.3 },
     { type: "env", t: 44, preset: 2 },
-    { type: "lane", t: 44.7, dir: -1 },
-    { type: "lane", t: 46.9, dir: 1 },
-    { type: "lane", t: 48.05, dir: -1 },
-    { type: "lane", t: 51.45, dir: 1 },
+    { type: "lane", t: 45.45, dir: 1 },
+    { type: "lane", t: 47.1, dir: -1 },
+    { type: "lane", t: 50.1, dir: 1 },
+    { type: "lane", t: 52.35, dir: -1 },
     { type: "env", t: 54, preset: 3 },
-    { type: "lane", t: 55.05, dir: -1 },
-    { type: "lane", t: 56.1, dir: 1 },
-    { type: "lane", t: 57.85, dir: -1 },
-    { type: "lane", t: 59.2, dir: 1 },
-    { type: "lane", t: 61.6, dir: 1 },
-    { type: "lane", t: 62.6, dir: -1 },
+    { type: "lane", t: 54.25, dir: 1 },
+    { type: "lane", t: 55.7, dir: -1 },
+    { type: "lane", t: 59.4, dir: 1 },
+    { type: "lane", t: 62.65, dir: 1 },
     { type: "env", t: 64, preset: 0 },
-    { type: "turbo", t: 67.05 },
+    { type: "lane", t: 64.75, dir: -1 },
+    { type: "lane", t: 68.6, dir: -1 },
     { type: "music", t: 70, on: false },
-    { type: "lane", t: 72.55, dir: 1 },
     { type: "music", t: 73, on: true },
-    { type: "lane", t: 74.75, dir: -1 },
-    { type: "lane", t: 77.9, dir: -1 },
-    { type: "lane", t: 78.85, dir: 1 },
+    { type: "lane", t: 73, dir: 1 },
+    { type: "lane", t: 74.15, dir: 1 },
+    { type: "turbo", t: 75.95 },
     { type: "home", t: 80 },
     { type: "start", t: 83 }
   ];
@@ -3102,6 +3058,29 @@
       B.fxR[i] += y;
       B.rev[i] += y * 0.08;
       return t < 2.2;
+    }
+  };
+  var Whoosh = class extends Voice {
+    // a rush of air sweeping across: the launch of a run, the nitro stinger, a close call
+    constructor(s, o, v) {
+      super(s, o);
+      this.v = v;
+      this.rl = new RNG(s.seed());
+      this.rr = new RNG(s.seed());
+      this.bl = new SVF();
+      this.br = new SVF();
+    }
+    tick(B, i, t) {
+      if ((this.n & 15) === 0) {
+        const c = 300 + 4200 * exp(-t / 0.3);
+        this.bl.set(c, 1.4);
+        this.br.set(c * 0.9, 1.4);
+      }
+      const a = Math.min(1, t / 0.02) * exp(-t / 0.4) * 0.5 * this.v;
+      const p = Math.min(1, t / 0.8) * 2 - 1;
+      B.fxL[i] += this.bl.bp(this.rl.next()) * a * panL(p);
+      B.fxR[i] += this.br.bp(this.rr.next()) * a * panR(p);
+      return t < 1.6;
     }
   };
   var Riser = class extends Voice {
@@ -3514,6 +3493,70 @@
       B.sfxL[i] += y * this.l;
       B.sfxR[i] += y * this.r;
       return u < this.dur * 7;
+    }
+  };
+  var Cell = class extends Voice {
+    constructor(s, o, k = "a", pan = 0) {
+      super(s, o);
+      this.k = k;
+      const R = this.rn = new RNG(s.seed());
+      this.dt = 1 + 0.015 * R.next();
+      this.g = 1 + 0.12 * R.next();
+      this.l = panL(pan);
+      this.r = panR(pan);
+      this.p1 = 0;
+      this.p2 = 0;
+      if (k === "c") {
+        this.f = new SVF();
+        this.f.set(900, 0.7);
+      }
+      if (k === "d") {
+        this.f = new SVF();
+        this.f.set(2300 * this.dt, 1.3);
+        this.f2 = new SVF();
+        this.f2.set(5200, 0.8);
+      }
+    }
+    tick(B, i, t) {
+      let y = 0, len = 0.4;
+      switch (this.k) {
+        case "b": {
+          this.p1 += 2093 * this.dt / SR;
+          this.p2 += 3371 * this.dt / SR;
+          y = (sin(TAU2 * this.p1) * exp(-t / 0.05) + sin(TAU2 * this.p2) * 0.5 * exp(-t / 0.028)) * Math.min(1, t / 15e-4) * 0.026;
+          len = 0.35;
+          break;
+        }
+        case "c": {
+          this.p1 += (330 + 70 * exp(-t / 0.012)) * this.dt / SR;
+          y = (sin(TAU2 * this.p1) * exp(-t / 0.06) * Math.min(1, t / 3e-3) + this.f.lp(this.rn.next()) * exp(-t / 6e-3) * 0.35) * 0.125;
+          len = 0.4;
+          break;
+        }
+        case "d": {
+          const n = this.rn.next(), e = Math.min(1, t / 0.012) * exp(-t / 0.07);
+          y = (this.f.bp(n) + this.f2.bp(n) * 0.25) * e * 0.12;
+          len = 0.45;
+          break;
+        }
+        case "e": {
+          this.p1 += 659.3 * this.dt / SR;
+          this.p2 += 988.9 * this.dt / SR;
+          const e = (1 - exp(-t / 0.022)) * exp(-t / 0.17);
+          y = (sin(TAU2 * this.p1) + sin(TAU2 * this.p2) * 0.6) * e * 0.026;
+          len = 0.9;
+          break;
+        }
+        default: {
+          this.p1 += (760 - 250 * exp(-t / 0.014)) * this.dt / SR;
+          y = sin(TAU2 * this.p1) * exp(-t / 0.065) * Math.min(1, t / 3e-3) * 0.055;
+          len = 0.4;
+        }
+      }
+      y *= this.g;
+      B.sfxL[i] += y * this.l;
+      B.sfxR[i] += y * this.r;
+      return t < len;
     }
   };
   var Click = class extends Voice {
@@ -3960,6 +4003,9 @@
       this.eng = [new Saw(0), new Saw(0.5), new Saw(0.25)];
       this.engF = 60;
       this.engLp = new SVF();
+      this.windL = new SVF();
+      this.windR = new SVF();
+      this.wr = [new RNG(77), new RNG(78)];
       this.levels = { music: 0, peak: 0 };
       this.smp = {};
     }
@@ -4072,8 +4118,8 @@
           v = new Flyby(s, o, n.v ?? 1, n.pan || 0, n.f || 1);
           break;
         case "whoosh":
-          return;
-        // (no whooshes: no wind noise of any kind)
+          v = new Whoosh(s, o, n.v ?? 1);
+          break;
         case "bass":
           v = new Bass(s, o, n.n, n.v, n.d);
           break;
@@ -4170,10 +4216,10 @@
           break;
         // the threat level rises: three tones, a low boom, a cymbal   // the threat level rises
         case "near":
-          v = new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2);
-          this.voices.push(new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
+          v = new Whoosh(s, o, 0.45);
+          this.voices.push(new Blip(s, o, 880, 1320, 0.07, 0.07, -0.2), new Blip(s, o, 1320, 1980, 0.07, 0.06, 0.2, 0.07));
           break;
-        // a close call: two rising blips (no whoosh)
+        // a close call: a rush of air and two rising blips
         case "smash": {
           v = new Crunch(s, o, n.v ?? 0.9, n.pan || 0, 0);
           this.duck(o, 0.32, 0.12);
@@ -4217,6 +4263,10 @@
           this.duck(o, 0.45, 0.2);
           break;
         // rammed, slammed or shot: the blow itself
+        case "cell":
+          v = new Cell(s, o, n.k || "c", n.pan || 0);
+          break;
+        // an energy cell picked up
         // the results screen: a tick as each line is counted, the total landing, the grade stamped on it, a fanfare for a new best
         case "tally": {
           const f = 523.25 * Math.pow(2, (n.n || 0) * 2 / 12);
@@ -4422,6 +4472,10 @@
       } else this.engF = ef;
       const cm = ph.phase === "ign" ? cineMix(ph.it) : null;
       this.engLp.set(ec, 0.9);
+      const wv = Math.min(vel, 112), wx = Math.min(Math.max(0, vel - 112), 360);
+      this.windL.set(250 + wv * 22 + wx * 5, 0.7);
+      this.windR.set(280 + wv * 24 + wx * 5.5, 0.7);
+      const wg = 9e-4 * Math.pow(wv, 1.1) * (1 + 0.55 * wx / 360) * ambG;
       const whF = 700 + vel * 8, whG = ph.phase === "cruise" ? 7e-3 * Math.pow(Math.min(1.3, vel / 230), 2.5) * ambG : 0;
       {
         const st = this._st, g = st.g, run = ph.phase === "cruise" && st.run > 0 && !g.free && !st.paused && T >= st.hold && st.over !== 1;
@@ -4545,7 +4599,8 @@
           mL *= dg;
           mR *= dg;
         }
-        let xL = this.hpL.hp(mL + B.fxL[i] + eo), xR = this.hpR.hp(mR + B.fxR[i] + eo);
+        const wl = this.windL.bp(this.wr[0].next()) * wg, wr = this.windR.bp(this.wr[1].next()) * wg;
+        let xL = this.hpL.hp(mL + B.fxL[i] + eo + wl), xR = this.hpR.hp(mR + B.fxR[i] + eo + wr);
         const pk = Math.max(Math.abs(xL), Math.abs(xR));
         const lv = 20 * Math.log10(pk + 1e-9), over = lv + 9;
         let gr = over <= -3 ? 0 : over >= 3 ? over * 0.55 : 0.55 * (over + 3) * (over + 3) / 12;

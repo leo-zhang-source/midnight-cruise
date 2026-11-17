@@ -2,7 +2,7 @@
 // description. Pure function — no wall clock, no hidden state.
 import { IGN, IGNITION, CINE, BAR, TURBO, PRESETS, TITLE_EXIT, ROAD, LANE_FEEL, GAME, neonPower, drumPulse } from './cue.js';
 import { DT } from './timeline.js';
-import { NV, VF, NC, CF, NI, IF, PICK_FADE, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, I_FLUNG, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf } from './game.js';
+import { NV, VF, NC, CF, PICK_FADE, T_TRUCK, T_TAXI, T_BLOCK, T_WEAVE, COMMIT, SIDE, NASTY, P_WARN, P_CHARGE, P_BACK, P_HOOK, I_OFF, I_TELL, I_SLAM, I_LEAVE, I_FLUNG, H_TWIN, H_WALK, heliStrikes, icMoveT, sCurve, gameMult, policeClose, sCurveD, sCurveA, weave, laneV, laneRate, aheadFor, sway, lvOf, nitroNeed } from './game.js';
 import { clamp, lerp, lin, smooth, smoother, easeOutCubic, easeInOutCubic, easeOutExpo, easeInCubic, spring, ring, hash1, vnoise, sat } from './util.js';
 import { blendPalette } from './palette.js';
 import { cinemaShot, cinemaTail, cinemaUI } from './cinema.js';
@@ -95,7 +95,7 @@ const POP = {
   lock: (e) => [e.pat === H_WALK ? (e.b > 0 ? 'BARRAGE LEFT → RIGHT · SLIP IN BEHIND IT' : 'BARRAGE RIGHT → LEFT · SLIP IN BEHIND IT') : e.pat === H_TWIN ? 'TWIN SEARCHLIGHTS · TAKE THE DARK LANE' : 'SEARCHLIGHT LOCK · CHANGE LANE', 'bad'],
   icwarn: (e) => [`INTERCEPTOR COMING UP ON YOUR ${e.side < 0 ? 'LEFT' : 'RIGHT'}`, 'bad'], ictell: (e) => [`INTERCEPTOR CUTTING IN · GO ${e.side < 0 ? 'RIGHT' : 'LEFT'}`, 'bad'],
   mirror: () => ['CRUISER CUTTING YOU OFF', 'bad'], pincer: () => ['PINCER', 'bad'], dodge: (e) => [`DODGED +${e.pts}`, 'good'],
-  tape: () => ['+1 SPARE TAPE', 'good'], item: (e) => [e.l < 2 ? 'CANISTER · FIRE IT TO SHAKE THEM OFF' : `CANISTER · NITRO ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
+  charge: (e) => [e.l < 2 ? 'NITRO CHARGED · FIRE IT TO SHAKE THEM OFF' : `NITRO CHARGED ×${e.n}`, 'good'], nitro: () => ['NITRO BOOST', 'hot'],
   draft: () => ['SLIPSTREAM', 'info'], revive: () => ['REWOUND', 'info'], shove: (e) => [e.ic ? 'INTERCEPTOR SMASHED OFF THE ROAD' : 'POLICE KNOCKED BACK', 'hot'],
   outrun: (e) => [e.who === 'ic' ? 'INTERCEPTOR LEFT BEHIND' : 'GRAPPLER OUTRUN', 'good'],
 };
@@ -104,7 +104,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const stepping = !sim.over && T >= sim.hold && !sim.paused;
   const back = stepping ? (1 - sim.gf) * DT : 0;          // the state is from the step after T: step positions back
   const ahead = aheadFor(g), far = (dz) => smooth(lin(dz, ahead - 2, ahead - 70));
-  const out = { on: 1, veh: [], cells: [], items: [], bursts: [], pol: null, ram: null, grap: null, heli: null, ic: null };
+  const out = { on: 1, veh: [], cells: [], bursts: [], pol: null, ram: null, grap: null, heli: null, ic: null };
   if (g.free) { ui.g = { on: 1, free: 1, run: sim.run, gear: g.gear + 1, nstock: sim.g.nstock, tapes: 0, over: 0, overU: 0, paused: sim.paused, rew: 0, pops: [], star: 0, lives: 2, close: 0, hint: 0, pol: 0 }; return out; }
   const veh = g.veh;
   for (let i = 0; i < NV; i++) {
@@ -149,7 +149,6 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
       if (dz > -8 && dz < ahead) out.cells.push({ x: fo ? cel[o + 9] * L : x, dz, fade: far(dz) * (fo ? gone : 1) });
     }
   }
-  for (let i = 0; i < NI; i++) { const o = i * IF; if (g.itm[o]) { const dz = g.itm[o + 2] - g.gd - rel; out.items.push({ id: i, x: g.itm[o + 1] * L, dz, fade: far(dz) * (g.itm[o + 5] ? 1 - sat((g.gt - g.itm[o + 5]) / PICK_FADE) : 1) }); } }
   // the police: pursuit car (dz < 0 = behind us) and its grappler, the lane warning, the helicopter at three stars
   const close = policeClose(g);
   out.pol = { x: g.polX, dz: g.polZ, mode: g.polM, close: close ? 1 : 0, star: g.star };
@@ -186,7 +185,7 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
   const side = (lane) => Math.sign(lane * L - sim.x) || 0;
   for (const e of tl.gameEvents(T - 1.9, T)) {
     const age = T - e.t;
-    if ((e.k === 'smash' || e.k === 'wreck') && age < 1.25) out.bursts.push({ x: e.lane * L, dz: e.dz - age * (sv.vel - g.vt), dz0: e.dz, age, type: e.type, seed: e.t * 91.7, kind: e.k, n: e.n || 0, dir: e.dir || 0, id: e.id || 0 });
+    if ((e.k === 'smash' || e.k === 'wreck') && age < 1.8) out.bursts.push({ x: e.lane * L, dz: e.dz - age * (sv.vel - g.vt), dz0: e.dz, age, type: e.type, seed: e.t * 91.7, kind: e.k, n: e.n || 0, dir: e.dir || 0, id: e.id || 0 });
     else if (e.k === 'shove' && age < 0.7) out.bursts.push({ x: e.ic ? sim.x + e.dir * 1.6 : sim.x, dz: e.ic ? 0 : -3, age, seed: e.t * 61.3, kind: 'slam', dir: e.dir || 0 });
     else if (e.k === 'crash' && age < 1.2) out.bursts.push({ car: 1, x: sim.x, dz: 0, age, seed: e.t * 53.3 });
     else if (e.k === 'swipe' && age < 0.6) out.bursts.push({ x: sim.x - e.dir * 1.0, dz: 0, age, seed: e.t * 37.1, kind: 'scrape', dir: -e.dir });
@@ -224,8 +223,8 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     if (e.k === 'strike' && age < (e.d || 0.45) && Math.abs(e.lane * L - sim.x) < L * 1.6) kick(side(e.lane), 0.0035 * (1 - age / (e.d || 0.45)), age % 0.09, 70);   // gunfire nearby rattles the camera
     if (e.k === 'level' && e.n && age < 0.5) { { post.tracking = Math.max(post.tracking, 0.45 * Math.exp(-age / 0.14)); post.trackY = 0.5 + 0.4 * Math.sin(e.n); } post.rgb = Math.max(post.rgb, 1 + 3 * Math.exp(-age / 0.2)); glow([0.9, 0.1, 0.8], 0.09 * Math.exp(-age / 0.15)); }
     if (e.k === 'star' && e.up && age < 0.9) { const bl = Math.floor(age * 10) % 2; glow(bl ? [0.05, 0.15, 1] : [1, 0.04, 0.1], 0.07 * (1 - age / 0.9)); }
-    if (e.k === 'item' && age < 0.4) glow([1, 0.72, 0.2], 0.14 * Math.exp(-age / 0.1));
-    if (e.k === 'item' && age < 1.6) gain = { age, n: e.n };                 // a canister taken aboard: +1 NITRO rises from the button
+    if (e.k === 'charge' && age < 0.4) glow([1, 0.72, 0.2], 0.14 * Math.exp(-age / 0.1));
+    if (e.k === 'charge' && age < 1.6) gain = { age, n: e.n };               // the energy has filled a nitro charge: +1 NITRO rises from the button
     if ((e.k === 'smash' || e.k === 'near' || e.k === 'dodge' || e.k === 'shove' || e.k === 'chainend') && age < 0.4) bump = Math.max(bump, Math.exp(-age / 0.1));
     const p = POP[e.k] && POP[e.k](e);
     if (p && age < 1.6) pops.push({ id: e.k + e.t.toFixed(3), text: p[0], tone: p[1], age });
@@ -276,9 +275,10 @@ function gameFrame(tl, T, sim, sv, rew, car, post, ui, reduced) {
     // the smash chain: links so far, what it has paid, how much of its window is left, its milestone (−1: none yet); `hit`: the last link
     // (for the punch of the number), `bank`: the chain just ended. Shown from the first smash.
     chain: lg.chain && !sim.over ? { n: lg.chain, pts: Math.round(lg.chainPts), left: sat(1 - (lg.gt - lg.chainT) / G.chainWin), tier: chainTier(lg.chain) } : null, hit, bank,
-    cellAge, tapeK: (lg.cells % G.tapeEvery) / G.tapeEvery, cans: lg.cans,
+    // the nitro's charge: how far the next one is (0..1), how many cells that still takes, whether the stock is full or a burst is burning
+    cellAge, charge: lg.nstock >= G.nitroMax ? 1 : lg.nch, toGo: Math.max(1, Math.ceil((1 - lg.nch) * nitroNeed(lvOf(lg)) - 1e-6)), full: lg.nstock >= G.nitroMax ? 1 : 0, burning: sim.nOn ? 1 : 0,
     stats: { dist: lg.gd, time: lg.gt, vmax: lg.vmax, best: lg.best, near: lg.near, smash: lg.smash, star: lg.starMax, level: lg.lvN, lv0: lg.lv0, dodges: lg.dodges, passed: lg.passed,
-      cells: lg.cells, cans: lg.cans, bursts: lg.bursts, chain: lg.chainBest, takedown: lg.takedown,
+      cells: lg.cells, charges: lg.charges, bursts: lg.bursts, chain: lg.chainBest, takedown: lg.takedown,
       pts: { dist: lg.pD, pass: lg.pP, near: lg.pN, smash: lg.pS, dodge: lg.pG, cells: lg.pC, draft: lg.pF } },
   };
   return out;

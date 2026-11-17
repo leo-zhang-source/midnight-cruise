@@ -19,6 +19,63 @@ Your feedback was that the slam chord sounded like noise and that the site playe
   - Measured over the 0.8 s after the slam, spectral flatness fell from 0.68 to 0.55 (0 = tonal, 1 = noise) and energy above 4 kHz from 13.6 % to 4.9 %.
   - The previous render is kept as `renders/audio/ignition_v1_synth_only.wav` for A/B comparison.
 
+## Revision 49: nitro charged by energy, three tapes, wind, vehicles that turn to light
+
+Five things were asked for.
+
+### 1. Nitro is charged by energy, not picked up
+
+- **No more canisters on the road.** The energy cells charge the nitro: 50 cells fill one charge at level 0, rising to 80 as the threat level climbs (the same scarcity curve the canisters had). A run starts half charged. Up to three charges are kept.
+- **It does not charge while it burns.** Cells taken during a burst still score. Without this a burst spent collecting would nearly pay for the next one.
+- **How often.** With the bot's driving the first charge comes 15 to 31 s into a run and the next ones 25 to 35 s apart, or 35 to 40 s when every charge is fired at once. That is close to the old canisters (15 s, then every 30 to 45 s).
+- **On screen.** The bar in the ENERGY panel is now the nitro's charge, with the cells still needed ("17 TO NITRO", then NITRO CHARGED, NITRO FULL or NITRO BURNING). The NITRO button's ring fills with it and shows the percentage; its pips are the charges in stock.
+- The canister model, its pickup logic and the bot's canister-seeking are removed.
+
+### 2. Three tapes a run
+
+Every run starts with three spare tapes and gets no more. Before, a run started with one, earned one per 100 cells, and what was left carried over into the next run.
+
+### 3. The wind is back
+
+Restored as it was before Revision 38: the road wind under the engine, and the rush of air at the launch of a run, when the nitro fires and on a close call. The car is much faster now than it was then, so above the old top speed the wind grows more slowly and stays lower in pitch; otherwise a nitro burst at the end of a run would be hiss. The pass-by sound of a car in the next lane (removed separately, in Revision 36) is still off.
+
+### 4. Energy pickup sound: five designs to choose from
+
+All five are soft, and none is a note in a scale: each sounds the same every time, with a hair of random pitch and level so a line of cells does not rattle.
+
+| | Name | What it is | Level against the game |
+|---|---|---|---|
+| A | Droplet | a sine that rises as it starts, like a drop into water | −17 dB |
+| B | Glass | two high partials, a fingernail on a glass | −24 dB |
+| C | Felt | a low, round thump, a felt mallet on wood | −14 dB |
+| D | Breath | a puff of filtered air, no pitch at all | −19 dB |
+| E | Glow | a slow swell of two tones a fifth apart; a run of cells blends into one shimmer | −20 dB |
+
+- They can be heard on the audition page (each alone, and in the game's own mix), rendered by the game's audio engine: `tools/cell-sounds.mjs`.
+- **Chosen: C, felt, and louder.** You picked C and asked for more of it, so it is the game's pickup sound now, 4.4 dB louder than on the first audition (about −10 dB against the game). The others can still be tried with `?cell=a`, `b`, `d`, `e`; `?cell=off` plays none.
+
+### 5. A vehicle that is hit is thrown, then turns to points of light
+
+- **The rhythm.** The blow (flash, sparks, a ring over the road, the picture held 55 ms). Then the vehicle is carried on ahead of you and off to the side, spinning, whole, lamps lit, for a third of a second. From 0.34 s it breaks up from the road upwards into fine points of light, and by 0.8 s the body is gone. The points carry a little of its motion on, rise, twinkle, and stream away behind you for about another half second.
+- **Everywhere a vehicle is hit:** rammed in a nitro burst, ploughed through on your first life, and the interceptor thrown off the road (it starts to break up a little later, at 0.42 s, once it is clear of the rail). The cube shards are gone; only your own car still shatters when the run ends.
+- The body itself dissolves, in the vehicle shader: it is cut into small cells, each shrinks to a point and burns white-gold before it goes.
+
+### What was verified
+
+- **Simulation tests** (`tools/game-test.mjs`): 105 pass. New or changed: a charge takes 50 cells (the first one half), three are kept, nothing charges while a burst burns, no canisters exist, three tapes a run and three again on the next run, three rewinds granted and the fourth refused.
+- **Browser tests** (`tools/game-ui.mjs`): 62 pass, including: a run opens at 50 % charge with three tapes; a full charge shows one pip and READY; every cell plays the pickup sound once, in the chosen design; the energy panel shows the charge.
+- **The other suites** pass: `interact` 44, `touch` 8, `auto-env-test` 7, `adapt-test` 5, `shake-check` 4, `smoke` on the three built pages, the iPhone 13 WebKit smoke test.
+- **Fairness.** Removing the canisters changed the traffic's random sequence, so the soak was rerun: 16 seeds × 300 s without nitro, 16 × 300 s firing every charge, and 8 × 300 s from level 12, all without a hit. No cell overlapped a vehicle in 8 × 240 s (`tools/pickup-overlap.mjs`).
+- **Frames.** I looked at the throw and the break-up frame by frame for a nitro smash, a plain wreck and the interceptor, and at the energy panel and the NITRO button before, at and after a charge.
+- **Sound levels.** The wind sits 20 to 28 dB under the rest of the mix (−42 dB at the start of a run, −35 dB in top gear, −33 dB in a nitro burst). No effect clips.
+- **The canonical demo run** was recorded again (the traffic changed). It is clean, with two charges earned and fired and chains of 2 and 8.
+
+### What I could not check
+
+- **I have not heard any of it.** The five pickup sounds and the wind were measured, not listened to. Choosing the pickup sound is yours to do by ear.
+- **Real phones.** Emulation only, as before.
+- **The store pages.** The itch.io description on the live page still says canisters and "one tape, another per 100 cells". The copy in the repository is corrected; the live page changes when this revision is published.
+
 ## Revision 48: hits that hit, the smash chain, a results screen
 
 Six things were asked for. They were built as one piece: a nitro burst is now the game's big scoring moment, the hits around it land harder, and the run ends on a screen that adds it all up.
