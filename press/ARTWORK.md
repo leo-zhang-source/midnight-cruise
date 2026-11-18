@@ -1,6 +1,10 @@
 # Store artwork provenance
 
-## Published cover and banner
+## Selected replacement cover
+
+`cover-1920x1080.jpg` is the original 1920 × 1080 JPEG supplied and selected by the developer on 2026-11-17 (`04_cruise_logo-left_1920x1080.jpg`). It is copied without cropping, resizing or repainting, preserving the full title and car composition. Published as the itch.io cover on 2026-11-17 and verified on the public creator page. itch.io automatically crops its 315 × 250 listing thumbnail to fit, trimming the sides of this wide image.
+
+## Previous published cover and banner
 
 The cover retains the previously generated purple PHANTOM and police pursuit illustration. The banner is a local edit of the original wide illustration, made with OpenAI's built-in image generation tool. The image generation CLI was not used.
 

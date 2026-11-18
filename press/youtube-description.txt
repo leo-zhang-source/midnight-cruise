@@ -1,0 +1,35 @@
+Neon City. 1986. Make every charge count.
+
+Drive the PHANTOM through a neon-lit police pursuit in MIDNIGHT CRUISE — 1986, a free browser arcade driving game with an original synthwave soundtrack.
+
+Read the traffic. Collect energy. Save your nitro for the moment the road closes in—or turn a blockade into a smash chain. Hit vehicles fly, then dissolve into cyan and magenta digital fragments as the points stack up.
+
+Nitro becomes harder to charge as the threat level rises. Every run gives you just three VHS tapes to rewind your last mistake, restoring the life state you had three seconds earlier. How far can you go, and what grade will you earn?
+
+▶ PLAY FREE ON ITCH.IO
+https://leo8654.itch.io/midnight-cruise
+
+▶ PLAY DIRECTLY IN YOUR BROWSER
+https://leo-zhang-source.github.io/midnight-cruise/
+
+▶ SOURCE CODE ON GITHUB
+https://github.com/leo-zhang-source/midnight-cruise
+
+• Escalating police pursuit, roadblocks and aerial threats
+• Energy-charged nitro: smash chains, an escape route and a lost life restored
+• Visible energy pickup count and a full score breakdown with a final grade
+• Three rewind tapes per run—no extra tapes earned
+• Neon highways, cyber particles and retro VHS atmosphere
+• Original synthwave music, rushing wind and soft energy-pickup sounds
+• Keyboard, mouse and touch controls; adjustable starting threat level
+
+Free to play. No download required. Game interface in English.
+Use a modern browser with WebGL 2. Landscape recommended on mobile. Headphones on.
+
+霓虹城，1986 年。让每次充能都值得。
+
+驾驶 PHANTOM 穿越车流，收集能量为氮气充能，用连续撞击冲破封锁、积累奖励。被撞车辆翻飞后解体为赛博数字碎片，结算页面记录你的得分构成与评级。
+
+威胁越高，氮气充能所需的能量越多。每局固定三盘磁带，倒带三秒恢复当时的生命状态，不会自动补满生命。免费浏览器游戏，支持键盘、鼠标与触屏；游玩和 GitHub 源码链接见上方。
+
+#MidnightCruise #Synthwave #IndieGame #ArcadeRacing #Retrowave

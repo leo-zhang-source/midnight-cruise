@@ -26,13 +26,19 @@ Start at **LV 0** while you learn the traffic and attack patterns, or choose a s
 
 ![The PHANTOM accelerates past two trucks on an orange neon highway](press/screenshot-07-nitro-trucks.jpg)
 
+## Make every charge count
+
+Collect energy, choose your moment, and turn a police blockade into a neon smash chain. Nitro is charged by roadside energy cells, with up to three charges in reserve. Charging takes more cells as the threat level rises; cells collected during a burst still score but do not recharge it. Each run begins 30% charged, so your first escape has to be earned.
+
+Chain vehicle hits within one nitro burst for increasing smash rewards, with punchy sound, screen shake and on-screen scoring. Hit vehicles fly before breaking into cyan and magenta digital fragments. The energy counter tracks your pickups, and the results screen breaks down your score, awards a grade and highlights a new personal best.
+
 ## Rewind the last three seconds
 
-After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with three tapes.
+After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with three tapes, with no extras earned. Rewinding restores the life state from three seconds earlier; it does not automatically refill both lives.
 
 ## An eighties night drive
 
-A cinematic opening, wireframe hills and a skyline lit in neon set the scene. Scanlines and tape distortion give the picture the texture of an old recording. The original synthwave score is synthesised live and changes as the pursuit intensifies, alongside the sound of shifting gears and approaching sirens.
+A cinematic opening, wireframe hills and a skyline lit in neon set the scene. Scanlines and tape distortion give the picture the texture of an old recording. The original synthwave score is synthesised live and changes as the pursuit intensifies, alongside rushing wind, shifting gears, approaching sirens and soft energy-pickup sounds.
 
 Choose **Sunset, Blue Hour, Afterglow or Lagoon**, or let the palette change as you drive. Headphones recommended.
 

@@ -30,7 +30,11 @@ Single player · Keyboard, mouse or touch · Game interface in English
 
 转向灯、刹车灯和攻击预警，都是提前判断的线索。随着通缉等级升至五星，侧翼拦截车、滚动路障和 AIR-7 会加入追捕。氮气让你短暂向双倍速度冲刺，撞开沿途车辆，并恢复失去的一条生命。沿途拾取的能量会为它充能，最多储存三次，在需要突围时使用。
 
-撞毁或被捕后，可以消耗一盘备用 VHS 磁带，让公路与车流倒退三秒。追逐恢复时，再试一次刚刚错过的换道。每局自带三盘磁带。
+收集能量，选准时机，把警察封锁变成一串氮气撞击连击。氮气由路面的能量单元充能，最多储存三次；威胁等级越高，充满一次所需的能量越多。每局从 30% 充能开始，氮气燃烧期间拾取能量仍可得分，但不会继续充能。
+
+在同一次氮气冲刺中连续撞击车辆，获得递增的连击奖励，配合屏幕震动、音效和即时加分反馈。被撞车辆先翻飞，再解体为青色与洋红色的数字碎片。能量计数记录本局拾取数量；结束后的结算页面展示得分构成、评级与新纪录。
+
+撞毁或被捕后，可以消耗一盘备用 VHS 磁带，让公路与车流倒退三秒。追逐恢复时，再试一次刚刚错过的换道。每局固定三盘磁带，途中不会增加。倒带恢复三秒前的生命状态，不会自动补满两条生命。
 
 线框山丘、霓虹天际线与旧录像质感构成了八十年代的公路夜色。原创合成器配乐实时生成，随着追捕升级加紧节奏。四种色调可手动切换，也可以让夜色随行程流转。建议戴上耳机游玩。
 
@@ -60,13 +64,19 @@ Start at **LV 0** while you learn the traffic and attack patterns, or choose a s
 
 ![The PHANTOM accelerates past two trucks on an orange neon highway.](https://img.itch.zone/aW1hZ2UvNTM3NDc0NS8zMjMzNzkxOC5qcGc=/original/SXxIcm.jpg)
 
+### Make every charge count
+
+Collect energy, choose your moment, and turn a police blockade into a neon smash chain. Nitro is charged by roadside energy cells, with up to three charges in reserve. Charging takes more cells as the threat level rises; cells collected during a burst still score but do not recharge it. Each run begins 30% charged, so your first escape has to be earned.
+
+Chain vehicle hits within one nitro burst for increasing smash rewards, with punchy sound, screen shake and on-screen scoring. Hit vehicles fly before breaking into cyan and magenta digital fragments. The energy counter tracks your pickups, and the results screen breaks down your score, awards a grade and highlights a new personal best.
+
 ### Rewind the last three seconds
 
-After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with three tapes.
+After a wreck or capture, a spare VHS tape lets you return to the moment before it happened. The traffic runs backwards, then the chase resumes with another chance to change lane. Every run starts with three tapes, with no extras earned. Rewinding restores the life state from three seconds earlier; it does not automatically refill both lives.
 
 ### An eighties night drive
 
-A cinematic opening, wireframe hills and a skyline lit in neon set the scene. Scanlines and tape distortion give the picture the texture of an old recording. The original synthwave score is synthesised live and changes as the pursuit intensifies, alongside the sound of shifting gears and approaching sirens.
+A cinematic opening, wireframe hills and a skyline lit in neon set the scene. Scanlines and tape distortion give the picture the texture of an old recording. The original synthwave score is synthesised live and changes as the pursuit intensifies, alongside rushing wind, shifting gears, approaching sirens and soft energy-pickup sounds.
 
 Choose **Sunset, Blue Hour, Afterglow or Lagoon**, or let the palette change as you drive. Headphones recommended.
 
