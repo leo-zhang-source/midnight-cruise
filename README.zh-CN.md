@@ -1,6 +1,6 @@
 # MIDNIGHT CRUISE — 1986
 
-![Midnight Cruise — 1986：PHANTOM 与警车并行的霓虹公路追逐](press/banner-960.png)
+![Midnight Cruise — 1986：霓虹公路上的 PHANTOM、游戏标题与粉色落日](press/cover-1920x1080.jpg)
 
 **1986 年的霓虹城，一场伴着合成器配乐的午夜公路追逐。**
 

@@ -1,6 +1,6 @@
 # MIDNIGHT CRUISE — 1986
 
-![Midnight Cruise — 1986: the PHANTOM alongside police cars on a neon highway](press/banner-960.png)
+![Midnight Cruise — 1986: the PHANTOM on a neon highway beneath the title and a pink sunset](press/cover-1920x1080.jpg)
 
 **A midnight police chase through Neon City, set to an original synthwave soundtrack.**
 
